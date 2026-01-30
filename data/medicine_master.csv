@@ -1,0 +1,23 @@
+medicine_id,generic_name,brand_name,active_ingredient,dosage,form,unit_type,rx_required,stock_quantity,notes
+1,Metformin,Glycomet,Metformin Hydrochloride,500mg,tablet,tablet,1,120,First-line diabetes medication
+2,Metformin,Glycomet SR,Metformin Hydrochloride,1000mg,tablet,tablet,1,80,Sustained release formulation
+3,Glimepiride,Amaryl,Glimepiride,2mg,tablet,tablet,1,100,Sulfonylurea for diabetes
+4,Sitagliptin,Januvia,Sitagliptin Phosphate,100mg,tablet,tablet,1,50,DPP-4 inhibitor
+5,Amlodipine,Amlong,Amlodipine Besylate,5mg,tablet,tablet,1,150,Calcium channel blocker for BP
+6,Telmisartan,Telmikind,Telmisartan,40mg,tablet,tablet,1,90,ARB for hypertension
+7,Losartan,Losar,Losartan Potassium,50mg,tablet,tablet,1,75,ARB for blood pressure
+8,Levothyroxine,Thyronorm 50,Levothyroxine Sodium,50mcg,tablet,tablet,1,200,Thyroid hormone replacement
+9,Levothyroxine,Thyronorm 100,Levothyroxine Sodium,100mcg,tablet,tablet,1,150,Higher dose thyroid replacement
+10,Carbimazole,Neo-Mercazole,Carbimazole,5mg,tablet,tablet,1,60,Antithyroid medication
+11,Paracetamol,Crocin,Paracetamol,500mg,tablet,tablet,0,500,Fever and pain relief
+12,Paracetamol,Dolo 650,Paracetamol,650mg,tablet,tablet,0,400,Higher strength fever relief
+13,Ibuprofen,Brufen,Ibuprofen,400mg,tablet,tablet,0,300,NSAID for pain and inflammation
+14,Dextromethorphan,Benadryl DR,Dextromethorphan Hydrobromide,10mg/5ml,syrup,ml,0,100,Cough suppressant
+15,Guaifenesin,Ascoril D,Guaifenesin,100mg/5ml,syrup,ml,0,80,Expectorant for wet cough
+16,Cetirizine,Alerid,Cetirizine Dihydrochloride,10mg,tablet,tablet,0,250,Antihistamine for allergies
+17,Levocetirizine,Xyzal,Levocetirizine Dihydrochloride,5mg,tablet,tablet,0,180,Non-drowsy antihistamine
+18,Omeprazole,Omez,Omeprazole,20mg,capsule,capsule,0,200,Proton pump inhibitor for acidity
+19,Pantoprazole,Pan D,Pantoprazole Sodium,40mg,tablet,tablet,0,150,PPI for gastric issues
+20,Ranitidine,Zinetac,Ranitidine Hydrochloride,150mg,tablet,tablet,0,120,H2 blocker for acidity
+21,Vitamin C,Limcee,Ascorbic Acid,500mg,chewable tablet,tablet,0,300,Vitamin C supplement
+22,Metformin,Glucophage XR,Metformin Hydrochloride,500mg,tablet,tablet,1,0,OUT OF STOCK - Alternative: Glycomet

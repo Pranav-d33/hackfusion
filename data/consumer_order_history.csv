@@ -1,0 +1,21 @@
+order_id,customer_id,customer_name,medication_id,brand_name,quantity,daily_dose,purchase_date,order_status,indication
+ORD-001,2,Rajesh Kumar,1,Glycomet,30,2,2026-01-15,completed,Type 2 Diabetes
+ORD-002,3,Priya Sharma,6,Telmikind,30,1,2026-01-03,completed,Hypertension
+ORD-003,4,Amit Patel,8,Thyronorm 50,60,1,2025-12-09,completed,Hypothyroidism
+ORD-004,5,Sunita Devi,1,Glycomet,60,2,2026-01-18,completed,Type 2 Diabetes
+ORD-005,2,Rajesh Kumar,11,Crocin,10,3,2026-01-25,completed,Fever
+ORD-006,3,Priya Sharma,16,Alerid,10,1,2026-01-20,completed,Allergies
+ORD-007,4,Amit Patel,18,Omez,20,1,2026-01-10,completed,Acidity
+ORD-008,5,Sunita Devi,5,Amlong,30,1,2026-01-05,completed,Hypertension
+ORD-009,2,Rajesh Kumar,3,Amaryl,30,1,2026-01-10,completed,Type 2 Diabetes
+ORD-010,3,Priya Sharma,12,Dolo 650,15,2,2026-01-26,completed,Fever
+ORD-011,4,Amit Patel,9,Thyronorm 100,30,1,2026-01-01,completed,Hypothyroidism
+ORD-012,5,Sunita Devi,6,Telmikind,30,1,2025-12-28,completed,Hypertension
+ORD-013,2,Rajesh Kumar,1,Glycomet,30,2,2025-12-15,completed,Type 2 Diabetes
+ORD-014,3,Priya Sharma,6,Telmikind,30,1,2025-12-03,completed,Hypertension
+ORD-015,4,Amit Patel,8,Thyronorm 50,60,1,2025-10-09,completed,Hypothyroidism
+ORD-016,2,Rajesh Kumar,1,Glycomet,30,2,2025-11-15,completed,Type 2 Diabetes
+ORD-017,3,Priya Sharma,6,Telmikind,30,1,2025-11-03,completed,Hypertension
+ORD-018,4,Amit Patel,14,Benadryl DR,100,10,2026-01-22,completed,Cough
+ORD-019,5,Sunita Devi,19,Pan D,20,1,2026-01-15,completed,Acidity
+ORD-020,2,Rajesh Kumar,17,Xyzal,10,1,2026-01-12,completed,Allergies

@@ -1,0 +1,513 @@
+> Version: 1.0 — Final PRD for hackathon
+> Scope: Live-demo, India-only, modular monorepo, SQLite + local vector store, Web Speech API voice I/O, Google ADK orchestrator, OpenRouter models (small for parsing + larger for planning). This PRD implements the problem statement from the provided brief. 
+
+---
+
+# 1. One-line Product Summary
+
+Mediloon Agentic Ordering MVP lets customers order medicines by voice or text; it resolves fuzzy names, shows in-stock options for a disease/indication, enforces binary prescription rules (India-only), and autonomously performs the decision → action loop via an agent orchestrator — all demonstrated in a live, traceable flow.
+
+---
+
+# 2. Key Constraints & Decisions (locked)
+
+* Geography: **India only** (regulatory model fixed to India).
+* RX model: **Binary** `rx_required: true|false`. Admin controls rules.
+* Inventory units: **Units** (tablets / ml).
+* Storage: **Monorepo local storage** — SQLite (catalog, inventory, orders) + Chroma (local) for vector search / embeddings.
+* Modularity: **Monorepo modular** (modules separated by folder / interface). No microservices.
+* Voice I/O: **Web Speech API (STT)** and **SpeechSynthesis API (TTS)** in browser.
+* Agent runtime: **Google ADK** as orchestrator.
+* LLM strategy: **Parsing** = small low-latency OpenRouter model; **Planning/Reasoning** = larger OpenRouter model (but not 120B in live).
+* MCP/workflow execution: **On hold** (Zapier/n8n integration planned v2).
+* Demo mode: **Live** (design prioritized for low latency and robust fallbacks).
+* Use only free / local tools where feasible (Chroma + sentence-transformers embeddings local; OpenRouter free models as available).
+
+---
+
+# 3. Align to Problem Statement (reference)
+
+This PRD implements the customer-facing voice/text ordering, predictive & forecast engine proto (forecast limited to chronic meds in MVP), and the multi-agent automation core described in the hackfusion brief. See original feature list and scope in the uploaded brief. 
+
+---
+
+# 4. Primary Users & Personas
+
+* **Customer (Patient)** — uses voice/text to order or request medicines for an indication; receives TTS + UI suggestions; selects and confirms.
+* **Pharmacy Admin** — seeds catalog, mappings, RX flags, synonyms, and inventory; manages admin panel during demo.
+* **Judges / Observers** — watch agent trace UI and see autonomous flow.
+
+---
+
+# 5. MVP Scope (what we will deliver)
+
+**In-scope**
+
+* Voice (STT) + text inputs and TTS feedback.
+* NLU (intent + entity extraction) with small model.
+* Fuzzy name resolution via vector search (Chroma + embeddings).
+* Catalog-driven indication mapping (chronic + OTC: Diabetes, Hypertension, Thyroid; Cold, Fever, Cough).
+* Binary RX enforcement (admin-entered).
+* Admin panel for catalog / inventory / RX / synonyms.
+* Cart flow and add-to-cart via agent.
+* Agent orchestrator (Google ADK) calling tool layer and DB.
+* Trace view (agent reasoning trace) for judges.
+* Local dev deployment (SQLite + Chroma) and ngrok for remote demo.
+
+**Out-of-scope (MVP)**
+
+* Payment & delivery integration.
+* Schedule H/H1 tracking or region branching.
+* OCR prescription ingestion (v2).
+* MCP triggers (Zapier/n8n) — delayed to v2.
+
+---
+
+# 6. Functional Requirements (detailed)
+
+## 6.1 Inputs & NLU
+
+* Accept input: `voice` (microphone) or `text` (input box).
+* STT via Web Speech API; TTS via SpeechSynthesis API.
+* NLU output JSON schema:
+
+```json
+{
+  "intent": "medication_query|brand_query|indication_query|unclear",
+  "value": "string",
+  "raw_text": "string",
+  "confidence": 0.0
+}
+```
+
+* Parsing model must return structured JSON consistently (use `response_format` enforcement in prompts).
+
+## 6.2 Fuzzy Matching & Lookup
+
+* On `brand_query` or `medication_query`: embed text → Chroma vector search → return top-k candidates (k=3).
+* For `indication_query`: deterministic DB join on `medication_indications` → filter by `inventory.stock_quantity > 0`.
+
+## 6.3 Prescription (Safety) Logic
+
+* Medication record contains `rx_required: boolean`.
+* If `rx_required == true`: prompt user (voice + UI) to confirm they have a prescription. If they answer `No`, block adding to cart. If `Yes`, proceed (no file upload in MVP). Admin controls flags.
+
+## 6.4 Alternatives/Substitutions
+
+* Recommend alternatives **only** when they share the **same active ingredient (Tier-1)** and are in stock.
+* Do **not** recommend same-class substitutions automatically. If user requests alternatives explicitly, agent lists options and requires confirmation.
+
+## 6.5 Cart & Order Flow
+
+* Cart model: `{med_id, qty, unit_type}` stored in `orders` table (pending).
+* Adding to cart via UI click or voice confirm.
+* JSON output example for add-to-cart:
+
+```json
+{"action":"add_to_cart","med_id":12,"qty":1,"unit_type":"tablet"}
+```
+
+## 6.6 Forecasting (chronic only)
+
+* Forecast logic (MVP minimal): `depletion_date = last_purchase + (quantity / daily_dose)` if history exists. This runs only for chronic meds (Diabetes, BP, Thyroid). Visual timeline displayed for chronic items.
+
+---
+
+# 7. Data & DB Schemas
+
+All data stored in local SQLite. Vector store in Chroma.
+
+## 7.1 Relational Schema (SQLite)
+
+**medications**
+
+* `id INTEGER PK`
+* `generic_name TEXT`
+* `brand_name TEXT`
+* `active_ingredient TEXT`
+* `dosage TEXT`
+* `form TEXT`
+* `unit_type TEXT` (tablet/ml)
+* `rx_required BOOLEAN`
+* `notes TEXT`
+
+**indications**
+
+* `id INTEGER PK`
+* `label TEXT` (e.g., "Type 2 Diabetes")
+* `category TEXT` ("chronic" | "otc")
+
+**medication_indications**
+
+* `medication_id INTEGER FK`
+* `indication_id INTEGER FK`
+
+**inventory**
+
+* `medication_id INTEGER FK`
+* `stock_quantity INTEGER`
+
+**synonyms**
+
+* `medication_id INTEGER FK`
+* `synonym TEXT`
+
+**orders**
+
+* `order_id INTEGER PK`
+* `user_id INTEGER` (null for demo)
+* `created_at TIMESTAMP`
+* `items JSON` (array of `{med_id, qty}`)
+
+**traces** (New v1.1)
+
+* `id INTEGER PK`
+* `trace_id TEXT UNIQUE`
+* `session_id TEXT`
+* `workflow_type TEXT`
+* `metadata_json TEXT`
+* `created_at TIMESTAMP`
+
+**feedback** (New v1.1)
+
+* `id INTEGER PK`
+* `trace_id TEXT FK`
+* `rating TEXT` ('positive'|'negative')
+* `comment TEXT`
+* `created_at TIMESTAMP`
+
+## 7.2 Vector Store (Pinecone)
+
+* **Provider**: Pinecone (Serverless)
+* **Model**: `llama-text-embed-v2` (NVIDIA – Hosted)
+* **Type**: Dense Vector
+* **Limits**: 5M tokens (Free Tier)
+* **Integration**: Integrated Inference (Pinecone handles embedding generation)
+* **Index**: `medications` namespace
+* **Fields**: `text` (embedded), `brand_name`, `generic_name` (metadata)
+
+---
+
+# 8. Agent & Tool Design (Google ADK)
+
+## 8.1 High-level agents
+
+* **Ordering Agent** (frontline): accepts NLU result; resolves candidate med(s); queries inventory; presents user choices; asks clarifying questions (multi-turn).
+* **Safety Agent**: enforced by orchestrator tools; checks `rx_required`, blocks or asks for confirmation.
+* **Forecast Agent**: runs for chronic meds to compute depletion and generate timeline.
+* **Procurement Agent**: placeholder (v2) — prepares procurement payloads (not active in MVP).
+
+## 8.2 Tool Interface (the agent calls these)
+
+* `tool.queryByIndication(indication: string) -> [med_ids]`
+* `tool.queryByName(name: string) -> [candidates{id,score}]`
+* `tool.getInventory(med_id) -> {stock_quantity}`
+* `tool.getRxFlag(med_id) -> {rx_required}`
+* `tool.addToCart(med_id, qty) -> cart_state`
+* `tool.getHistory(user_id, med_id) -> []` (for forecast)
+* `tool.log_trace(trace_obj) -> ack`
+
+Tools are thin wrappers over DB/Chroma and return JSON. Agents never access DB directly.
+
+---
+
+# 9. NLU & Model Selection
+
+## 9.1 NLU (small model)
+
+* Purpose: intent classification and entity extraction.
+* Candidate models (OpenRouter free tier): `mistral-7b-instruct` / `qwen2.5-7b` / similar.
+* Must enforce JSON response format (strict schema) to avoid hallucinations.
+
+## 9.2 Planner / Reasoner (larger model)
+
+* Purpose: planning, multi-step decisions, question generation, confirmation prompts.
+* Candidate models (OpenRouter mid/large): `qwen2.5-72b`, `deepseek-r1`, `claude-3-sonnet` if available.
+* Keep prompt templates short and deterministic; prefer few-shot for tool call patterns.
+
+## 9.3 Embeddings
+
+* Local `sentence-transformers/all-MiniLM-L6-v2` or OpenRouter embeddings if free; embeddings precompute for all meds and synonyms.
+
+---
+
+# 10. UI / UX Design
+
+## 10.1 Color & Theme
+
+* **Red + White** (Mediloon brand). Buttons red, background white with red accents and readable contrast.
+
+## 10.2 Pages & Components
+
+**Public UI**
+
+* Landing / Home: microphone button, text input field, recent history.
+* Results List: list of candidate meds (brand + dosage + stock + rx flag).
+* Cart: selected items & confirm button.
+* Timeline/Forecast: simple Gantt-like bar for chronic meds.
+* Trace Panel (toggle): shows agent trace JSON for judges.
+
+**Admin UI**
+
+* Login (optional)
+* Medication list view (edit/delete)
+* Add Medication form (fields per DB schema)
+* Inventory manager (edit `stock_quantity`)
+* Synonym manager
+* Indication mapping manager
+* **Observability Dashboard** (New v1.1):
+    * Agent Execution Log (step-by-step traces)
+    * RX Safety Decision Audit
+    * Workflow Traces (Procurement/Refill)
+    * Langfuse public link integration
+    * Real-time activity feed (no emojis, professional slate/indigo theme)
+
+## 10.3 UX Flows
+
+* **Voice flow**: user taps mic → STT listens → NLU parse → ADK agent flow → UI suggestions + TTS prompt → user selects or speaks confirm.
+* **Fallbacks**: if STT accuracy poor → show typed fallback prompt, allow manual selection.
+
+---
+
+# 11. Sequence Flows (Example)
+
+## Flow A — Indication Query (“I need medicine for diabetes”)
+
+1. STT → `"I need medicine for diabetes"`
+2. NLU small model → `{intent: indication_query, value: "diabetes"}`
+3. ADK OrderingAgent calls `tool.queryByIndication("diabetes")`
+4. DB returns meds mapped to diabetes → filter `stock>0`.
+5. ADK builds response → UI list + TTS: “We have Metformin 500mg and Glimepiride 2mg. Which one do you want?”
+6. User selects Metformin → ADK calls `tool.getRxFlag(med_id)` → `true`
+7. ADK TTS asks: “This requires a prescription. Do you have one?”
+8. User: “Yes” → ADK calls `tool.addToCart(med_id,1)`. Cart updated. Trace logged.
+
+## Flow B — Brand fuzzy (“Need glycomet”)
+
+1. STT → "need glycomet"
+2. NLU → `{intent: brand_query, value: "glycomet"}`
+3. ADK calls `tool.queryByName("glycomet")` → embedding search returns Glycomet → map to Metformin record.
+4. Continue as above.
+
+---
+
+# 12. Error Handling & Fallbacks (Live demo critical)
+
+* **STT fails** → fallback to text input with prompt: “Could you type that?”
+* **NLU parsing fails** → "I didn't catch that. Say it again or type." (1 retry)
+* **Vector no-match / low similarity (<0.6)** → "We don't stock this medication." Suggest user type full brand/generic or ask admin to add.
+* **LLM planning timeout** → retry once; if still fails, use precomputed safe script (Scripted Mode).
+* **Inventory 0** → return Tier-1 alternatives if available; else respond "Out of stock."
+* **Unexpected agent error** → show trace + human instructions.
+
+---
+
+# 13. Observability & Trace
+
+* Agent trace panel: records parse, tools called, decisions, API latency, final response. Displayed on screen in readable JSON. Judges must be able to see trace for any example.
+
+**v1.1 Extensions**:
+* **Langfuse Integration**: Full L4 trace export including spans, generations, and IO.
+* **Safety Audit**: Dedicated logging of all RX validation decisions (`RX_SAFETY_DECISION` events).
+* **Feedback Loop**: User rating (+/-) on agent responses stored in `feedback` table.
+* **Workflow Tracing**: End-to-end tracking of async workflows (Procurement, Refill) beyond just chat.
+
+---
+
+# 14. Non-functional metrics to track (MVP)
+
+* **End-to-end latency** (STT→response): target < 2.5s.
+* **Parsing accuracy** (manual test set): target > 90% for top-200 meds.
+* **Vector match accuracy**: top-1 match > 0.75 similarity on test phrases.
+* **Autonomy ratio**: percent of flows that complete without manual admin intervention (target > 70% for in-catalog flows).
+* **Intervention count**: number of times demo operator must intervene (target ≤ 1 per demo flow).
+
+---
+
+# 15. Implementation Plan & Timeline (hackathon-ready)
+
+Monorepo; target completion in 36-48 hours (typical hackathon). Minimal viable schedule — adjust to your available time:
+
+**Day 0 — Prep (0–2 hr)**
+
+* Create repo skeleton, install dependencies (Node, Express, React, Chroma, sentence-transformers), set up SQLite db file structure, create seed data for 20 meds + synonyms + indications.
+
+**Day 1 — Core Backend + DB (4–6 hr)**
+
+* Implement DB models & migration scripts.
+* Implement tool layer functions (queryByName, queryByIndication, getInventory, addToCart).
+* Integrate Chroma, precompute embeddings for seed meds.
+
+**Day 1 — NLU & Small Model Integration (2–4 hr)**
+
+* Integrate OpenRouter small model calls for NLU or implement a regex fallback.
+* Build NLU prompt + JSON schema enforcement.
+
+**Day 1 — Agent Orchestrator (ADK) Setup (3–5 hr)**
+
+* Wire Google ADK with tool functions; implement OrderingAgent, SafetyAgent.
+* Implement trace logging.
+
+**Day 2 — Frontend + Voice UX (4–6 hr)**
+
+* Build React UI: mic button, text input, results list, cart, trace panel, admin UI forms.
+* Integrate Web Speech API for STT, SpeechSynthesis for TTS.
+* Hook to backend endpoints.
+
+**Day 2 — Planner model integration + Final flows (2–4 hr)**
+
+* Integrate planning model via OpenRouter (mid-sized) for multi-step flows.
+* Implement fallback modes (scripted flows).
+
+**Day 2 — Testing & Demo polish (4–6 hr)**
+
+* Run end-to-end flows, fix latency or parsing issues, seed synonyms for common Indian brands, style UI red/white, test audio on target laptop, prepare agent trace examples, pre-seed fallback admissions.
+
+**Day 2–3 — Buffer & Rehearsal (2–4 hr)**
+
+* Rehearse live flows; record fallback video if desired; harden retries.
+
+---
+
+# 16. Repo Structure (suggested)
+
+```
+/mediloon-agent/
+  /backend/
+    src/
+      server.ts
+      /tools/
+        queryTools.ts
+      /agents/
+        orderingAgent.ts
+        safetyAgent.ts
+      /nlu/
+        nluService.ts
+      /db/
+        migrations/
+        seed/
+        models.ts
+      /vector/
+        chromaService.ts
+  /frontend/
+    src/
+      App.jsx
+      components/
+        MicButton.jsx
+        ResultsList.jsx
+        Cart.jsx
+        AdminPanel.jsx
+        TracePanel.jsx
+  /infra/
+    docker-compose.yml (optional)
+  /data/
+    db.sqlite
+    chroma_db/
+  README.md
+```
+
+---
+
+# 17. Seed Data (example entries)
+
+**medications**
+
+```json
+{
+ "id": 1,
+ "generic_name": "Metformin",
+ "brand_name": "Glycomet",
+ "active_ingredient":"Metformin",
+ "dosage":"500mg",
+ "form":"tablet",
+ "unit_type":"tablet",
+ "rx_required": true
+}
+```
+
+**indications**
+
+```json
+{ "id": 1, "label": "Type 2 Diabetes", "category":"chronic" }
+```
+
+**medication_indications**
+
+```json
+{ "medication_id":1, "indication_id":1 }
+```
+
+---
+
+# 18. JSON I/O Examples (final)
+
+**NLU Output**
+
+```json
+{"intent":"indication_query","value":"diabetes","raw_text":"I need medicine for diabetes","confidence":0.92}
+```
+
+**Vector Candidate**
+
+```json
+[{"med_id":1,"generic_name":"Metformin","brand_name":"Glycomet","score":0.88}]
+```
+
+**Tool Response**
+
+```json
+{"inventory":{"med_id":1,"stock_quantity":120},"rx_required":true}
+```
+
+**Agent Trace**
+
+```json
+{
+  "step":"parse",
+  "nlu":{"intent":"indication_query","value":"diabetes"},
+  "step":"lookup",
+  "candidates":[{"id":1,"name":"Metformin","stock":120}],
+  "step":"ask_user",
+  "message":"We have Metformin and Glimepiride. Which one do you want?"
+}
+```
+
+---
+
+# 19. Demo Checklist (live)
+
+* Laptop with Node backend & React frontend running locally.
+* Pre-seeded DB + Chroma with embeddings computed.
+* ngrok ready (if judges not local).
+* Chrome browser for STT/TTS tests.
+* Two prepared test prompts (voice): one `indication_query` (diabetes), one `brand_query` (mispronounced brand).
+* Agent trace panel visible.
+* Fallback typed inputs prepared.
+
+---
+
+# 20. Future Roadmap (post-hackathon)
+
+* Integrate MCP (Zapier/n8n) to place orders / trigger WhatsApp.
+* Add OCR prescription ingestion & upload.
+* Add Schedule H/H1 support (if building production).
+* Multi-region RX rules & multi-language support.
+* Replace local Chroma with managed vector DB for scale.
+
+---
+
+# 21. Acceptance Criteria (how we win)
+
+* Live demo shows: voice input → agent resolves intent → UI shows in-stock options → agent enforces RX check → item added to cart — within ≤ 2.5s E2E for typical queries.
+* Agent trace is visible and explains each step.
+* Admin can add or edit meds during demo and changes are reflected immediately.
+* Substitutions only suggested for same active ingredient and only if in-stock.
+* No hallucinated advice, no autosubstitution across classes, no recommending antibiotics.
+
+---
+
+# Final notes (no fluff)
+
+This PRD is deliberately strict: safety-first, deterministic, and engineered to *win* a hackathon demo. You prioritized live demo + modular code + admin-driven catalog + India + free tools — those constraints are good. Stick to them. Do not add complex, network-heavy features the day before the demo. Focus on the agent autonomy story: parse → decide → act → explain. That’s what makes judges lean forward.
+
+Ready to generate the build plan, seed data, prompt templates, and starter code? Say the word and I’ll produce the repo scaffolding and the exact prompts, tool wrappers, and NLU JSON enforcement templates.
