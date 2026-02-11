@@ -1,195 +1,168 @@
-/**
- * TracePanel - Agent trace display with animations
- */
 import React, { useState, useEffect, useRef } from 'react';
+import { ArrowRight, ExternalLink } from 'lucide-react';
 
 export default function TracePanel({ trace, latency, traceId, traceUrl }) {
-    const [isExpanded, setIsExpanded] = useState(true); // Default open for visibility
-    const [visibleEntries, setVisibleEntries] = useState([]);
-    const prevTraceLength = useRef(0);
+    const [isExpanded, setIsExpanded] = useState(true);
+    const [isZoomed, setIsZoomed] = useState(false);
+    const scrollRef = useRef(null);
 
-    // Animate new trace entries
+    // Auto-scroll to bottom when trace updates
     useEffect(() => {
-        if (trace && trace.length > prevTraceLength.current) {
-            // New entries added - animate them in
-            const newEntries = trace.slice(prevTraceLength.current);
-            newEntries.forEach((_, i) => {
-                setTimeout(() => {
-                    setVisibleEntries(prev => [...prev, prevTraceLength.current + i]);
-                }, i * 100);
-            });
+        if (isExpanded && scrollRef.current) {
+            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
-        prevTraceLength.current = trace?.length || 0;
-    }, [trace]);
+    }, [trace, isExpanded]);
 
     return (
-        <div className="bg-gray-900 rounded-2xl overflow-hidden shadow-xl border border-gray-800/50">
-            {/* Header */}
-            <button
-                onClick={() => setIsExpanded(!isExpanded)}
-                className="w-full px-4 py-3 flex items-center justify-between text-white hover:bg-gray-800/50 transition-all"
-            >
-                <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 bg-gradient-to-br from-green-400 to-emerald-600 rounded-lg flex items-center justify-center shadow-lg shadow-green-500/20">
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="w-4 h-4 text-white"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2.5"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                        >
-                            <polyline points="4 17 10 11 4 5" />
-                            <line x1="12" y1="19" x2="20" y2="19" />
-                        </svg>
-                    </div>
-                    <div className="text-left">
-                        <span className="font-semibold text-sm">Agent Trace</span>
-                        <div className="flex items-center gap-2 mt-0.5">
-                            {latency && (
-                                <span className="text-xs text-emerald-400 font-mono">
-                                    {latency}ms
-                                </span>
-                            )}
-                            {trace && trace.length > 0 && (
-                                <span className="text-xs text-gray-500">
-                                    {trace.length} steps
-                                </span>
-                            )}
+        <>
+            {/* Zoomed Modal View */}
+            {isZoomed && (
+                <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-8">
+                    <div className="w-full max-w-4xl h-[80vh] bg-gray-900 rounded-2xl shadow-2xl border border-gray-700 flex flex-col overflow-hidden">
+                        <div className="flex items-center justify-between px-5 py-3 bg-gray-950 border-b border-gray-800">
+                            <div className="flex items-center gap-3">
+                                <div className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse"></div>
+                                <span className="font-semibold text-gray-200 tracking-wide">Agent Thought Process (Expanded)</span>
+                            </div>
+                            <button
+                                onClick={() => setIsZoomed(false)}
+                                className="p-2 rounded-lg hover:bg-gray-800 text-gray-400 hover:text-white transition-colors"
+                            >
+                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                            {renderTraceContent(trace, traceUrl)}
                         </div>
                     </div>
                 </div>
-                <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className={`w-5 h-5 text-gray-400 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                >
-                    <polyline points="6 9 12 15 18 9" />
-                </svg>
-            </button>
+            )}
 
-            {/* Trace content */}
-            <div className={`transition-all duration-300 overflow-hidden ${isExpanded ? 'max-h-[400px]' : 'max-h-0'}`}>
-                <div className="border-t border-gray-800">
-                    {/* Langfuse Link */}
-                    {traceUrl && (
-                        <div className="p-3 bg-gray-800/50 border-b border-gray-700/50">
-                            <a
-                                href={traceUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-purple-600 to-violet-600 hover:from-purple-500 hover:to-violet-500 rounded-lg text-white text-xs font-medium transition-all shadow-lg shadow-purple-500/20 hover:shadow-purple-500/40"
+            {/* Normal Panel */}
+            <div className={`
+                flex flex-col bg-gray-900 border border-gray-800 shadow-2xl rounded-2xl overflow-hidden transition-all duration-500 ease-in-out
+                ${isExpanded ? 'h-[500px]' : 'h-14'}
+            `}>
+                {/* Header */}
+                <div className="flex items-center justify-between px-5 py-3 bg-gray-950 border-b border-gray-800">
+                    <button
+                        onClick={() => setIsExpanded(!isExpanded)}
+                        className="flex items-center gap-3 hover:opacity-80 transition-opacity"
+                    >
+                        <div className="relative">
+                            <div className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse"></div>
+                            <div className="absolute inset-0 w-2.5 h-2.5 rounded-full bg-green-500 blur-sm opacity-50"></div>
+                        </div>
+                        <span className="font-semibold text-gray-200 tracking-wide text-sm">Agent Thought Process</span>
+                        <svg
+                            className={`w-4 h-4 text-gray-500 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}
+                            fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                        >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </button>
+
+                    <div className="flex items-center gap-3">
+                        {latency && (
+                            <span className="text-xs font-mono text-emerald-400 bg-emerald-400/10 px-2 py-1 rounded">
+                                {latency}ms
+                            </span>
+                        )}
+                        {isExpanded && (
+                            <button
+                                onClick={() => setIsZoomed(true)}
+                                className="p-1.5 rounded-lg hover:bg-gray-800 text-gray-500 hover:text-white transition-colors"
+                                title="Expand trace view"
                             >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                                    <polyline points="15 3 21 3 21 9" />
-                                    <line x1="10" y1="14" x2="21" y2="3" />
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
                                 </svg>
-                                Open in Langfuse
-                            </a>
-                        </div>
-                    )}
+                            </button>
+                        )}
+                    </div>
+                </div>
 
-                    {(!trace || trace.length === 0) ? (
-                        <div className="p-6 text-center">
-                            <div className="w-10 h-10 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-3">
-                                <div className="w-4 h-4 border-2 border-gray-600 border-t-green-400 rounded-full animate-spin-slow" />
-                            </div>
-                            <p className="text-gray-500 text-sm">Waiting for agent activity...</p>
-                        </div>
-                    ) : (
-                        <div className="divide-y divide-gray-800/50 max-h-72 overflow-y-auto">
-                            {trace.map((entry, index) => (
-                                <div
-                                    key={index}
-                                    className={`p-3 animate-trace-entry hover:bg-gray-800/30 transition-colors`}
-                                    style={{ animationDelay: `${index * 50}ms` }}
-                                >
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <StepBadge step={entry.step} />
-                                        <span className="text-xs text-gray-500 font-mono">
-                                            {entry.timestamp ? new Date(entry.timestamp).toLocaleTimeString() : ''}
-                                        </span>
-                                    </div>
-
-                                    {/* CoT Visualization */}
-                                    {entry.data && entry.data.source && entry.data.target ? (
-                                        <div className="bg-gray-800/30 p-2 rounded-lg border border-gray-700/30">
-                                            <div className="flex items-center gap-2 text-xs font-semibold text-gray-300 mb-1.5">
-                                                <span className="text-blue-400">{entry.data.source}</span>
-                                                <span className="text-gray-500">→</span>
-                                                <span className="text-purple-400">{entry.data.target}</span>
-                                                <span className="px-1.5 py-0.5 rounded bg-gray-700 text-gray-400 font-mono text-[10px] ml-auto">
-                                                    {entry.data.action}
-                                                </span>
-                                            </div>
-
-                                            {/* Specialized content based on action */}
-                                            {entry.data.result && entry.data.result.message && (
-                                                <div className="text-sm text-gray-300 italic mb-1">
-                                                    "{entry.data.result.message}"
-                                                </div>
-                                            )}
-
-                                            <div className="text-xs text-gray-400 font-mono overflow-x-auto">
-                                                {entry.data.input && (
-                                                    <div className="mb-1">
-                                                        <span className="text-gray-500">Input:</span> {typeof entry.data.input === 'string' ? entry.data.input : JSON.stringify(entry.data.input)}
-                                                    </div>
-                                                )}
-                                                {entry.data.result && !entry.data.result.message && (
-                                                    <div>
-                                                        <span className="text-gray-500">Result:</span> {JSON.stringify(entry.data.result)}
-                                                    </div>
-                                                )}
-                                                {entry.data.args && (
-                                                    <div>
-                                                        <span className="text-gray-500">Args:</span> {JSON.stringify(entry.data.args)}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <pre className="text-xs text-gray-400 overflow-x-auto whitespace-pre-wrap font-mono bg-gray-800/30 p-2 rounded-lg">
-                                            {typeof entry.data === 'object'
-                                                ? JSON.stringify(entry.data, null, 2)
-                                                : entry.data}
-                                        </pre>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                    )}
+                {/* Trace Content */}
+                <div
+                    ref={scrollRef}
+                    className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-900/50 scroll-smooth"
+                >
+                    {renderTraceContent(trace, traceUrl)}
                 </div>
             </div>
-        </div>
+        </>
     );
 }
 
-function StepBadge({ step }) {
-    const config = {
-        safety_check: { bg: 'from-yellow-500 to-orange-500', icon: '🛡️' },
-        nlu_parse: { bg: 'from-blue-500 to-cyan-500', icon: '🧠' },
-        plan: { bg: 'from-purple-500 to-pink-500', icon: '📋' },
-        tool_call: { bg: 'from-green-500 to-emerald-500', icon: '🔧' },
-        execute: { bg: 'from-cyan-500 to-teal-500', icon: '⚡' },
-        error: { bg: 'from-red-500 to-rose-500', icon: '❌' },
-        default: { bg: 'from-gray-500 to-gray-600', icon: '📍' }
-    };
-
-    const { bg, icon } = config[step] || config.default;
+function renderTraceContent(trace, traceUrl) {
+    if (!trace || trace.length === 0) {
+        return (
+            <div className="h-full flex flex-col items-center justify-center text-gray-600 space-y-3 py-12">
+                <div className="w-12 h-12 border-2 border-gray-700 border-t-red-500 rounded-full animate-spin"></div>
+                <p className="text-sm font-medium">Waiting for activity...</p>
+            </div>
+        );
+    }
 
     return (
-        <span className={`px-2.5 py-1 rounded-full text-xs font-medium text-white bg-gradient-to-r ${bg} shadow-sm flex items-center gap-1`}>
-            <span>{icon}</span>
-            <span>{step}</span>
-        </span>
+        <>
+            {trace.map((entry, index) => (
+                <div
+                    key={index}
+                    className="group relative pl-4 border-l-2 border-gray-800 hover:border-gray-600 transition-colors new-log-entry"
+                >
+                    {/* Timestamp Dot */}
+                    <div className="absolute -left-[5px] top-1 w-2 h-2 rounded-full bg-gray-700 group-hover:bg-red-500 transition-colors ring-4 ring-gray-900"></div>
+
+                    {/* Header */}
+                    <div className="flex items-center gap-2 mb-1.5">
+                        <span className={`
+                            text-[10px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded
+                            ${entry.step === 'error' ? 'bg-red-500/20 text-red-400' :
+                                entry.step === 'tool_call' ? 'bg-blue-500/20 text-blue-400' :
+                                    entry.step === 'thought' ? 'bg-purple-500/20 text-purple-400' :
+                                        entry.step === 'final_answer' ? 'bg-green-500/20 text-green-400' :
+                                            'bg-gray-500/20 text-gray-400'}
+                        `}>
+                            {entry.step}
+                        </span>
+                        <span className="text-xs text-gray-600 font-mono">
+                            {entry.timestamp ? new Date(entry.timestamp).toLocaleTimeString() : ''}
+                        </span>
+                    </div>
+
+                    {/* Payload */}
+                    <div className="text-sm text-gray-300 font-mono bg-black/30 rounded-lg p-3 overflow-x-auto border border-white/5">
+                        {entry.data && entry.data.source && (
+                            <div className="flex items-center gap-2 text-xs mb-2 border-b border-gray-800 pb-2">
+                                <span className="text-yellow-500">{entry.data.source}</span>
+                                <span className="text-gray-600"><ArrowRight size={12} /></span>
+                                <span className="text-purple-400">{entry.data.target}</span>
+                            </div>
+                        )}
+
+                        <pre className="whitespace-pre-wrap break-words text-xs leading-relaxed">
+                            {typeof entry.data === 'object'
+                                ? JSON.stringify(entry.data.result || entry.data, null, 2)
+                                : entry.data
+                            }
+                        </pre>
+                    </div>
+                </div>
+            ))}
+
+            {traceUrl && (
+                <a
+                    href={traceUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="block text-center text-xs text-gray-500 hover:text-white mt-4 pb-2 transition-colors"
+                >
+                    View full trace in Langfuse <ExternalLink size={12} className="inline ml-1" />
+                </a>
+            )}
+        </>
     );
 }

@@ -3,178 +3,179 @@
  * Visual calendar showing medication depletion dates for customers.
  */
 import React, { useState, useEffect } from 'react';
+import { Calendar, Pill, ShoppingCart } from 'lucide-react';
 
 const API_BASE = '/api';
 
 export default function PredictionTimeline({ customerId, onReorder }) {
-    const [predictions, setPredictions] = useState([]);
-    const [loading, setLoading] = useState(true);
+  const [predictions, setPredictions] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        if (customerId) {
-            fetchPredictions();
-        }
-    }, [customerId]);
-
-    const fetchPredictions = async () => {
-        setLoading(true);
-        try {
-            const res = await fetch(`${API_BASE}/refill/customer/${customerId}/alerts`);
-            const data = await res.json();
-            setPredictions(data.alerts || []);
-        } catch (err) {
-            console.error('Failed to fetch predictions:', err);
-        }
-        setLoading(false);
-    };
-
-    const getUrgencyStyle = (urgency) => {
-        switch (urgency) {
-            case 'critical':
-                return { bg: '#ef4444', text: '#fff', border: '#dc2626' };
-            case 'soon':
-                return { bg: '#f59e0b', text: '#fff', border: '#d97706' };
-            default:
-                return { bg: '#22c55e', text: '#fff', border: '#16a34a' };
-        }
-    };
-
-    const getDaysLabel = (days) => {
-        if (days <= 0) return 'OUT';
-        if (days === 1) return 'Tomorrow';
-        return `${days} days`;
-    };
-
-    const getTimelinePosition = (days) => {
-        // Map days to percentage (0 = left, 30 = right)
-        const maxDays = 30;
-        const position = Math.min(Math.max(days, 0), maxDays) / maxDays * 100;
-        return position;
-    };
-
-    if (loading) {
-        return (
-            <div className="prediction-timeline loading">
-                <div className="loading-spinner">Loading predictions...</div>
-            </div>
-        );
+  useEffect(() => {
+    if (customerId) {
+      fetchPredictions();
     }
+  }, [customerId]);
 
-    if (predictions.length === 0) {
-        return (
-            <div className="prediction-timeline empty">
-                <p>📅 No medication timeline to display.</p>
-                <p className="hint">Order medications to see your refill schedule.</p>
-            </div>
-        );
+  const fetchPredictions = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/refill/customer/${customerId}/alerts`);
+      const data = await res.json();
+      setPredictions(data.alerts || []);
+    } catch (err) {
+      console.error('Failed to fetch predictions:', err);
     }
+    setLoading(false);
+  };
 
+  const getUrgencyStyle = (urgency) => {
+    switch (urgency) {
+      case 'critical':
+        return { bg: '#ef4444', text: '#fff', border: '#dc2626' };
+      case 'soon':
+        return { bg: '#f59e0b', text: '#fff', border: '#d97706' };
+      default:
+        return { bg: '#22c55e', text: '#fff', border: '#16a34a' };
+    }
+  };
+
+  const getDaysLabel = (days) => {
+    if (days <= 0) return 'OUT';
+    if (days === 1) return 'Tomorrow';
+    return `${days} days`;
+  };
+
+  const getTimelinePosition = (days) => {
+    // Map days to percentage (0 = left, 30 = right)
+    const maxDays = 30;
+    const position = Math.min(Math.max(days, 0), maxDays) / maxDays * 100;
+    return position;
+  };
+
+  if (loading) {
     return (
-        <div className="prediction-timeline">
-            <div className="timeline-header">
-                <h3>📅 My Medication Timeline</h3>
-                <span className="timeline-range">Next 30 days</span>
+      <div className="prediction-timeline loading">
+        <div className="loading-spinner">Loading predictions...</div>
+      </div>
+    );
+  }
+
+  if (predictions.length === 0) {
+    return (
+      <div className="prediction-timeline empty">
+        <p className="flex items-center justify-center gap-2"><Calendar size={20} /> No medication timeline to display.</p>
+        <p className="hint">Order medications to see your refill schedule.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="prediction-timeline">
+      <div className="timeline-header">
+        <h3 className="flex items-center gap-2"><Calendar size={20} /> My Medication Timeline</h3>
+        <span className="timeline-range">Next 30 days</span>
+      </div>
+
+      <div className="timeline-scale">
+        <div className="scale-label">Today</div>
+        <div className="scale-label">1 week</div>
+        <div className="scale-label">2 weeks</div>
+        <div className="scale-label">3 weeks</div>
+        <div className="scale-label">4 weeks</div>
+      </div>
+
+      <div className="timeline-track">
+        <div className="danger-zone" style={{ width: '10%' }}></div>
+        <div className="warning-zone" style={{ left: '10%', width: '15%' }}></div>
+
+        {predictions.map((pred, i) => {
+          const style = getUrgencyStyle(pred.urgency);
+          const position = getTimelinePosition(pred.days_until_depletion);
+
+          return (
+            <div
+              key={i}
+              className="timeline-item"
+              style={{ left: `${position}%` }}
+            >
+              <div
+                className="timeline-marker"
+                style={{ backgroundColor: style.bg, borderColor: style.border }}
+                title={`${pred.brand_name} - ${getDaysLabel(pred.days_until_depletion)}`}
+              >
+                <Pill size={16} color="white" />
+              </div>
+              <div className="timeline-tooltip">
+                <strong>{pred.brand_name}</strong>
+                <span className="dosage">{pred.dosage}</span>
+                <span
+                  className="days-badge"
+                  style={{ backgroundColor: style.bg }}
+                >
+                  {getDaysLabel(pred.days_until_depletion)}
+                </span>
+                <button
+                  className="quick-reorder flex items-center justify-center gap-1"
+                  onClick={() => onReorder && onReorder(pred)}
+                >
+                  <ShoppingCart size={12} /> Reorder
+                </button>
+              </div>
             </div>
+          );
+        })}
+      </div>
 
-            <div className="timeline-scale">
-                <div className="scale-label">Today</div>
-                <div className="scale-label">1 week</div>
-                <div className="scale-label">2 weeks</div>
-                <div className="scale-label">3 weeks</div>
-                <div className="scale-label">4 weeks</div>
+      <div className="timeline-legend">
+        <div className="legend-item">
+          <span className="legend-color" style={{ background: '#ef4444' }}></span>
+          Critical (0-3 days)
+        </div>
+        <div className="legend-item">
+          <span className="legend-color" style={{ background: '#f59e0b' }}></span>
+          Soon (4-7 days)
+        </div>
+        <div className="legend-item">
+          <span className="legend-color" style={{ background: '#22c55e' }}></span>
+          Upcoming (8+ days)
+        </div>
+      </div>
+
+      <div className="medication-cards">
+        {predictions.map((pred, i) => {
+          const style = getUrgencyStyle(pred.urgency);
+          return (
+            <div
+              key={i}
+              className="med-card"
+              style={{ borderLeftColor: style.bg }}
+            >
+              <div className="med-info">
+                <strong>{pred.brand_name}</strong>
+                <span>{pred.dosage} • {pred.generic_name}</span>
+              </div>
+              <div className="med-timing">
+                <span
+                  className="days-badge"
+                  style={{ backgroundColor: style.bg }}
+                >
+                  {getDaysLabel(pred.days_until_depletion)}
+                </span>
+                <span className="date">{pred.depletion_date}</span>
+              </div>
+              <button
+                className="reorder-btn"
+                onClick={() => onReorder && onReorder(pred)}
+              >
+                Reorder
+              </button>
             </div>
+          );
+        })}
+      </div>
 
-            <div className="timeline-track">
-                <div className="danger-zone" style={{ width: '10%' }}></div>
-                <div className="warning-zone" style={{ left: '10%', width: '15%' }}></div>
-
-                {predictions.map((pred, i) => {
-                    const style = getUrgencyStyle(pred.urgency);
-                    const position = getTimelinePosition(pred.days_until_depletion);
-
-                    return (
-                        <div
-                            key={i}
-                            className="timeline-item"
-                            style={{ left: `${position}%` }}
-                        >
-                            <div
-                                className="timeline-marker"
-                                style={{ backgroundColor: style.bg, borderColor: style.border }}
-                                title={`${pred.brand_name} - ${getDaysLabel(pred.days_until_depletion)}`}
-                            >
-                                💊
-                            </div>
-                            <div className="timeline-tooltip">
-                                <strong>{pred.brand_name}</strong>
-                                <span className="dosage">{pred.dosage}</span>
-                                <span
-                                    className="days-badge"
-                                    style={{ backgroundColor: style.bg }}
-                                >
-                                    {getDaysLabel(pred.days_until_depletion)}
-                                </span>
-                                <button
-                                    className="quick-reorder"
-                                    onClick={() => onReorder && onReorder(pred)}
-                                >
-                                    🛒 Reorder
-                                </button>
-                            </div>
-                        </div>
-                    );
-                })}
-            </div>
-
-            <div className="timeline-legend">
-                <div className="legend-item">
-                    <span className="legend-color" style={{ background: '#ef4444' }}></span>
-                    Critical (0-3 days)
-                </div>
-                <div className="legend-item">
-                    <span className="legend-color" style={{ background: '#f59e0b' }}></span>
-                    Soon (4-7 days)
-                </div>
-                <div className="legend-item">
-                    <span className="legend-color" style={{ background: '#22c55e' }}></span>
-                    Upcoming (8+ days)
-                </div>
-            </div>
-
-            <div className="medication-cards">
-                {predictions.map((pred, i) => {
-                    const style = getUrgencyStyle(pred.urgency);
-                    return (
-                        <div
-                            key={i}
-                            className="med-card"
-                            style={{ borderLeftColor: style.bg }}
-                        >
-                            <div className="med-info">
-                                <strong>{pred.brand_name}</strong>
-                                <span>{pred.dosage} • {pred.generic_name}</span>
-                            </div>
-                            <div className="med-timing">
-                                <span
-                                    className="days-badge"
-                                    style={{ backgroundColor: style.bg }}
-                                >
-                                    {getDaysLabel(pred.days_until_depletion)}
-                                </span>
-                                <span className="date">{pred.depletion_date}</span>
-                            </div>
-                            <button
-                                className="reorder-btn"
-                                onClick={() => onReorder && onReorder(pred)}
-                            >
-                                Reorder
-                            </button>
-                        </div>
-                    );
-                })}
-            </div>
-
-            <style>{`
+      <style>{`
         .prediction-timeline {
           background: rgba(255, 255, 255, 0.05);
           border-radius: 16px;
@@ -408,6 +409,6 @@ export default function PredictionTimeline({ customerId, onReorder }) {
           box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
         }
       `}</style>
-        </div>
-    );
+    </div>
+  );
 }

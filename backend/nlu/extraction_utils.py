@@ -19,12 +19,14 @@ DOSAGE_PATTERNS = [
 
 # Quantity patterns (number of tablets, strips, bottles, etc.)
 QUANTITY_PATTERNS = [
-    # Number + unit (e.g., "2 strips", "10 tablets", "1 bottle")
-    r'(\d+)\s*(strip|strips|tab|tabs|tablet|tablets|cap|caps|capsule|capsules|bottle|bottles|pack|packs|box|boxes|sachet|sachets|vial|vials|ampule|ampules|ml|lt|ltr|litre|liter)\b',
+    # Number + unit (e.g., "2 strips", "10 tablets", "1 bottle", "20 units")
+    r'(\d+)\s*(strip|strips|tab|tabs|tablet|tablets|cap|caps|capsule|capsules|bottle|bottles|pack|packs|box|boxes|sachet|sachets|vial|vials|ampule|ampules|unit|units|ml|lt|ltr|litre|liter)\b',
     # Words for numbers (e.g., "two strips", "three tablets")
-    r'(one|two|three|four|five|six|seven|eight|nine|ten)\s*(strip|strips|tab|tabs|tablet|tablets|cap|caps|capsule|capsules|bottle|bottles|pack|packs)\b',
+    r'(one|two|three|four|five|six|seven|eight|nine|ten)\s*(strip|strips|tab|tabs|tablet|tablets|cap|caps|capsule|capsules|bottle|bottles|pack|packs|unit|units)\b',
     # Just a number at start (e.g., "2 crocin" -> quantity=2)
     r'^(\d+)\s+[a-zA-Z]',
+    # Standalone number (e.g., "20" when context makes it a quantity)
+    r'\b(\d+)\b',
 ]
 
 # Frequency patterns
@@ -87,7 +89,7 @@ def extract_quantity(text: str) -> Optional[Dict[str, Any]]:
             groups = match.groups()
             if len(groups) >= 2:
                 count = groups[0]
-                unit = groups[1] if len(groups) > 1 else 'unit'
+                unit = groups[1]
                 
                 # Convert word numbers
                 if count in WORD_TO_NUM:
@@ -104,6 +106,18 @@ def extract_quantity(text: str) -> Optional[Dict[str, Any]]:
                 return {
                     "count": count,
                     "unit_type": unit,
+                    "raw": match.group(0),
+                }
+            elif len(groups) == 1:
+                # Standalone number pattern (e.g., "20" or "crocin 20")
+                count = groups[0]
+                try:
+                    count = int(count)
+                except ValueError:
+                    continue
+                return {
+                    "count": count,
+                    "unit_type": "unit",
                     "raw": match.group(0),
                 }
     
@@ -156,6 +170,10 @@ def normalize_quantity_unit(unit: str) -> str:
     # Pack variants
     if unit in ['pack', 'packs', 'box', 'boxes']:
         return 'pack'
+    
+    # Unit variants
+    if unit in ['unit', 'units']:
+        return 'unit'
     
     return unit
 

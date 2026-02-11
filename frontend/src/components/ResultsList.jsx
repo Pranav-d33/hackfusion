@@ -3,7 +3,7 @@
  */
 import React from 'react';
 
-export default function ResultsList({ candidates, onSelect, selectedId }) {
+export default function ResultsList({ candidates, onSelect, selectedId, onFlyToCart }) {
     if (!candidates || candidates.length === 0) {
         return null;
     }
@@ -17,7 +17,13 @@ export default function ResultsList({ candidates, onSelect, selectedId }) {
                 {candidates.map((med, index) => (
                     <button
                         key={med.id || index}
-                        onClick={() => onSelect(med, index + 1)}
+                        onClick={(e) => {
+                            if (onFlyToCart) {
+                                const rect = e.currentTarget.getBoundingClientRect();
+                                onFlyToCart(rect);
+                            }
+                            onSelect(med, index + 1);
+                        }}
                         className={`
               med-card w-full text-left p-4 rounded-xl border-2 transition-all
               ${selectedId === med.id

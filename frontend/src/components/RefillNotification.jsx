@@ -3,104 +3,108 @@
  * Toast/popup component showing refill alerts for logged-in customers.
  */
 import React, { useState, useEffect } from 'react';
+import { Bell, Pill, X, AlertCircle, AlertTriangle, CheckCircle, Clock, Calendar, ShoppingCart } from 'lucide-react';
 
 const API_BASE = '/api';
 
 export default function RefillNotification({ customerId, onReorder }) {
-    const [alerts, setAlerts] = useState([]);
-    const [dismissed, setDismissed] = useState(new Set());
-    const [expanded, setExpanded] = useState(false);
+  const [alerts, setAlerts] = useState([]);
+  const [dismissed, setDismissed] = useState(new Set());
+  const [expanded, setExpanded] = useState(false);
 
-    useEffect(() => {
-        if (customerId) {
-            fetchAlerts();
-            // Refresh every 5 minutes
-            const interval = setInterval(fetchAlerts, 5 * 60 * 1000);
-            return () => clearInterval(interval);
-        }
-    }, [customerId]);
+  useEffect(() => {
+    if (customerId) {
+      fetchAlerts();
+      // Refresh every 5 minutes
+      const interval = setInterval(fetchAlerts, 5 * 60 * 1000);
+      return () => clearInterval(interval);
+    }
+  }, [customerId]);
 
-    const fetchAlerts = async () => {
-        try {
-            const res = await fetch(`${API_BASE}/refill/customer/${customerId}/alerts`);
-            const data = await res.json();
-            setAlerts(data.alerts || []);
-        } catch (err) {
-            console.error('Failed to fetch refill alerts:', err);
-        }
-    };
+  const fetchAlerts = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/refill/customer/${customerId}/alerts`);
+      const data = await res.json();
+      setAlerts(data.alerts || []);
+    } catch (err) {
+      console.error('Failed to fetch refill alerts:', err);
+    }
+  };
 
-    const dismissAlert = (medicationId) => {
-        setDismissed(prev => new Set([...prev, medicationId]));
-    };
+  const dismissAlert = (medicationId) => {
+    setDismissed(prev => new Set([...prev, medicationId]));
+  };
 
-    const handleReorder = (alert) => {
-        if (onReorder) {
-            onReorder(alert);
-        }
-    };
+  const handleReorder = (alert) => {
+    if (onReorder) {
+      onReorder(alert);
+    }
+  };
 
-    const activeAlerts = alerts.filter(a => !dismissed.has(a.medication_id));
-    const criticalCount = activeAlerts.filter(a => a.urgency === 'critical').length;
+  const activeAlerts = alerts.filter(a => !dismissed.has(a.medication_id));
+  const criticalCount = activeAlerts.filter(a => a.urgency === 'critical').length;
 
-    if (activeAlerts.length === 0) return null;
+  if (activeAlerts.length === 0) return null;
 
-    return (
-        <div className="refill-notification">
-            <button
-                className={`notification-toggle ${criticalCount > 0 ? 'critical' : ''}`}
-                onClick={() => setExpanded(!expanded)}
-            >
-                🔔 {activeAlerts.length} Refill{activeAlerts.length > 1 ? 's' : ''} Due
-                {criticalCount > 0 && <span className="critical-badge">{criticalCount} urgent</span>}
-            </button>
+  return (
+    <div className="refill-notification">
+      <button
+        className={`notification-toggle ${criticalCount > 0 ? 'critical' : ''}`}
+        onClick={() => setExpanded(!expanded)}
+      >
+        <div className="flex items-center gap-2">
+          <Bell size={18} />
+          <span>{activeAlerts.length} Refill{activeAlerts.length > 1 ? 's' : ''} Due</span>
+        </div>
+        {criticalCount > 0 && <span className="critical-badge">{criticalCount} urgent</span>}
+      </button>
 
-            {expanded && (
-                <div className="notification-panel">
-                    <div className="panel-header">
-                        <h3>💊 Medication Refills</h3>
-                        <button className="close-btn" onClick={() => setExpanded(false)}>×</button>
-                    </div>
+      {expanded && (
+        <div className="notification-panel">
+          <div className="panel-header">
+            <h3 className="flex items-center gap-2"><Pill size={16} /> Medication Refills</h3>
+            <button className="close-btn" onClick={() => setExpanded(false)}><X size={18} /></button>
+          </div>
 
-                    <div className="alert-list">
-                        {activeAlerts.map((alert, i) => (
-                            <div key={i} className={`alert-item ${alert.urgency}`}>
-                                <div className="alert-icon">
-                                    {alert.urgency === 'critical' ? '🔴' : alert.urgency === 'soon' ? '🟡' : '🟢'}
-                                </div>
-                                <div className="alert-content">
-                                    <strong>{alert.brand_name}</strong>
-                                    <span className="dosage">{alert.dosage}</span>
-                                    <p className="alert-message">
-                                        {alert.days_until_depletion <= 0
-                                            ? '⚠️ Medicine has run out!'
-                                            : alert.days_until_depletion === 1
-                                                ? '⏰ Runs out tomorrow'
-                                                : `📅 Runs out in ${alert.days_until_depletion} days`
-                                        }
-                                    </p>
-                                </div>
-                                <div className="alert-actions">
-                                    <button
-                                        className="reorder-btn"
-                                        onClick={() => handleReorder(alert)}
-                                    >
-                                        🛒 Reorder
-                                    </button>
-                                    <button
-                                        className="dismiss-btn"
-                                        onClick={() => dismissAlert(alert.medication_id)}
-                                    >
-                                        ✕
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
+          <div className="alert-list">
+            {activeAlerts.map((alert, i) => (
+              <div key={i} className={`alert-item ${alert.urgency}`}>
+                <div className="alert-icon">
+                  {alert.urgency === 'critical' ? <AlertCircle size={20} className="text-red-500" /> : alert.urgency === 'soon' ? <AlertTriangle size={20} className="text-amber-500" /> : <CheckCircle size={20} className="text-green-500" />}
                 </div>
-            )}
+                <div className="alert-content">
+                  <strong>{alert.brand_name}</strong>
+                  <span className="dosage">{alert.dosage}</span>
+                  <p className="alert-message flex items-center gap-1.5 align-middle">
+                    {alert.days_until_depletion <= 0
+                      ? <><AlertTriangle size={14} className="text-red-400" /> Medicine has run out!</>
+                      : alert.days_until_depletion === 1
+                        ? <><Clock size={14} className="text-amber-400 text-sm" /> Runs out tomorrow</>
+                        : <><Calendar size={14} className="text-blue-400" /> Runs out in {alert.days_until_depletion} days</>
+                    }
+                  </p>
+                </div>
+                <div className="alert-actions">
+                  <button
+                    className="reorder-btn flex items-center gap-1"
+                    onClick={() => handleReorder(alert)}
+                  >
+                    <ShoppingCart size={14} /> Reorder
+                  </button>
+                  <button
+                    className="dismiss-btn"
+                    onClick={() => dismissAlert(alert.medication_id)}
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
-            <style>{`
+      <style>{`
         .refill-notification {
           position: fixed;
           bottom: 24px;
@@ -143,6 +147,7 @@ export default function RefillNotification({ customerId, onReorder }) {
           padding: 0.2rem 0.5rem;
           border-radius: 10px;
           font-size: 0.75rem;
+          margin-left: 0.5rem;
         }
 
         .notification-panel {
@@ -178,6 +183,9 @@ export default function RefillNotification({ customerId, onReorder }) {
           color: #888;
           font-size: 1.5rem;
           cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
         }
 
         .alert-list {
@@ -206,6 +214,9 @@ export default function RefillNotification({ customerId, onReorder }) {
 
         .alert-icon {
           font-size: 1.25rem;
+          display: flex;
+          align-items: center;
+          padding-top: 2px;
         }
 
         .alert-content {
@@ -252,12 +263,14 @@ export default function RefillNotification({ customerId, onReorder }) {
           color: #666;
           cursor: pointer;
           font-size: 0.9rem;
+          display: flex;
+          justify-content: center;
         }
 
         .dismiss-btn:hover {
           color: #999;
         }
       `}</style>
-        </div>
-    );
+    </div>
+  );
 }

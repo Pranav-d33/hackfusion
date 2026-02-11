@@ -26,6 +26,344 @@ from observability.langfuse_client import (
 # In-memory conversation state (session-based)
 _conversation_states: Dict[str, Dict[str, Any]] = {}
 
+# ============================================================================
+# FAST PATHS - Skip planner for simple, deterministic intents
+# ============================================================================
+SIMPLE_INTENTS = {
+    "confirm_rx",    # "yes", "I have prescription"
+    "deny_rx",       # "no", "I don't have"
+    "checkout",      # "checkout", "done", "place order"
+    "cancel",        # "cancel", "stop", "never mind"
+}
+
+def rule_first_plan(nlu_result: Dict[str, Any], state: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """
+    Rule-first planner: Handle deterministic cases without LLM.
+    Returns None if LLM planner is needed.
+    
+    Uses Mediloon Pharmacist personality for all responses.
+    """
+    intent = nlu_result.get("intent", "unclear")
+    value = nlu_result.get("value")
+    confidence = nlu_result.get("confidence", 0)
+    
+    # Only use fast path for high-confidence simple intents
+    if confidence < 0.7:
+        return None
+    
+    # FAST PATH: Prescription confirmation
+    if intent == "confirm_rx" and state.get("pending_rx_check"):
+        med = state["pending_rx_check"]
+        # Proceed to quantity collection instead of direct add
+        return {
+            "action": "ask_quantity",
+            "medication": med,
+            "message": f"Excellent! I've verified your prescription confirmation. How many strips or units of {med.get('brand_name', 'this medication')} would you like me to prepare?",
+            "tts_message": f"Great! Prescription confirmed. How many units would you like?",
+            "reasoning": "[FAST PATH] RX confirmed, moving to quantity collection",
+            "fast_path": True,
+        }
+    
+    # FAST PATH: Quantity Response
+    if intent == "quantity_response" and state.get("pending_qty_dose_check"):
+        med = state["pending_qty_dose_check"]
+        
+        # Prioritize structured extraction from nlu_result
+        extracted_qty = nlu_result.get("quantity", {}).get("count")
+        if extracted_qty is not None:
+            qty = int(extracted_qty)
+        else:
+            try:
+                qty = int(value) if value else 1
+            except (ValueError, TypeError):
+                qty = 1
+        
+        return {
+            "action": "ask_dose",
+            "medication": med,
+            "quantity": qty,
+            "message": f"Got it, {qty} unit(s). And what dosage has been prescribed for you? You can say 'as prescribed' if you'd like me to note that.",
+            "tts_message": f"{qty} units. What is the prescribed dose?",
+            "reasoning": "[FAST PATH] Quantity received, moving to dose collection",
+            "fast_path": True,
+        }
+
+    # FAST PATH: Dose Response
+    if intent == "dose_response" and state.get("pending_qty_dose_check"):
+        med = state["pending_qty_dose_check"]
+        dose = value or "As Prescribed"
+        qty = state.get("collected_quantity", 1)
+        return {
+            "action": "tool_call",
+            "tool": "add_to_cart",
+            "tool_args": {"med_id": med["id"], "qty": qty, "dose": dose},
+            "message": f"Perfect. I'm adding {med['brand_name']} ({qty} units, Dose: {dose}) to your dispensing list. Would you like anything else?",
+            "tts_message": f"Added {med['brand_name']} to your cart. Anything else?",
+            "reasoning": "[FAST PATH] Dose received, adding to cart",
+            "fast_path": True,
+        }
+
+    # FAST PATH: Just add it (Skip/Default)
+    if intent == "just_add_it" and state.get("pending_qty_dose_check"):
+        med = state["pending_qty_dose_check"]
+        qty = state.get("collected_quantity", 1)
+        dose = state.get("collected_dose", "As Prescribed")
+        return {
+            "action": "tool_call",
+            "tool": "add_to_cart",
+            "tool_args": {"med_id": med["id"], "qty": qty, "dose": dose},
+            "message": f"Understood. I've added {med['brand_name']} with standard settings to your list. Would you like anything else?",
+            "tts_message": f"Added {med['brand_name']} to your cart. Need anything else?",
+            "reasoning": "[FAST PATH] User skipped collection, using defaults",
+            "fast_path": True,
+        }
+    
+    # FAST PATH: Prescription denial - DETERMINISTIC SAFETY BLOCK  
+    if intent == "deny_rx" and state.get("pending_rx_check"):
+        med = state["pending_rx_check"]
+        return {
+            "action": "respond",
+            "message": f"I completely understand. As your pharmacist, I'm required to ensure all prescription medications are dispensed safely. Unfortunately, I cannot add {med.get('brand_name', 'this medication')} without a valid prescription. Would you like me to check for any over-the-counter alternatives that might help?",
+            "tts_message": "No problem. I can't dispense prescription medications without documentation. Would you like me to suggest some OTC alternatives?",
+            "reasoning": "[FAST PATH] RX denied, blocked by rule",
+            "fast_path": True,
+        }
+    
+    # FAST PATH: User says "yes" / "add it" after being shown a single OTC result
+    # The system asked "Would you like me to add it?" and user confirmed
+    if intent in ("confirm_rx", "just_add_it") and state.get("pending_add_confirm"):
+        med = state["pending_add_confirm"]
+        return {
+            "action": "ask_quantity",
+            "medication": med,
+            "message": f"Great! How many units of {med.get('brand_name', 'this medication')} would you like?",
+            "tts_message": f"How many units of {med.get('brand_name', 'this medication')}?",
+            "reasoning": "[FAST PATH] User confirmed OTC add, collecting quantity",
+            "fast_path": True,
+        }
+
+    # FAST PATH: Checkout
+    if intent == "checkout":
+        return {
+            "action": "checkout",
+            "message": "Perfect! I'm preparing your order now. Please review your cart summary and I'll guide you through the final steps.",
+            "tts_message": "Preparing your order now. Let me guide you through checkout.",
+            "reasoning": "[FAST PATH] Checkout requested",
+            "fast_path": True,
+        }
+    
+    # FAST PATH: Cancel
+    if intent == "cancel":
+        return {
+            "action": "end",
+            "message": "No problem at all. I've cleared your current session. Feel free to reach out whenever you need help with your medications. Take care!",
+            "tts_message": "Session cleared. Feel free to come back anytime. Take care!",
+            "reasoning": "[FAST PATH] Cancel requested",
+            "fast_path": True,
+        }
+    
+    # FAST PATH: Add to cart when candidates are available
+    if intent == "add_to_cart" and state.get("candidates"):
+        candidates = state["candidates"]
+        selection = value or "1"
+        
+        # Try numeric index first ("add the first one", "2")
+        med = None
+        try:
+            idx = int(selection) - 1
+            if 0 <= idx < len(candidates):
+                med = candidates[idx]
+        except (ValueError, TypeError):
+            # Not a number — try matching by name ("add paracetamol")
+            if value:
+                val_lower = value.lower()
+                for c in candidates:
+                    if (val_lower in c.get("brand_name", "").lower() or
+                        val_lower in c.get("generic_name", "").lower()):
+                        med = c
+                        break
+                # If still no match, default to first candidate
+                if not med:
+                    med = candidates[0]
+        
+        if med:
+            # Extract details if already in input
+            qty = nlu_result.get("quantity", {}).get("count")
+            dose = nlu_result.get("dosage", {}).get("raw")
+            
+            # DETERMINISTIC RX CHECK - no LLM needed
+            if med.get("rx_required"):
+                return {
+                    "action": "ask_rx",
+                    "medication": med,
+                    "quantity": qty,
+                    "dose": dose,
+                    "message": f"Great choice! {med['brand_name']} ({med.get('generic_name', '')}) is an excellent option. Since this is a prescription medication, I need to verify - do you have a valid prescription from your healthcare provider?",
+                    "tts_message": f"{med['brand_name']} requires a prescription. Do you have one ready?",
+                    "reasoning": "[FAST PATH] RX required, asking for confirmation",
+                    "fast_path": True,
+                }
+            else:
+                # OTC — check for embedded quantity from compound input
+                embedded_qty = nlu_result.get("_embedded_quantity")
+                if embedded_qty:
+                    qty = embedded_qty
+                
+                # If both qty and dose provided upfront, add directly
+                if qty and dose:
+                     return {
+                        "action": "tool_call",
+                        "tool": "add_to_cart",
+                        "tool_args": {"med_id": med["id"], "qty": int(qty), "dose": dose},
+                        "message": f"Perfect! I'm adding {med['brand_name']} ({qty} units) to your cart. Would you like anything else?",
+                        "tts_message": f"Adding {med['brand_name']} to your cart.",
+                        "reasoning": "[FAST PATH] OTC with details provided, adding directly",
+                        "fast_path": True,
+                    }
+                
+                # If quantity provided but no dose, skip to dose collection
+                if qty:
+                    return {
+                        "action": "ask_dose",
+                        "medication": med,
+                        "quantity": int(qty),
+                        "message": f"Great! {int(qty)} unit(s) of {med['brand_name']}. And what dosage has been prescribed? You can say 'as prescribed' if you'd like.",
+                        "tts_message": f"{int(qty)} units. What is the prescribed dose?",
+                        "reasoning": "[FAST PATH] OTC med with quantity, skipping to dose collection",
+                        "fast_path": True,
+                    }
+                
+                return {
+                    "action": "ask_quantity",
+                    "medication": med,
+                    "quantity": qty,
+                    "dose": dose,
+                    "message": f"Great! I can certainly help you with {med['brand_name']}. This is an over-the-counter medication. How many units would you like me to add?",
+                    "tts_message": f"How many {med['brand_name']} would you like?",
+                    "reasoning": "[FAST PATH] OTC med selected, starting details collection",
+                    "fast_path": True,
+                }
+
+    # FAST PATH: add_to_cart intent with a medicine NAME but NO candidates in state
+    # e.g. user says "Add Paracetamol" as the very first message
+    if intent == "add_to_cart" and value and not state.get("candidates"):
+        return {
+            "action": "tool_call",
+            "tool": "vector_search",
+            "tool_args": {"name": value},
+            "reasoning": f"[FAST PATH] add_to_cart with name '{value}' but no candidates — searching first",
+            "fast_path": True,
+        }
+    
+    # FAST PATH: Indication query - direct tool call
+    if intent == "indication_query" and value:
+        return {
+            "action": "tool_call",
+            "tool": "lookup_by_indication",
+            "tool_args": {"indication": value},
+            "reasoning": f"[FAST PATH] Looking up medications for {value}",
+            "fast_path": True,
+        }
+    
+    # FAST PATH: Brand/medication query - direct tool call
+    if intent in ("brand_query", "medication_query") and value:
+        return {
+            "action": "tool_call",
+            "tool": "vector_search",
+            "tool_args": {"name": value},
+            "reasoning": f"[FAST PATH] Searching for medication: {value}",
+            "fast_path": True,
+        }
+    
+    # No fast path available - need LLM planner
+    return None
+
+
+# ============================================================================
+# POST-NLU CONTEXT RESOLVER - Fix misclassified intents using state
+# ============================================================================
+def _resolve_intent_with_context(nlu_result: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Post-NLU resolution: Use conversation state to fix misclassified intents.
+    
+    Common fix: NLU says brand_query for "go with crocin" but candidates exist,
+    so it should be add_to_cart (selecting from candidates, not re-searching).
+    """
+    intent = nlu_result.get("intent", "unclear")
+    value = nlu_result.get("value")
+    candidates = state.get("candidates", [])
+    pending_qty = state.get("pending_qty_dose_check")
+    pending_add = state.get("pending_add_confirm")
+    
+    # RULE 1: brand_query / medication_query + matching candidate → add_to_cart
+    if intent in ("brand_query", "medication_query") and value and candidates:
+        val_lower = value.lower()
+        for c in candidates:
+            cname = c.get("brand_name", "").lower()
+            gname = c.get("generic_name", "").lower()
+            if (val_lower in cname or cname in val_lower or
+                val_lower in gname or gname in val_lower):
+                nlu_result = nlu_result.copy()
+                nlu_result["intent"] = "add_to_cart"
+                nlu_result["value"] = c.get("brand_name", value)
+                nlu_result["_context_resolved"] = True
+                nlu_result["confidence"] = max(nlu_result.get("confidence", 0), 0.85)
+                return nlu_result
+    
+    # RULE 2: indication_query but user also mentioned a medicine name matching candidate
+    # e.g. "crocin, 20 units" might be parsed as indication or brand but has qty embedded
+    if intent == "add_to_cart" and value and candidates:
+        # Carry forward quantity if present in the NLU result
+        qty = nlu_result.get("quantity", {})
+        if qty and qty.get("count"):
+            # Store the extracted quantity so rule_first_plan can use it
+            nlu_result = nlu_result.copy()
+            nlu_result["_embedded_quantity"] = int(qty["count"])
+    
+    # RULE 3: Bare number when waiting for quantity
+    if intent in ("unclear", "brand_query") and value and (pending_qty or pending_add):
+        import re
+        if re.match(r'^\d+$', str(value).strip()):
+            nlu_result = nlu_result.copy()
+            nlu_result["intent"] = "quantity_response"
+            nlu_result["confidence"] = 0.9
+            nlu_result["_context_resolved"] = True
+            return nlu_result
+    
+    return nlu_result
+
+
+# ============================================================================
+# STATIC OUTPUT VALIDATOR - Cheap, no LLM
+# ============================================================================
+FORBIDDEN_OUTPUT_PATTERNS = [
+    "take this medication",
+    "i recommend",
+    "you should take",
+    "dosage is",
+    "mg per day",
+    "antibiotic",
+]
+
+def validate_output_static(message: str) -> Dict[str, Any]:
+    """
+    Static output validation - no LLM, ~5ms.
+    Checks for forbidden patterns in agent output.
+    """
+    if not message:
+        return {"safe": True}
+    
+    message_lower = message.lower()
+    for pattern in FORBIDDEN_OUTPUT_PATTERNS:
+        if pattern in message_lower:
+            return {
+                "safe": False,
+                "reason": f"forbidden_pattern:{pattern}",
+                "message": "I'm happy to help you order your medications, but for dosage guidance or medical advice, please consult with your doctor or healthcare provider. They know your medical history best! Is there anything else I can help you with regarding your order?",
+            }
+    
+    return {"safe": True}
+
 # Initialize Langfuse on module load
 _langfuse_initialized = init_langfuse()
 
@@ -37,6 +375,10 @@ def get_session_state(session_id: str) -> Dict[str, Any]:
             "candidates": [],
             "selected_medication": None,
             "pending_rx_check": None,
+            "pending_qty_dose_check": None,
+            "pending_add_confirm": None,
+            "collected_quantity": None,
+            "collected_dose": None,
             "cart": {"items": [], "item_count": 0},
             "last_action": None,
             "turn_count": 0,
@@ -127,7 +469,7 @@ async def process_message(
     # Step 2: Parse input with NLU
     with TracedOperation(trace, "nlu_parse", "generation") as op:
         op.log_input({"user_input": user_input})
-        nlu_result = await parse_input(user_input)
+        nlu_result = await parse_input(user_input, conversation_state=state)
         op.log_output(nlu_result)
     log_trace(session_id, "nlu_parse", {
         "source": "Orchestrator",
@@ -136,6 +478,10 @@ async def process_message(
         "input": user_input,
         "result": nlu_result
     })
+    
+    # ---- POST-NLU CONTEXT RESOLUTION ----
+    # If NLU says brand_query but the value matches an existing candidate, remap to add_to_cart
+    nlu_result = _resolve_intent_with_context(nlu_result, state)
     
     # Add user message to conversation history
     conversation_history = state.get("conversation_history", [])
@@ -147,18 +493,31 @@ async def process_message(
     
     state["conversation_history"] = conversation_history
     
-    # Step 3: Plan next action
-    with TracedOperation(trace, "planner", "generation") as op:
-        op.log_input({"nlu_result": nlu_result, "state": state})
-        plan = await plan_next_action(nlu_result, state)
-        op.log_output(plan)
-    log_trace(session_id, "plan", {
-        "source": "Orchestrator",
-        "target": "Planner",
-        "action": "generate_plan",
-        "input": nlu_result,
-        "result": plan
-    })
+    # Step 3: Plan next action - TRY FAST PATH FIRST
+    plan = rule_first_plan(nlu_result, state)
+    
+    if plan:
+        # Fast path succeeded - no LLM call needed
+        log_trace(session_id, "plan", {
+            "source": "Orchestrator",
+            "target": "RuleFirstPlanner",
+            "action": "fast_path",
+            "input": nlu_result,
+            "result": plan
+        })
+    else:
+        # Fall back to LLM planner for complex/unclear cases
+        with TracedOperation(trace, "planner", "generation") as op:
+            op.log_input({"nlu_result": nlu_result, "state": state})
+            plan = await plan_next_action(nlu_result, state)
+            op.log_output(plan)
+        log_trace(session_id, "plan", {
+            "source": "Orchestrator",
+            "target": "LLMPlanner",
+            "action": "generate_plan",
+            "input": nlu_result,
+            "result": plan
+        })
     
     # Step 4: Execute action
     with TracedOperation(trace, "execute_action", "span") as op:
@@ -181,10 +540,9 @@ async def process_message(
     # Flush traces
     flush()
     
-    # Step 5: Output Guardrail - Validate final response
-    # Re-use check_input_safety but for output to catch self-leakage
+    # Step 5: Output Guardrail - Static validation (no LLM, ~5ms)
     final_message = result.get("message", "")
-    output_safety = await check_input_safety(final_message)
+    output_safety = validate_output_static(final_message)
     if not output_safety.get("safe", True):
         # Override with safety block
         result["message"] = output_safety["message"]
@@ -245,6 +603,8 @@ async def execute_action(
         update_session_state(session_id, {
             "pending_rx_check": medication,
             "selected_medication": medication,
+            "collected_quantity": plan.get("quantity", 1),
+            "collected_dose": plan.get("dose"),
         })
         return {
             "message": plan.get("message", f"{medication.get('brand_name', 'This medication')} requires a prescription. Do you have one?"),
@@ -253,6 +613,38 @@ async def execute_action(
             "needs_input": True,
         }
     
+    # Handle Quantity Collection
+    if action == "ask_quantity":
+        medication = plan.get("medication")
+        update_session_state(session_id, {
+            "pending_qty_dose_check": medication,
+            "selected_medication": medication,
+            "pending_add_confirm": None,  # Clear add confirm since we're now in qty flow
+            "collected_quantity": plan.get("quantity", 1),
+            "collected_dose": plan.get("dose"),
+        })
+        return {
+            "message": plan.get("message", f"How many units of {medication.get('brand_name')} would you like?"),
+            "tts_message": plan.get("tts_message", "How many units?"),
+            "action_taken": "ask_quantity",
+            "needs_input": True,
+        }
+
+    # Handle Dose Collection
+    if action == "ask_dose":
+        medication = plan.get("medication")
+        qty = plan.get("quantity", 1)
+        update_session_state(session_id, {
+            "pending_qty_dose_check": medication,
+            "collected_quantity": qty,
+        })
+        return {
+            "message": plan.get("message", f"What is the prescribed dose for {medication.get('brand_name')}?"),
+            "tts_message": plan.get("tts_message", "What is the dose?"),
+            "action_taken": "ask_dose",
+            "needs_input": True,
+        }
+
     # Handle checkout
     if action == "checkout":
         # Use customer_id from session or default to demo customer (ID=2)
@@ -278,6 +670,8 @@ async def execute_action(
         update_session_state(session_id, {
             "candidates": [],
             "pending_rx_check": None,
+            "pending_add_confirm": None,
+            "pending_qty_dose_check": None,
             "selected_medication": None,
         })
         return {
@@ -376,6 +770,7 @@ async def execute_tool_call(
                 update_session_state(session_id, {
                     "pending_rx_check": med,
                     "selected_medication": med,
+                    "pending_add_confirm": None,
                 })
                 return {
                     "message": f"Found {med['brand_name']} ({med['generic_name']} {med['dosage']}). This requires a prescription. Do you have one?",
@@ -384,7 +779,12 @@ async def execute_tool_call(
                     "action_taken": "ask_rx",
                 }
             else:
-                # OTC - can add directly
+                # OTC - set pending_add_confirm so "yes" triggers add
+                update_session_state(session_id, {
+                    "selected_medication": med,
+                    "pending_add_confirm": med,
+                    "pending_rx_check": None,
+                })
                 return {
                     "message": f"I've located {med['brand_name']} ({med['generic_name']} {med['dosage']}). This is an over-the-counter medication. Would you like me to add it to your dispensing list?",
                     "tts_message": f"I've found {med['brand_name']}. Would you like me to add it to your dispensing list?",
@@ -432,16 +832,25 @@ async def execute_tool_call(
             }
         
         # Add to cart
-        cart = await add_to_cart(session_id, med_id, qty)
+        cart = await add_to_cart(session_id, med_id, qty, dose=tool_args.get("dose"))
         
         # Clear pending state
         update_session_state(session_id, {
             "pending_rx_check": None,
+            "pending_qty_dose_check": None,
+            "pending_add_confirm": None,
             "selected_medication": None,
+            "collected_quantity": None,
+            "collected_dose": None,
         })
         
+        message = f"I've added {med['brand_name']} ({med['dosage']}"
+        if tool_args.get("dose"):
+            message += f", Dose: {tool_args.get('dose')}"
+        message += f") to your dispensing list. You currently have {cart['item_count']} item(s) prepared. Shall we proceed to secure checkout, or is there anything else I can dispense for you?"
+        
         return {
-            "message": f"I've added {med['brand_name']} ({med['dosage']}) to your dispensing list. You currently have {cart['item_count']} item(s) prepared. Shall we proceed to secure checkout, or is there anything else I can dispense for you?",
+            "message": message,
             "tts_message": f"Added {med['brand_name']} to your list. Shall we proceed to checkout?",
             "cart": cart,
             "action_taken": "add_to_cart",

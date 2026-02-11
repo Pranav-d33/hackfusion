@@ -21,7 +21,7 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
 # Model Configuration
 NLU_MODEL = os.getenv("NLU_MODEL", "mistralai/mistral-7b-instruct")
-PLANNER_MODEL = os.getenv("PLANNER_MODEL", "qwen/qwen-2.5-72b-instruct")
+PLANNER_MODEL = os.getenv("PLANNER_MODEL", "openai/gpt-oss-120b:free")
 
 # Embedding Model (local)
 EMBEDDING_MODEL = "all-MiniLM-L6-v2"

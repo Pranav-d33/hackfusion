@@ -1,5 +1,5 @@
 /**
- * Custom hook for Web Speech API (STT/TTS)
+ * Custom hook for Web Speech API (STT/TTS) with Audio Analysis
  */
 import { useState, useCallback, useRef, useEffect } from 'react';
 
@@ -9,9 +9,71 @@ export function useSpeech() {
     const [transcript, setTranscript] = useState('');
     const [error, setError] = useState(null);
     const [isSupported, setIsSupported] = useState(true);
+    const [audioLevel, setAudioLevel] = useState(0); // 0-1 normalized volume level
 
     const recognitionRef = useRef(null);
     const synthRef = useRef(null);
+    const audioContextRef = useRef(null);
+    const analyserRef = useRef(null);
+    const animationFrameRef = useRef(null);
+    const streamRef = useRef(null);
+
+    // Start audio analysis for voice reactivity
+    const startAudioAnalysis = useCallback(async () => {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            streamRef.current = stream;
+
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            audioContextRef.current = audioContext;
+
+            const analyser = audioContext.createAnalyser();
+            analyser.fftSize = 256;
+            analyser.smoothingTimeConstant = 0.8;
+            analyserRef.current = analyser;
+
+            const source = audioContext.createMediaStreamSource(stream);
+            source.connect(analyser);
+
+            // Animation loop to get volume
+            const dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+            const updateLevel = () => {
+                if (!analyserRef.current) return;
+
+                analyserRef.current.getByteFrequencyData(dataArray);
+
+                // Calculate average volume (0-255) and normalize to 0-1
+                const average = dataArray.reduce((a, b) => a + b, 0) / dataArray.length;
+                const normalized = Math.min(average / 128, 1); // Normalize to 0-1 range
+
+                setAudioLevel(normalized);
+                animationFrameRef.current = requestAnimationFrame(updateLevel);
+            };
+
+            updateLevel();
+        } catch (err) {
+            console.error('Audio analysis error:', err);
+        }
+    }, []);
+
+    // Stop audio analysis
+    const stopAudioAnalysis = useCallback(() => {
+        if (animationFrameRef.current) {
+            cancelAnimationFrame(animationFrameRef.current);
+            animationFrameRef.current = null;
+        }
+        if (audioContextRef.current) {
+            audioContextRef.current.close();
+            audioContextRef.current = null;
+        }
+        if (streamRef.current) {
+            streamRef.current.getTracks().forEach(track => track.stop());
+            streamRef.current = null;
+        }
+        analyserRef.current = null;
+        setAudioLevel(0);
+    }, []);
 
     // Initialize speech recognition
     useEffect(() => {
@@ -28,7 +90,7 @@ export function useSpeech() {
         const recognition = new SpeechRecognition();
         recognition.continuous = false;
         recognition.interimResults = true;
-        recognition.lang = 'en-IN'; // Indian English
+        recognition.lang = 'en-IN';
 
         recognition.onstart = () => {
             setIsListening(true);
@@ -69,36 +131,41 @@ export function useSpeech() {
 
         return () => {
             recognition.abort();
+            stopAudioAnalysis();
         };
-    }, []);
+    }, [stopAudioAnalysis]);
 
-    // Start listening
+    // Start listening with audio analysis
     const startListening = useCallback(() => {
         if (!recognitionRef.current) return;
 
         setTranscript('');
         setError(null);
 
+        // Start audio analysis for visual feedback
+        startAudioAnalysis();
+
         try {
             recognitionRef.current.start();
         } catch (err) {
-            // Already started
             if (err.name !== 'InvalidStateError') {
                 setError(err.message);
             }
         }
-    }, []);
+    }, [startAudioAnalysis]);
 
     // Stop listening
     const stopListening = useCallback(() => {
         if (!recognitionRef.current) return;
+
+        stopAudioAnalysis();
 
         try {
             recognitionRef.current.stop();
         } catch (err) {
             // Ignore errors on stop
         }
-    }, []);
+    }, [stopAudioAnalysis]);
 
     // Toggle listening
     const toggleListening = useCallback(() => {
@@ -113,16 +180,14 @@ export function useSpeech() {
     const speak = useCallback((text, options = {}) => {
         if (!synthRef.current) return;
 
-        // Cancel any ongoing speech
         synthRef.current.cancel();
 
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.lang = options.lang || 'en-IN';
-        utterance.rate = options.rate || 1.0;
+        utterance.rate = options.rate || 1.15;
         utterance.pitch = options.pitch || 1.0;
         utterance.volume = options.volume || 1.0;
 
-        // Try to find an Indian English voice
         const voices = synthRef.current.getVoices();
         const indianVoice = voices.find(v => v.lang.includes('en-IN'));
         const englishVoice = voices.find(v => v.lang.includes('en'));
@@ -158,6 +223,7 @@ export function useSpeech() {
         transcript,
         error,
         isSupported,
+        audioLevel, // New: 0-1 normalized audio volume for visualizations
         startListening,
         stopListening,
         toggleListening,

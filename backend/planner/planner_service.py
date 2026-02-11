@@ -55,10 +55,12 @@ You will receive:
 ## OUTPUT FORMAT:
 Return a JSON object with:
 {
-  "action": "tool_call" | "ask_rx" | "ask_user" | "respond" | "checkout" | "end",
+  "action": "tool_call" | "ask_rx" | "ask_quantity" | "ask_dose" | "ask_user" | "respond" | "checkout" | "end",
   "tool": "tool_name (required if action is tool_call)",
   "tool_args": {args (required if action is tool_call)},
-  "medication": {medication object from candidates - REQUIRED if action is ask_rx},
+  "medication": {medication object from candidates - REQUIRED if action is ask_rx, ask_quantity, or ask_dose},
+  "quantity": number (optional, for tracking),
+  "dose": "string" (optional, for tracking),
   "message": "professional pharmacist response message for user",
   "tts_message": "shorter message for voice (optional)",
   "reasoning": "brief explanation of your decision"
@@ -76,11 +78,20 @@ User says "medicine for diabetes", NLU gives indication_query:
 After getting candidates [Glycomet, Amaryl], present options:
 {"action": "ask_user", "message": "I've checked our current inventory for diabetes management. We have Glycomet (Metformin 500mg) and Amaryl (Glimepiride 2mg) available. Which of these has your doctor prescribed for you?", "reasoning": "Presenting available clinical options to the user."}
 
-User selects Glycomet (id=1, rx_required=true) - USE ask_rx WITH medication object:
-{"action": "ask_rx", "medication": {"id": 1, "brand_name": "Glycomet", "generic_name": "Metformin", "dosage": "500mg", "rx_required": true}, "message": "I can certainly help you with Glycomet. As this is a prescription-only medication, do you have a valid prescription ready for verification?", "reasoning": "Ensuring regulatory compliance for RX-only medication."}
+User selects Glycomet (id=1, rx_required=true) - USE ask_rx:
+{"action": "ask_rx", "medication": {"id": 1, "brand_name": "Glycomet", ...}, "message": "I can certainly help you with Glycomet. As this is a prescription-only medication, do you have a valid prescription ready for verification?", "reasoning": "Ensuring regulatory compliance for RX-only medication."}
 
-User confirms prescription (pending_rx_check is set):
-{"action": "tool_call", "tool": "add_to_cart", "tool_args": {"med_id": 1, "qty": 1}, "reasoning": "Prescription availability confirmed. Proceeding to dispense to cart."}
+User confirms prescription (pending_rx_check is set) - MOVE TO QUANTITY:
+{"action": "ask_quantity", "medication": {"id": 1, "brand_name": "Glycomet", ...}, "message": "Excellent! I've noted that you have your prescription. How many strips of Glycomet would you like to order today?", "reasoning": "Moving to quantity collection after RX verification."}
+
+User says "2 strips" - MOVE TO DOSE:
+{"action": "ask_dose", "medication": {"id": 1, "brand_name": "Glycomet", ...}, "quantity": 2, "message": "Got it, 2 strips. And what dosage has been prescribed by your healthcare provider? (You can say 'as prescribed' if you're unsure)", "reasoning": "Moving to dose collection after quantity is confirmed."}
+
+User says "500mg twice a day" or "as prescribed" - FINAL ADD:
+{"action": "tool_call", "tool": "add_to_cart", "tool_args": {"med_id": 1, "qty": 2, "dose": "500mg twice daily"}, "reasoning": "All clinical details collected. Proceeding to dispense."}
+
+User says "just add it" or skips details:
+{"action": "tool_call", "tool": "add_to_cart", "tool_args": {"med_id": 1, "qty": 1, "dose": "As Prescribed"}, "reasoning": "User preferred a direct addition. Proceeding with clinical defaults."}
 
 User asks "which medicine should I take?":
 {"action": "respond", "message": "As a pharmacist, I'm here to ensure you get the right medication safely, but I'm not permitted to provide medical diagnoses or treatment recommendations. If you can provide the name of the medication or the condition your doctor mentioned, I'll be happy to assist with your order.", "reasoning": "Clarifying clinical boundaries while remaining helpful."}
@@ -106,6 +117,8 @@ async def plan_next_action(
         "nlu_result": nlu_result,
         "candidates": conversation_state.get("candidates", []),
         "pending_rx_check": conversation_state.get("pending_rx_check"),
+        "pending_qty_dose_check": conversation_state.get("pending_qty_dose_check"),
+        "pending_add_confirm": conversation_state.get("pending_add_confirm"),
         "selected_medication": conversation_state.get("selected_medication"),
         "cart_items": conversation_state.get("cart", {}).get("items", []),
         "user_insights": conversation_state.get("user_insights", []),
@@ -125,7 +138,10 @@ Current state:
 What should I do next?"""
     
     try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        # REDUCED TIMEOUT: 15s (was 60s)
+        # Note: Most calls are handled by rule_first_plan in orchestrator
+        # This LLM planner is only called for edge cases
+        async with httpx.AsyncClient(timeout=15.0) as client:
             response = await client.post(
                 OPENROUTER_CHAT_URL,
                 headers={
@@ -139,7 +155,7 @@ What should I do next?"""
                         {"role": "user", "content": user_message},
                     ],
                     "temperature": 0.2,
-                    "max_tokens": 500,
+                    "max_tokens": 300,  # Reduced from 500
                 },
             )
             response.raise_for_status()
@@ -153,6 +169,15 @@ What should I do next?"""
         
         # Fallback to rule-based planning
         return _fallback_plan(nlu_result, conversation_state)
+    
+    except httpx.TimeoutException:
+        # CIRCUIT BREAKER: Timeout → graceful degradation
+        print(f"Planner Timeout - using safe fallback")
+        return {
+            "action": "respond",
+            "message": "I'm processing your request. Could you please repeat or clarify what you need?",
+            "reasoning": "[TIMEOUT] Graceful degradation",
+        }
         
     except Exception as e:
         print(f"Planner Error: {e}")
@@ -247,14 +272,44 @@ def _fallback_plan(nlu_result: Dict[str, Any], state: Dict[str, Any]) -> Dict[st
                         "message": f"{med['brand_name']} requires a prescription. Do you have one?",
                         "reasoning": "Need to verify prescription before adding",
                     }
+                # OTC - Move to quantity collection
                 return {
-                    "action": "tool_call",
-                    "tool": "add_to_cart",
-                    "tool_args": {"med_id": med["id"], "qty": 1},
-                    "reasoning": "OTC medication, adding to cart",
+                    "action": "ask_quantity",
+                    "medication": med,
+                    "message": f"How many strips of {med['brand_name']} would you like?",
+                    "reasoning": "Moving to quantity collection for OTC med",
                 }
         except (ValueError, IndexError):
             pass
+
+    # Handle RX Confirmation in fallback
+    if intent == "confirm_rx" and state.get("pending_rx_check"):
+        med = state["pending_rx_check"]
+        return {
+            "action": "ask_quantity",
+            "medication": med,
+            "message": f"Great! How many units would you like?",
+            "reasoning": "RX confirmed, asking for quantity",
+        }
+    
+    # Handle Quantity/Dose prompts in fallback
+    if intent == "quantity_response" and state.get("selected_medication"):
+        med = state["selected_medication"]
+        return {
+            "action": "ask_dose",
+            "medication": med,
+            "message": f"And what is the dose?",
+            "reasoning": "Quantity received, asking for dose",
+        }
+    
+    if intent in ("dose_response", "just_add_it") and state.get("selected_medication"):
+        med = state["selected_medication"]
+        return {
+            "action": "tool_call",
+            "tool": "add_to_cart",
+            "tool_args": {"med_id": med["id"], "qty": 1, "dose": value or "As Prescribed"},
+            "reasoning": "Adding to cart with default/provided info",
+        }
     
     # Handle checkout
     if intent == "checkout":

@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS medications (
     dosage TEXT NOT NULL,
     form TEXT NOT NULL DEFAULT 'tablet',
     unit_type TEXT NOT NULL DEFAULT 'tablet',
+    price REAL NOT NULL DEFAULT 0.0,
     rx_required BOOLEAN NOT NULL DEFAULT 0,
     notes TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -53,6 +54,7 @@ CREATE TABLE IF NOT EXISTS orders (
     session_id TEXT,
     items_json TEXT NOT NULL,
     status TEXT DEFAULT 'pending',
+    dose TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -62,6 +64,7 @@ CREATE TABLE IF NOT EXISTS cart (
     session_id TEXT NOT NULL,
     medication_id INTEGER NOT NULL,
     quantity INTEGER NOT NULL DEFAULT 1,
+    dose TEXT,
     added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (medication_id) REFERENCES medications(id) ON DELETE CASCADE
 );

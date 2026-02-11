@@ -10,7 +10,8 @@ sys.path.insert(0, str(__file__).rsplit('/', 2)[0])
 
 from agents.orchestrator import process_message, get_session_state, clear_session
 from tools.trace_tools import get_trace, clear_trace
-from tools.cart_tools import get_cart, clear_cart
+from tools.cart_tools import get_cart, clear_cart, update_cart_quantity
+from tools.query_tools import vector_search
 
 router = APIRouter(prefix="/api", tags=["agent"])
 
@@ -112,3 +113,31 @@ async def end_session(session_id: str):
     await clear_cart(session_id)
     clear_trace(session_id)
     return {"status": "session_ended"}
+
+@router.get("/search/medications")
+async def search_medications(q: str = ""):
+    """
+    Search medications by name for the manual search UI.
+    Returns results with rx_required, price, stock info.
+    """
+    if not q or not q.strip():
+        return {"results": []}
+    
+    results = await vector_search(q.strip(), top_k=10)
+    return {"results": results}
+
+
+class UpdateQuantityRequest(BaseModel):
+    quantity: int
+
+
+@router.put("/cart/{session_id}/item/{cart_item_id}")
+async def update_item_quantity(session_id: str, cart_item_id: int, request: UpdateQuantityRequest):
+    """
+    Update the quantity of a cart item.
+    """
+    if request.quantity < 0:
+        raise HTTPException(status_code=400, detail="Quantity must be non-negative")
+    
+    cart = await update_cart_quantity(session_id, cart_item_id, request.quantity)
+    return cart

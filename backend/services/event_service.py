@@ -71,14 +71,14 @@ async def log_event(
         return -1
 
 
-async def get_recent_events(limit: int = 50, event_type: str = None, agent: str = None) -> List[Dict[str, Any]]:
+async def get_recent_events(limit: int = 50, event_type: Any = None, agent: Any = None) -> List[Dict[str, Any]]:
     """
     Get recent events from the activity log.
     
     Args:
         limit: Maximum number of events to return
-        event_type: Optional filter by event type
-        agent: Optional filter by agent
+        event_type: Optional filter by event type (str or list[str])
+        agent: Optional filter by agent (str or list[str])
     
     Returns:
         List of events ordered by most recent first
@@ -88,12 +88,22 @@ async def get_recent_events(limit: int = 50, event_type: str = None, agent: str 
     conditions = []
     
     if event_type:
-        conditions.append("event_type = ?")
-        params.append(event_type)
+        if isinstance(event_type, list):
+            placeholders = ','.join(['?'] * len(event_type))
+            conditions.append(f"event_type IN ({placeholders})")
+            params.extend(event_type)
+        else:
+            conditions.append("event_type = ?")
+            params.append(event_type)
     
     if agent:
-        conditions.append("agent = ?")
-        params.append(agent)
+        if isinstance(agent, list):
+            placeholders = ','.join(['?'] * len(agent))
+            conditions.append(f"agent IN ({placeholders})")
+            params.extend(agent)
+        else:
+            conditions.append("agent = ?")
+            params.append(agent)
     
     if conditions:
         query += " WHERE " + " AND ".join(conditions)

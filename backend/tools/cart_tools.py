@@ -11,7 +11,7 @@ sys.path.insert(0, str(__file__).rsplit('/', 2)[0])
 from db.database import execute_query, execute_write
 
 
-async def add_to_cart(session_id: str, med_id: int, qty: int = 1) -> Dict[str, Any]:
+async def add_to_cart(session_id: str, med_id: int, qty: int = 1, dose: str = None) -> Dict[str, Any]:
     """
     Add a medication to the cart.
     
@@ -19,28 +19,39 @@ async def add_to_cart(session_id: str, med_id: int, qty: int = 1) -> Dict[str, A
         session_id: User session ID
         med_id: Medication ID
         qty: Quantity to add
+        dose: Optional prescribed dose
     
     Returns:
         Updated cart state
     """
+    # Ensure qty is int
+    qty = int(qty) if qty is not None else 1
+    
     # Check if item already in cart
     existing = await execute_query(
-        "SELECT id, quantity FROM cart WHERE session_id = ? AND medication_id = ?",
+        "SELECT id, quantity, dose FROM cart WHERE session_id = ? AND medication_id = ?",
         (session_id, med_id)
     )
     
     if existing:
-        # Update quantity
+        # Update quantity and dose (if provided)
         new_qty = existing[0]['quantity'] + qty
-        await execute_write(
-            "UPDATE cart SET quantity = ?, added_at = CURRENT_TIMESTAMP WHERE id = ?",
-            (new_qty, existing[0]['id'])
-        )
+        update_query = "UPDATE cart SET quantity = ?, added_at = CURRENT_TIMESTAMP"
+        params = [new_qty]
+        
+        if dose:
+            update_query += ", dose = ?"
+            params.append(dose)
+        
+        update_query += " WHERE id = ?"
+        params.append(existing[0]['id'])
+        
+        await execute_write(update_query, tuple(params))
     else:
         # Insert new item
         await execute_write(
-            "INSERT INTO cart (session_id, medication_id, quantity) VALUES (?, ?, ?)",
-            (session_id, med_id, qty)
+            "INSERT INTO cart (session_id, medication_id, quantity, dose) VALUES (?, ?, ?, ?)",
+            (session_id, med_id, qty, dose)
         )
     
     return await get_cart(session_id)
@@ -61,11 +72,13 @@ async def get_cart(session_id: str) -> Dict[str, Any]:
             c.id as cart_item_id,
             c.medication_id,
             c.quantity,
+            c.dose,
             m.brand_name,
             m.generic_name,
             m.dosage,
             m.form,
             m.unit_type,
+            m.price,
             m.rx_required
         FROM cart c
         JOIN medications m ON c.medication_id = m.id
@@ -77,22 +90,34 @@ async def get_cart(session_id: str) -> Dict[str, Any]:
         {
             "cart_item_id": item['cart_item_id'],
             "medication_id": item['medication_id'],
-            "quantity": item['quantity'],
+            "quantity": int(item['quantity']),
+            "dose": item.get('dose'),
             "brand_name": item['brand_name'],
             "generic_name": item['generic_name'],
             "dosage": item['dosage'],
             "form": item['form'],
             "unit_type": item['unit_type'],
+            "price": item['price'],
+            "item_total": item['price'] * int(item['quantity']),
             "rx_required": bool(item['rx_required']),
         }
         for item in items
     ]
     
+    subtotal = sum(item['item_total'] for item in cart_items)
+    tax = subtotal * 0.10
+    shipping = 50.0 if subtotal > 0 and subtotal < 500 else 0.0  # Free shipping over 500
+    total = subtotal + tax + shipping
+
     return {
         "session_id": session_id,
         "items": cart_items,
         "item_count": len(cart_items),
         "total_quantity": sum(item['quantity'] for item in cart_items),
+        "subtotal": round(subtotal, 2),
+        "tax": round(tax, 2),
+        "shipping": round(shipping, 2),
+        "total": round(total, 2),
     }
 
 

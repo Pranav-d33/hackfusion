@@ -1,8 +1,12 @@
 /**
- * Admin Dashboard - Professional Redesign
- * Dedicated admin page with inventory, forecast, procurement, and observability management.
+ * Admin Dashboard - Professional Redesign (White & Teal Theme)
  */
 import React, { useState, useEffect, useCallback } from 'react';
+import {
+  Zap, BarChart2, ShoppingCart, RefreshCw, Package, Activity,
+  Phone, Brain, Loader2, ThumbsUp, ThumbsDown, CheckCircle,
+  X, Search, MessageSquare, TrendingUp, Truck, Users, AlertTriangle
+} from 'lucide-react';
 
 const API_BASE = '/api';
 
@@ -22,6 +26,7 @@ export default function AdminDashboard({ onSwitchToUser, user }) {
   const [executionLogs, setExecutionLogs] = useState([]);
   const [safetyDecisions, setSafetyDecisions] = useState([]);
   const [workflowTraces, setWorkflowTraces] = useState([]);
+  const [ragMetrics, setRagMetrics] = useState(null);
 
   // New Medication Form State
   const [showAddMedModal, setShowAddMedModal] = useState(false);
@@ -46,6 +51,7 @@ export default function AdminDashboard({ onSwitchToUser, user }) {
     fetchWebhookLogs();
     if (activeTab === 'observability') {
       fetchObservabilityData();
+      fetchRagMetrics();
     }
   }, [activeTab]);
 
@@ -59,6 +65,7 @@ export default function AdminDashboard({ onSwitchToUser, user }) {
       fetchWebhookLogs();
       if (activeTab === 'observability') {
         fetchObservabilityData();
+        fetchRagMetrics();
       }
     }, 3000);
     return () => clearInterval(interval);
@@ -191,7 +198,6 @@ export default function AdminDashboard({ onSwitchToUser, user }) {
           type: 'success',
           text: `${data.message} - Stock updated`
         });
-        // Refresh all data after receiving order
         refreshAllData();
       } else {
         setMessage({ type: 'error', text: data.error });
@@ -199,6 +205,35 @@ export default function AdminDashboard({ onSwitchToUser, user }) {
     } catch (err) {
       setMessage({ type: 'error', text: 'Failed to mark received' });
     }
+  };
+
+  const fetchRagMetrics = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/observability/rag-metrics`);
+      const data = await res.json();
+      setRagMetrics(data);
+    } catch (err) {
+      console.error('Failed to fetch RAG metrics:', err);
+    }
+  };
+
+  const handleRunEval = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/observability/run-eval`, { method: 'POST' });
+      const data = await res.json();
+      setMessage({ type: 'success', text: data.message });
+      // Poll for updates a few times
+      let checks = 0;
+      const interval = setInterval(() => {
+        fetchRagMetrics();
+        checks++;
+        if (checks > 5) clearInterval(interval);
+      }, 2000);
+    } catch (err) {
+      setMessage({ type: 'error', text: 'Failed to trigger evaluation' });
+    }
+    setLoading(false);
   };
 
   const submitFeedback = async (traceId, rating) => {
@@ -217,7 +252,6 @@ export default function AdminDashboard({ onSwitchToUser, user }) {
   const handleCreateMedication = async (e) => {
     e.preventDefault();
     try {
-      // 1. Create Medication
       const res = await fetch(`${API_BASE}/admin/medications`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -236,7 +270,6 @@ export default function AdminDashboard({ onSwitchToUser, user }) {
       if (!res.ok) throw new Error("Failed to create medication");
       const data = await res.json();
 
-      // 2. Update Inventory
       if (newMed.stock_quantity > 0) {
         await fetch(`${API_BASE}/admin/inventory/${data.id}`, {
           method: 'PUT',
@@ -258,1252 +291,606 @@ export default function AdminDashboard({ onSwitchToUser, user }) {
         unit_type: 'tablet'
       });
       fetchMedications();
+      if (activeTab === 'inventory') fetchMedications();
+      if (activeTab === 'forecast') fetchLowStockPredictions();
     } catch (err) {
       console.error(err);
       setMessage({ type: 'error', text: 'Failed to add medication' });
     }
   };
 
+  const handleUpdateStock = async (id, qty) => {
+    try {
+      await fetch(`${API_BASE}/admin/inventory/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stock_quantity: parseInt(qty) })
+      });
+      setMessage({ type: 'success', text: 'Stock updated' });
+      fetchMedications();
+    } catch (err) {
+      setMessage({ type: 'error', text: 'Failed to update stock' });
+    }
+  };
+
   const getUrgencyColor = (urgency) => {
     switch (urgency) {
-      case 'critical': return '#dc2626';
-      case 'warning': return '#d97706';
-      case 'attention': return '#2563eb';
-      default: return '#16a34a';
+      case 'critical': return 'bg-red-100 text-red-800 border-red-200';
+      case 'warning': return 'bg-amber-100 text-amber-800 border-amber-200';
+      case 'attention': return 'bg-blue-100 text-blue-800 border-blue-200';
+      default: return 'bg-green-100 text-green-800 border-green-200';
     }
   };
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'pending': return '#d97706';
-      case 'ordered': return '#2563eb';
-      case 'received': return '#16a34a';
-      case 'cancelled': return '#dc2626';
-      default: return '#6b7280';
+      case 'pending': return 'bg-amber-100 text-amber-800';
+      case 'ordered': return 'bg-blue-100 text-blue-800';
+      case 'received': return 'bg-green-100 text-green-800';
+      case 'cancelled': return 'bg-red-100 text-red-800';
+      default: return 'bg-gray-100 text-gray-800';
     }
   };
 
+  const menus = [
+    { id: 'activity', label: 'Activity Feed', icon: <Zap size={20} />, count: events.length },
+    { id: 'forecast', label: 'Forecast', icon: <TrendingUp size={20} />, count: lowStockPredictions.length },
+    { id: 'procurement', label: 'Procurement', icon: <ShoppingCart size={20} />, count: procurementQueue.length > 0 ? procurementQueue.length : null },
+    { id: 'refills', label: 'Customer Refills', icon: <RefreshCw size={20} />, count: refillAlerts.length > 0 ? refillAlerts.length : null },
+    { id: 'inventory', label: 'Inventory', icon: <Package size={20} /> },
+    { id: 'observability', label: 'Observability', icon: <Activity size={20} /> },
+  ];
+
   return (
-    <div className="admin-dashboard">
-      <header className="admin-header">
-        <div className="header-left">
-          <h1>Mediloon Admin</h1>
-          <span className="user-badge admin">Admin: {user?.name || 'Admin'}</span>
+    <div className="flex h-screen bg-gray-50 font-sans">
+      {/* Sidebar Navigation */}
+      <aside className="w-64 bg-white border-r border-gray-200 flex flex-col z-10 shadow-lg">
+        <div className="p-6 flex items-center gap-3 border-b border-gray-100">
+          <div className="w-8 h-8 rounded-lg bg-teal-600 flex items-center justify-center text-white font-bold text-xl">M</div>
+          <h1 className="text-xl font-bold text-gray-800 tracking-tight">Mediloon Admin</h1>
         </div>
-        <div className="header-actions">
-          <button className="refresh-btn" onClick={refreshAllData}>
-            Refresh
-          </button>
-          <button className="switch-view-btn" onClick={onSwitchToUser}>
-            Switch to User View
-          </button>
-        </div>
-      </header>
 
-      {message && (
-        <div className={`message ${message.type}`}>
-          {message.text}
-          <button onClick={() => setMessage(null)}>×</button>
-        </div>
-      )}
-
-      <nav className="admin-tabs">
-        <button
-          className={activeTab === 'activity' ? 'active' : ''}
-          onClick={() => setActiveTab('activity')}
-        >
-          Activity Feed {events.length > 0 && <span className="badge">{events.length}</span>}
-        </button>
-        <button
-          className={activeTab === 'forecast' ? 'active' : ''}
-          onClick={() => setActiveTab('forecast')}
-        >
-          Forecast
-        </button>
-        <button
-          className={activeTab === 'procurement' ? 'active' : ''}
-          onClick={() => setActiveTab('procurement')}
-        >
-          Procurement
-        </button>
-        <button
-          className={activeTab === 'refills' ? 'active' : ''}
-          onClick={() => setActiveTab('refills')}
-        >
-          Customer Refills
-        </button>
-        <button
-          className={activeTab === 'inventory' ? 'active' : ''}
-          onClick={() => setActiveTab('inventory')}
-        >
-          Inventory
-        </button>
-        <button
-          className={activeTab === 'observability' ? 'active' : ''}
-          onClick={() => { setActiveTab('observability'); fetchObservabilityData(); }}
-        >
-          Observability
-        </button>
-      </nav>
-
-      <main className="admin-content">
-        {/* Activity Feed Tab */}
-        {activeTab === 'activity' && (
-          <div className="activity-section">
-            <div className="section-header">
-              <h2>Live Activity Feed</h2>
-              <p>Real-time agent actions and system events</p>
-            </div>
-
-            <div className="activity-grid">
-              <div className="events-panel">
-                <h3>Events Log</h3>
-                {events.length === 0 ? (
-                  <div className="empty-state">No events yet. Generate some orders to see activity.</div>
-                ) : (
-                  <div className="events-list">
-                    {events.map((event, i) => (
-                      <div key={i} className={`event-item ${event.event_type.toLowerCase()}`}>
-                        <div className="event-time">
-                          {new Date(event.created_at).toLocaleTimeString()}
-                        </div>
-                        <div className="event-content">
-                          <span className="event-agent">[{event.agent}]</span>
-                          <span className="event-message">{event.message.replace(/[^\w\s:→\-+]/g, '')}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+        <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+          {menus.map(menu => (
+            <button
+              key={menu.id}
+              onClick={() => setActiveTab(menu.id)}
+              className={`
+                        w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-200 group
+                        ${activeTab === menu.id
+                  ? 'bg-teal-50 text-teal-700 font-semibold shadow-sm ring-1 ring-teal-200'
+                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                }
+                    `}
+            >
+              <div className="flex items-center gap-3">
+                <span className="text-lg opacity-80 group-hover:scale-110 transition-transform">{menu.icon}</span>
+                <span>{menu.label}</span>
               </div>
+              {menu.count && (
+                <span className={`
+                            px-2 py-0.5 rounded-full text-xs font-bold
+                            ${activeTab === menu.id ? 'bg-teal-200 text-teal-800' : 'bg-gray-100 text-gray-600'}
+                        `}>
+                  {menu.count}
+                </span>
+              )}
+            </button>
+          ))}
+        </nav>
 
-              <div className="webhooks-panel">
-                <h3>Webhook Traffic</h3>
-                {webhookLogs.length === 0 ? (
-                  <div className="empty-state">No webhooks yet. Send an order to see HTTP traffic.</div>
-                ) : (
-                  <div className="webhook-list">
-                    {webhookLogs.map((log, i) => (
-                      <div key={i} className={`webhook-item ${log.direction}`}>
-                        <div className="webhook-header">
-                          <span className={`direction-badge ${log.direction}`}>
-                            {log.direction === 'outgoing' ? 'OUT' : 'IN'}
-                          </span>
-                          <span className="webhook-time">
-                            {new Date(log.created_at).toLocaleTimeString()}
-                          </span>
-                        </div>
-                        <div className="webhook-endpoint">{log.endpoint}</div>
-                        <details className="webhook-details">
-                          <summary>View Payload</summary>
-                          <pre>{JSON.stringify(log.payload, null, 2)}</pre>
-                        </details>
-                        {log.response && (
-                          <details className="webhook-details">
-                            <summary>View Response</summary>
-                            <pre>{JSON.stringify(log.response, null, 2)}</pre>
-                          </details>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
+        <div className="p-4 border-t border-gray-100 space-y-2">
+          <div className="px-4 py-3 bg-gray-50 rounded-xl mb-2">
+            <p className="text-xs text-gray-400 uppercase font-bold tracking-wider mb-1">Logged in as</p>
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-full bg-teal-100 flex items-center justify-center text-teal-700 font-bold text-xs">
+                {user?.name?.[0] || 'A'}
               </div>
+              <span className="text-sm font-medium text-gray-700">{user?.name || 'Admin User'}</span>
             </div>
           </div>
-        )}
+          <button
+            onClick={onSwitchToUser}
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gray-900 text-white rounded-xl hover:bg-gray-800 transition-colors shadow-lg hover:shadow-xl active:scale-95"
+          >
+            <span>Switch to User View</span>
+            <Users className="w-4 h-4" />
+          </button>
+        </div>
+      </aside>
 
-        {/* Forecast Tab */}
-        {activeTab === 'forecast' && (
-          <div className="forecast-section">
-            <div className="section-header">
-              <h2>Stock Depletion Forecast</h2>
-              <p>Medications predicted to run out within 14 days</p>
-            </div>
+      {/* Main Content Area */}
+      <main className="flex-1 flex flex-col overflow-hidden bg-gray-50/50">
 
-            {lowStockPredictions.length === 0 ? (
-              <div className="empty-state">
-                All stock levels healthy. No predicted shortages.
-              </div>
-            ) : (
-              <div className="forecast-grid">
-                {lowStockPredictions.map((pred, i) => (
-                  <div key={i} className="forecast-card" style={{ borderLeftColor: getUrgencyColor(pred.urgency) }}>
-                    <div className="forecast-header">
-                      <span className="medication-name">{pred.brand_name}</span>
-                      <span className="urgency-badge" style={{ backgroundColor: getUrgencyColor(pred.urgency) }}>
-                        {pred.urgency}
-                      </span>
-                    </div>
-                    <div className="forecast-details">
-                      <div className="detail-row">
-                        <span>Current Stock:</span>
-                        <strong>{pred.current_stock} units</strong>
-                      </div>
-                      <div className="detail-row">
-                        <span>Daily Sales:</span>
-                        <strong>{pred.units_per_day} units/day</strong>
-                      </div>
-                      <div className="detail-row">
-                        <span>Depletes in:</span>
-                        <strong>{pred.days_until_stockout} days</strong>
-                      </div>
-                      <div className="detail-row">
-                        <span>Predicted Date:</span>
-                        <strong>{pred.predicted_stockout_date}</strong>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+        {/* Top Header for Context */}
+        <header className="h-16 bg-white border-b border-gray-200 px-8 flex items-center justify-between shadow-sm z-0">
+          <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+            {menus.find(m => m.id === activeTab)?.icon}
+            {menus.find(m => m.id === activeTab)?.label}
+          </h2>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={refreshAllData}
+              className="p-2 text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition-all"
+              title="Refresh Data"
+            >
+              <svg className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+            </button>
+            <div className="h-6 w-px bg-gray-200"></div>
+            <span className="text-sm text-gray-500">{new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
           </div>
-        )}
+        </header>
 
-        {/* Procurement Tab */}
-        {activeTab === 'procurement' && (
-          <div className="procurement-section">
-            <div className="section-header">
-              <h2>Procurement Queue</h2>
-              <button
-                className="generate-btn"
-                onClick={generateProcurementOrders}
-                disabled={loading}
-              >
-                {loading ? 'Generating...' : 'Auto-Generate Orders'}
-              </button>
+        {/* Scrollable Content */}
+        <div className="flex-1 overflow-y-auto p-8">
+          {message && (
+            <div className={`mb-6 p-4 rounded-xl flex items-center justify-between shadow-sm animate-fade-in-up ${message.type === 'success' ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
+              <span className="font-medium">{message.text}</span>
+              <button onClick={() => setMessage(null)} className="opacity-60 hover:opacity-100"><X size={18} /></button>
             </div>
+          )}
 
-            {procurementQueue.length === 0 ? (
-              <div className="empty-state">
-                No procurement orders yet. Click "Auto-Generate Orders" to create orders for low-stock items.
+          {/* Inventory Tab */}
+          {activeTab === 'inventory' && (
+            <div className="space-y-6 animate-fade-in-up">
+              <div className="flex justify-between items-center bg-white p-4 rounded-2xl shadow-sm border border-gray-200">
+                <div>
+                  <h3 className="font-bold text-gray-800">Inventory Overview</h3>
+                  <p className="text-sm text-gray-500">Manage stock levels and add new products</p>
+                </div>
+                <button
+                  onClick={() => setShowAddMedModal(true)}
+                  className="px-6 py-2.5 bg-teal-600 text-white rounded-xl shadow-lg shadow-teal-200 hover:bg-teal-700 hover:shadow-xl transition-all active:scale-95 font-medium flex items-center gap-2"
+                >
+                  <span>+</span> Add Medication
+                </button>
               </div>
-            ) : (
-              <table className="procurement-table">
-                <thead>
-                  <tr>
-                    <th>Order ID</th>
-                    <th>Medication</th>
-                    <th>Quantity</th>
-                    <th>Supplier</th>
-                    <th>Status</th>
-                    <th>Est. Delivery</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {procurementQueue.map((order) => (
-                    <tr key={order.order_id}>
-                      <td><code>{order.order_id}</code></td>
-                      <td>{order.brand_name}</td>
-                      <td>{order.quantity || order.order_quantity} units</td>
-                      <td>{order.supplier_name || order.supplier?.name}</td>
-                      <td>
-                        <span className="status-badge" style={{ backgroundColor: getStatusColor(order.status) }}>
-                          {order.status}
-                        </span>
-                      </td>
-                      <td>{order.estimated_delivery || '-'}</td>
-                      <td className="actions-cell">
-                        {order.status === 'pending' && (
-                          <button
-                            className="action-btn send"
-                            onClick={() => sendOrderToSupplier(order.order_id)}
-                          >
-                            Send
-                          </button>
-                        )}
-                        {order.status === 'ordered' && (
-                          <button
-                            className="action-btn receive"
-                            onClick={() => markOrderReceived(order.order_id)}
-                          >
-                            Mark Received
-                          </button>
-                        )}
-                        {order.status === 'received' && order.stock_before !== undefined && (
-                          <span className="stock-change">
-                            {order.stock_before} → {order.stock_after}
-                          </span>
-                        )}
-                      </td>
+
+              <div className="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="bg-gray-50 border-b border-gray-100 text-xs uppercase text-gray-500 font-semibold tracking-wider">
+                      <th className="px-6 py-4">Medication</th>
+                      <th className="px-6 py-4">Generic</th>
+                      <th className="px-6 py-4">Dosage</th>
+                      <th className="px-6 py-4 text-center">Stock Level</th>
+                      <th className="px-6 py-4 text-center">RX Required</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        )}
-
-        {/* Customer Refills Tab */}
-        {activeTab === 'refills' && (
-          <div className="refills-section">
-            <div className="section-header">
-              <h2>Customer Refill Alerts</h2>
-              <p>Customers whose medications are running low</p>
-            </div>
-
-            {refillAlerts.length === 0 ? (
-              <div className="empty-state">
-                No refill alerts at this time.
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {medications.map((med) => (
+                      <tr key={med.id} className={`hover:bg-teal-50/30 transition-colors ${med.stock_quantity <= 10 ? 'bg-red-50/50' : ''}`}>
+                        <td className="px-6 py-4 font-medium text-gray-900">{med.brand_name}</td>
+                        <td className="px-6 py-4 text-gray-600">{med.generic_name}</td>
+                        <td className="px-6 py-4 text-gray-500">
+                          <span className="px-2 py-1 bg-gray-100 rounded text-xs">{med.dosage}</span>
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                          <div className="inline-flex items-center gap-2">
+                            <input
+                              type="number"
+                              className={`w-20 px-3 py-1.5 rounded-lg border text-center transition-all focus:ring-2 focus:ring-teal-500/20 ${med.stock_quantity <= 10 ? 'border-red-300 text-red-600 bg-white' : 'border-gray-200 text-gray-800 bg-gray-50'}`}
+                              defaultValue={med.stock_quantity}
+                              onBlur={(e) => handleUpdateStock(med.id, e.target.value)}
+                            />
+                            {med.stock_quantity <= 10 && <span className="text-red-500 text-xs font-bold animate-pulse">LOW</span>}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-center">
+                          {med.rx_required ? (
+                            <span className="inline-flex px-2 py-1 bg-orange-100 text-orange-700 rounded text-xs font-bold">YES</span>
+                          ) : (
+                            <span className="inline-flex px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-bold">NO</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            ) : (
-              <div className="refill-list">
-                {refillAlerts.map((alert, i) => (
-                  <div key={i} className="refill-card" style={{ borderLeftColor: getUrgencyColor(alert.urgency) }}>
-                    <div className="refill-customer">
-                      <strong>{alert.customer_name}</strong>
-                      <span>{alert.customer_phone}</span>
-                    </div>
-                    <div className="refill-medication">
-                      {alert.brand_name} ({alert.dosage})
-                    </div>
-                    <div className="refill-timing">
-                      <span className="urgency-badge" style={{ backgroundColor: getUrgencyColor(alert.urgency) }}>
-                        {alert.days_until_depletion <= 0 ? 'OUT' : `${alert.days_until_depletion} days`}
-                      </span>
-                      <span className="depletion-date">Depletes: {alert.depletion_date}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Inventory Tab */}
-        {activeTab === 'inventory' && (
-          <div className="inventory-section">
-            <div className="section-header">
-              <h2>Inventory Management</h2>
-              <button
-                className="generate-btn"
-                onClick={() => setShowAddMedModal(true)}
-              >
-                + Add Medication
-              </button>
             </div>
+          )}
 
-            {showAddMedModal && (
-              <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-                <div className="bg-gray-800 border border-gray-700 rounded-xl p-6 w-full max-w-md shadow-2xl">
-                  <h3 className="text-xl font-bold mb-4 text-white">Add New Medication</h3>
-                  <form onSubmit={handleCreateMedication} className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-xs text-gray-400 mb-1">Brand Name</label>
-                        <input
-                          type="text"
-                          required
-                          className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
-                          value={newMed.brand_name}
-                          onChange={e => setNewMed({ ...newMed, brand_name: e.target.value })}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-gray-400 mb-1">Generic Name</label>
-                        <input
-                          type="text"
-                          required
-                          className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
-                          value={newMed.generic_name}
-                          onChange={e => setNewMed({ ...newMed, generic_name: e.target.value })}
-                        />
-                      </div>
-                    </div>
+          {/* Other Tabs Placeholder to be filled... reusing logic from previous implementation but with new UI */}
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-xs text-gray-400 mb-1">Dosage</label>
-                        <input
-                          type="text"
-                          required
-                          placeholder="e.g. 500mg"
-                          className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
-                          value={newMed.dosage}
-                          onChange={e => setNewMed({ ...newMed, dosage: e.target.value })}
-                        />
+          {/* Activity Tab */}
+          {activeTab === 'activity' && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-fade-in-up">
+              <div className="bg-white rounded-3xl shadow-md border border-gray-200 overflow-hidden flex flex-col h-[600px]">
+                <div className="p-6 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
+                  <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+                    Live Events Feed
+                  </h3>
+                  <span className="text-xs font-mono text-gray-400">REALTIME</span>
+                </div>
+                <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                  {events.length === 0 ? (
+                    <div className="text-center py-20 text-gray-400">No events recorded yet.</div>
+                  ) : (
+                    events.map((event, i) => (
+                      <div key={i} className="flex gap-4 p-3 rounded-xl hover:bg-gray-50 transition-colors border border-transparent hover:border-gray-100">
+                        <div className="text-xs font-mono text-gray-400 whitespace-nowrap pt-1">
+                          {new Date(event.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 text-[10px] font-bold uppercase tracking-wider">{event.agent}</span>
+                            <span className="text-xs font-semibold text-gray-900 uppercase">{event.event_type}</span>
+                          </div>
+                          <p className="text-sm text-gray-600 leading-relaxed font-norma">{event.message}</p>
+                        </div>
                       </div>
-                      <div>
-                        <label className="block text-xs text-gray-400 mb-1">Stock Qty</label>
-                        <input
-                          type="number"
-                          required
-                          min="0"
-                          className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white"
-                          value={newMed.stock_quantity}
-                          onChange={e => setNewMed({ ...newMed, stock_quantity: e.target.value })}
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          className="w-4 h-4 rounded bg-gray-700 border-gray-600"
-                          checked={newMed.rx_required}
-                          onChange={e => setNewMed({ ...newMed, rx_required: e.target.checked })}
-                        />
-                        <span className="text-sm text-gray-300">Prescription Required (RX)</span>
-                      </label>
-                    </div>
-
-                    <div className="flex justify-end gap-3 mt-6">
-                      <button
-                        type="button"
-                        onClick={() => setShowAddMedModal(false)}
-                        className="px-4 py-2 rounded bg-gray-700 text-gray-300 hover:bg-gray-600"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="submit"
-                        className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-500 font-medium"
-                      >
-                        Add Medication
-                      </button>
-                    </div>
-                  </form>
+                    ))
+                  )}
                 </div>
               </div>
-            )}
 
-            <table className="inventory-table">
-              <thead>
-                <tr>
-                  <th>Medication</th>
-                  <th>Generic Name</th>
-                  <th>Dosage</th>
-                  <th>Stock</th>
-                  <th>RX Required</th>
-                </tr>
-              </thead>
-              <tbody>
-                {medications.map((med) => (
-                  <tr key={med.id} className={med.stock_quantity <= 10 ? 'low-stock' : ''}>
-                    <td>{med.brand_name}</td>
-                    <td>{med.generic_name}</td>
-                    <td>{med.dosage}</td>
-                    <td>
-                      <span className={med.stock_quantity <= 10 ? 'stock-warning' : ''}>
-                        <input
-                          type="number"
-                          className="bg-gray-800 border border-gray-700 rounded px-2 py-1 w-20 text-center text-white"
-                          defaultValue={med.stock_quantity}
-                          onBlur={(e) => handleUpdateStock(med.id, e.target.value)}
-                        />
-                        <span className="text-xs text-gray-500 ml-2">units</span>
-                      </span>
-                    </td>
-                    <td>{med.rx_required ? 'Yes' : 'No'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {/* Observability Tab */}
-        {activeTab === 'observability' && (
-          <div className="observability-section">
-            <div className="section-header">
-              <h2>Observability Dashboard</h2>
-              <div className="obs-status">
-                {observabilityStatus && (
-                  <span className={`status-indicator ${observabilityStatus.langfuse_enabled ? 'enabled' : 'disabled'}`}>
-                    Langfuse: {observabilityStatus.langfuse_enabled ? 'Connected' : 'Not Configured'}
-                  </span>
-                )}
+              <div className="bg-white rounded-3xl shadow-md border border-gray-200 overflow-hidden flex flex-col h-[600px]">
+                <div className="p-6 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
+                  <h3 className="font-bold text-gray-800">Webhook Traffic</h3>
+                  <span className="px-2 py-1 bg-gray-200 text-gray-600 rounded text-xs font-mono">HTTP/1.1</span>
+                </div>
+                <div className="flex-1 overflow-y-auto p-0">
+                  {webhookLogs.length === 0 ? (
+                    <div className="text-center py-20 text-gray-400">No webhook logs available.</div>
+                  ) : (
+                    <table className="w-full text-left text-sm">
+                      <thead className="bg-gray-50 text-gray-500 font-medium">
+                        <tr>
+                          <th className="px-4 py-3">Time</th>
+                          <th className="px-4 py-3">Method</th>
+                          <th className="px-4 py-3">Endpoint</th>
+                          <th className="px-4 py-3 text-right">Payload</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {webhookLogs.map((log, i) => (
+                          <tr key={i} className="hover:bg-gray-50 font-mono text-xs">
+                            <td className="px-4 py-3 text-gray-400">{new Date(log.created_at).toLocaleTimeString()}</td>
+                            <td className="px-4 py-3">
+                              <span className={`px-1.5 py-0.5 rounded font-bold ${log.direction === 'outgoing' ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'}`}>
+                                {log.direction === 'outgoing' ? 'POST' : 'Recv'}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-gray-700 truncate max-w-[150px]" title={log.endpoint}>{log.endpoint}</td>
+                            <td className="px-4 py-3 text-right">
+                              <details className="cursor-pointer group relative inline-block text-left">
+                                <summary className="list-none text-teal-600 hover:text-teal-800 font-medium">View JSON</summary>
+                                <div className="fixed right-10 mt-2 w-96 bg-gray-900 text-green-400 p-4 rounded-xl shadow-2xl z-50 text-xs overflow-auto max-h-96 hidden group-open:block">
+                                  <pre>{JSON.stringify(log.payload, null, 2)}</pre>
+                                </div>
+                              </details>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
               </div>
             </div>
+          )}
 
-            <div className="observability-grid">
-              {/* Execution Logs */}
-              <div className="obs-panel execution-logs">
-                <h3>Agent Execution Log</h3>
-                <p className="panel-subtitle">Trace agent steps and tool calls</p>
-                {executionLogs.length === 0 ? (
-                  <div className="empty-state">No execution logs yet.</div>
-                ) : (
-                  <div className="log-list">
-                    {executionLogs.map((log, i) => (
-                      <div key={i} className="log-item">
-                        <div className="log-header">
-                          <span className="log-time">{new Date(log.created_at).toLocaleTimeString()}</span>
-                          <span className="log-type">{log.event_type}</span>
+          {/* Forecast Tab */}
+          {activeTab === 'forecast' && (
+            <div className="animate-fade-in-up">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {lowStockPredictions.map((pred, i) => {
+                  const colorClass = getUrgencyColor(pred.urgency);
+                  return (
+                    <div key={i} className={`bg-white p-6 rounded-3xl shadow-sm border-l-4 hover:shadow-md transition-shadow ${colorClass.split(' ')[2]}`}>
+                      <div className="flex justify-between items-start mb-4">
+                        <div>
+                          <h4 className="font-bold text-lg text-gray-900">{pred.brand_name}</h4>
+                          <p className="text-sm text-gray-500">Predicted Stockout</p>
                         </div>
-                        <div className="log-agent">{log.agent}</div>
-                        <div className="log-message">{log.message.replace(/[^\w\s:→\-+.]/g, '')}</div>
-                        {log.metadata && (
-                          <details className="log-metadata">
-                            <summary>Metadata</summary>
-                            <pre>{JSON.stringify(log.metadata, null, 2)}</pre>
-                          </details>
-                        )}
-                        <div className="feedback-buttons">
-                          <button
-                            className="feedback-btn positive"
-                            onClick={() => submitFeedback(log.id?.toString() || `log-${i}`, 'positive')}
-                            title="Good response"
-                          >
-                            +
-                          </button>
-                          <button
-                            className="feedback-btn negative"
-                            onClick={() => submitFeedback(log.id?.toString() || `log-${i}`, 'negative')}
-                            title="Poor response"
-                          >
-                            -
-                          </button>
+                        <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${colorClass.split(' ')[0]} ${colorClass.split(' ')[1]}`}>
+                          {pred.urgency}
+                        </span>
+                      </div>
+                      <div className="space-y-3">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-500">Current Stock</span>
+                          <span className="font-mono font-medium">{pred.current_stock}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-500">Velocity</span>
+                          <span className="font-mono font-medium">{pred.units_per_day}/day</span>
+                        </div>
+                        <div className="pt-3 border-t border-gray-100 flex justify-between items-center">
+                          <span className="text-xs font-bold text-gray-400 uppercase">Empty In</span>
+                          <span className="text-xl font-bold text-gray-900">{pred.days_until_stockout} days</span>
+                        </div>
+                        <div className="text-xs text-center text-teal-600 bg-teal-50 py-2 rounded-lg font-medium">
+                          Expected: {pred.predicted_stockout_date}
                         </div>
                       </div>
-                    ))}
-                  </div>
-                )}
+                    </div>
+                  )
+                })}
               </div>
-
-              {/* Safety Decisions */}
-              <div className="obs-panel safety-decisions">
-                <h3>RX Safety Decisions</h3>
-                <p className="panel-subtitle">Prescription validation audit log</p>
-                {safetyDecisions.length === 0 ? (
-                  <div className="empty-state">No safety decisions logged yet.</div>
-                ) : (
-                  <div className="safety-list">
-                    {safetyDecisions.map((decision, i) => (
-                      <div key={i} className="safety-item">
-                        <div className="safety-header">
-                          <span className="safety-time">{new Date(decision.created_at).toLocaleTimeString()}</span>
-                          <span className="safety-type">{decision.event_type}</span>
-                        </div>
-                        <div className="safety-message">{decision.message.replace(/[^\w\s:→\-+.]/g, '')}</div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Workflow Traces */}
-              <div className="obs-panel workflow-traces">
-                <h3>Workflow Traces</h3>
-                <p className="panel-subtitle">Procurement and refill workflow tracking</p>
-                {workflowTraces.length === 0 ? (
-                  <div className="empty-state">No workflow traces yet.</div>
-                ) : (
-                  <div className="workflow-list">
-                    {workflowTraces.map((trace, i) => (
-                      <div key={i} className="workflow-item">
-                        <div className="workflow-header">
-                          <span className="workflow-time">{new Date(trace.created_at).toLocaleTimeString()}</span>
-                          <span className="workflow-agent">{trace.agent}</span>
-                        </div>
-                        <div className="workflow-message">{trace.message.replace(/[^\w\s:→\-+.]/g, '')}</div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+              {lowStockPredictions.length === 0 && (
+                <div className="text-center py-20">
+                  <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4"><CheckCircle size={32} /></div>
+                  <h3 className="text-xl font-bold text-gray-800">No Risk Detected</h3>
+                  <p className="text-gray-500">Inventory levels are healthy for the next 14 days.</p>
+                </div>
+              )}
             </div>
+          )}
 
-            {/* Langfuse Link */}
-            {observabilityStatus?.langfuse_enabled && observabilityStatus?.langfuse_host && (
-              <div className="langfuse-link">
-                <a
-                  href={observabilityStatus.langfuse_host}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="external-link"
+          {/* Procurement */}
+          {activeTab === 'procurement' && (
+            <div className="animate-fade-in-up space-y-6">
+              <div className="flex justify-between items-center bg-white p-4 rounded-2xl shadow-sm border border-gray-200">
+                <div>
+                  <h3 className="font-bold text-gray-800">Procurement Orders</h3>
+                  <p className="text-sm text-gray-500">Manage supplier orders and deliveries</p>
+                </div>
+                <button
+                  onClick={generateProcurementOrders}
+                  disabled={loading}
+                  className="px-6 py-2.5 bg-gray-900 text-white rounded-xl shadow-lg hover:bg-gray-800 transition-all font-medium flex items-center gap-2"
                 >
-                  Open Langfuse Dashboard
-                </a>
+                  {loading ? <Loader2 className="animate-spin" size={16} /> : <Zap size={16} />} Auto-Generate Orders
+                </button>
               </div>
-            )}
+
+              <div className="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden">
+                <table className="w-full text-left">
+                  <thead className="bg-gray-50 border-b border-gray-100 text-xs uppercase text-gray-500">
+                    <tr>
+                      <th className="px-6 py-4">Status</th>
+                      <th className="px-6 py-4">Order Details</th>
+                      <th className="px-6 py-4">Supplier</th>
+                      <th className="px-6 py-4">Est. Delivery</th>
+                      <th className="px-6 py-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {procurementQueue.map((order) => {
+                      const statusClass = getStatusColor(order.status);
+                      return (
+                        <tr key={order.order_id} className="hover:bg-gray-50 transition-colors">
+                          <td className="px-6 py-4">
+                            <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${statusClass}`}>
+                              {order.status}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="font-bold text-gray-900">{order.brand_name}</div>
+                            <div className="text-sm text-gray-500">{order.quantity || order.order_quantity} units</div>
+                          </td>
+                          <td className="px-6 py-4 font-medium text-gray-700">{order.supplier_name || order.supplier?.name}</td>
+                          <td className="px-6 py-4 text-gray-600">{order.estimated_delivery || '-'}</td>
+                          <td className="px-6 py-4 text-right">
+                            <div className="flex justify-end gap-2">
+                              {order.status === 'pending' && (
+                                <button onClick={() => sendOrderToSupplier(order.order_id)} className="px-4 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 shadow-sm">Send</button>
+                              )}
+                              {order.status === 'ordered' && (
+                                <button onClick={() => markOrderReceived(order.order_id)} className="px-4 py-1.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 shadow-sm">Received</button>
+                              )}
+                              {order.status === 'received' && (
+                                <span className="text-xs text-gray-400 font-mono">Completed</span>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                {procurementQueue.length === 0 && (
+                  <div className="text-center py-12 text-gray-400">No active orders</div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Refills */}
+          {activeTab === 'refills' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in-up">
+              {refillAlerts.map((alert, i) => (
+                <div key={i} className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 hover:shadow-md transition-all relative overflow-hidden group">
+                  <div className={`absolute top-0 left-0 w-1.5 h-full ${alert.days_until_depletion <= 3 ? 'bg-red-500' : 'bg-amber-400'}`}></div>
+                  <div className="pl-4">
+                    <div className="flex justify-between items-start mb-2">
+                      <h4 className="font-bold text-lg text-gray-900">{alert.customer_name}</h4>
+                      <a href={`tel:${alert.customer_phone}`} className="w-8 h-8 rounded-full bg-teal-50 text-teal-600 flex items-center justify-center hover:bg-teal-100">
+                        <Phone size={16} />
+                      </a>
+                    </div>
+                    <p className="text-sm text-gray-500 mb-4">{alert.customer_phone}</p>
+
+                    <div className="bg-gray-50 rounded-xl p-3 mb-4">
+                      <div className="font-medium text-gray-800">{alert.brand_name}</div>
+                      <div className="text-xs text-gray-500">{alert.dosage}</div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className={`px-2 py-1 rounded-md text-xs font-bold ${alert.days_until_depletion <= 3 ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                        {alert.days_until_depletion <= 0 ? 'EMPTY' : `${alert.days_until_depletion} days left`}
+                      </span>
+                      <span className="text-xs text-gray-400">Due: {alert.depletion_date}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {refillAlerts.length === 0 && (
+                <div className="col-span-full text-center py-20 text-gray-400">No customer refills due.</div>
+              )}
+            </div>
+          )}
+
+          {/* Observability */}
+          {activeTab === 'observability' && (
+            <div className="space-y-6 animate-fade-in-up">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-200">
+                  <h3 className="font-bold text-gray-800 mb-4">Execution Status</h3>
+                  <div className="flex items-center gap-3">
+                    <div className={`w-3 h-3 rounded-full ${observabilityStatus?.langfuse_enabled ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.4)]' : 'bg-gray-300'}`}></div>
+                    <span className="font-medium text-gray-700">{observabilityStatus?.langfuse_enabled ? 'Langfuse Connected' : 'Langfuse Disconnected'}</span>
+                  </div>
+                </div>
+
+                {/* RAG Intelligence Card */}
+                <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-200 lg:col-span-2">
+                  <div className="flex justify-between items-start mb-6">
+                    <div>
+                      <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                        <Brain className="text-purple-600" size={24} /> RAG Intelligence & Quality
+                      </h3>
+                      <p className="text-sm text-gray-500">Automated evaluation of retrieval quality and hallucination using RAGAS.</p>
+                    </div>
+                    <button
+                      onClick={handleRunEval}
+                      disabled={loading}
+                      className="px-4 py-2 bg-indigo-600 text-white rounded-xl shadow-lg shadow-indigo-200 hover:bg-indigo-700 hover:shadow-xl transition-all active:scale-95 text-sm font-bold flex items-center gap-2"
+                    >
+                      {loading ? <Loader2 className="animate-spin" size={16} /> : <Zap size={16} />} Run Quality Check
+                    </button>
+                  </div>
+
+                  {ragMetrics?.latest ? (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm font-medium">
+                          <span className="text-gray-600">Faithfulness</span>
+                          <span className={`${ragMetrics.latest.faithfulness_score >= 0.8 ? 'text-green-600' : 'text-amber-600'}`}>
+                            {(ragMetrics.latest.faithfulness_score * 100).toFixed(0)}%
+                          </span>
+                        </div>
+                        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-1000 ${ragMetrics.latest.faithfulness_score >= 0.8 ? 'bg-green-500' : 'bg-amber-500'}`}
+                            style={{ width: `${ragMetrics.latest.faithfulness_score * 100}%` }}
+                          ></div>
+                        </div>
+                        <p className="text-xs text-gray-400">Measures if answer is derived from context (Anti-Hallucination)</p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm font-medium">
+                          <span className="text-gray-600">Context Precision</span>
+                          <span className={`${ragMetrics.latest.context_precision_score >= 0.7 ? 'text-blue-600' : 'text-amber-600'}`}>
+                            {(ragMetrics.latest.context_precision_score * 100).toFixed(0)}%
+                          </span>
+                        </div>
+                        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-1000 ${ragMetrics.latest.context_precision_score >= 0.7 ? 'bg-blue-500' : 'bg-amber-500'}`}
+                            style={{ width: `${ragMetrics.latest.context_precision_score * 100}%` }}
+                          ></div>
+                        </div>
+                        <p className="text-xs text-gray-400">Measures if retrieved documents are relevant to the query</p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm font-medium">
+                          <span className="text-gray-600">Answer Relevancy</span>
+                          <span className={`${ragMetrics.latest.answer_relevancy_score >= 0.8 ? 'text-purple-600' : 'text-amber-600'}`}>
+                            {(ragMetrics.latest.answer_relevancy_score * 100).toFixed(0)}%
+                          </span>
+                        </div>
+                        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-1000 ${ragMetrics.latest.answer_relevancy_score >= 0.8 ? 'bg-purple-500' : 'bg-amber-500'}`}
+                            style={{ width: `${ragMetrics.latest.answer_relevancy_score * 100}%` }}
+                          ></div>
+                        </div>
+                        <p className="text-xs text-gray-400">Measures if the answer directly addresses the user question</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+                      <p className="text-gray-500 mb-2">No evaluation data available yet.</p>
+                      <p className="text-xs text-gray-400">Run a quality check to generate baseline metrics.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden">
+                <div className="p-4 border-b border-gray-100 bg-gray-50">
+                  <h3 className="font-bold text-gray-800">Agent Execution Logs</h3>
+                </div>
+                <div className="max-h-[600px] overflow-y-auto">
+                  {executionLogs.map((log, i) => (
+                    <div key={i} className="p-4 border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
+                      <div className="flex justify-between items-start mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-mono text-gray-400">{new Date(log.created_at).toLocaleTimeString()}</span>
+                          <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-bold text-[10px] uppercase tracking-wide">{log.agent}</span>
+                        </div>
+                        <div className="flex gap-1">
+                          <button onClick={() => submitFeedback(log.trace_id || log.id, 'positive')} className="text-gray-300 hover:text-green-500 px-2"><ThumbsUp size={16} /></button>
+                          <button onClick={() => submitFeedback(log.trace_id || log.id, 'negative')} className="text-gray-300 hover:text-red-500 px-2"><ThumbsDown size={16} /></button>
+                        </div>
+                      </div>
+                      <p className="text-sm text-gray-700 font-medium">{log.message}</p>
+                      {log.metadata && (
+                        <details className="mt-2 text-xs text-gray-500">
+                          <summary className="cursor-pointer hover:text-teal-600">Show Metadata</summary>
+                          <pre className="mt-2 bg-gray-900 text-gray-300 p-2 rounded-lg overflow-x-auto">{JSON.stringify(log.metadata, null, 2)}</pre>
+                        </details>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+        </div>
+      </main >
+
+      {/* Add Medication Modal */}
+      {showAddMedModal && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl shadow-2xl p-8 w-full max-w-lg border border-gray-100 animate-zoom-in">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-2xl font-bold text-gray-800">Add New Medication</h3>
+              <button onClick={() => setShowAddMedModal(false)} className="w-8 h-8 rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 flex items-center justify-center"><X size={20} /></button>
+            </div>
+            <form onSubmit={handleCreateMedication} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-500 uppercase">Brand Name</label>
+                  <input type="text" required className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition-all" value={newMed.brand_name} onChange={e => setNewMed({ ...newMed, brand_name: e.target.value })} placeholder="e.g. Panado" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-500 uppercase">Generic</label>
+                  <input type="text" required className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition-all" value={newMed.generic_name} onChange={e => setNewMed({ ...newMed, generic_name: e.target.value })} placeholder="e.g. Paracetamol" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-500 uppercase">Dosage</label>
+                  <input type="text" required className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition-all" value={newMed.dosage} onChange={e => setNewMed({ ...newMed, dosage: e.target.value })} placeholder="e.g. 500mg" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-500 uppercase">Stock Qty</label>
+                  <input type="number" required className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition-all" value={newMed.stock_quantity} onChange={e => setNewMed({ ...newMed, stock_quantity: e.target.value })} />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
+                <input type="checkbox" id="rx" className="w-5 h-5 rounded text-teal-600 focus:ring-teal-500" checked={newMed.rx_required} onChange={e => setNewMed({ ...newMed, rx_required: e.target.checked })} />
+                <label htmlFor="rx" className="font-medium text-gray-700 cursor-pointer select-none">Prescription Required (RX)</label>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4">
+                <button type="button" onClick={() => setShowAddMedModal(false)} className="px-6 py-3 text-gray-500 font-bold hover:bg-gray-50 rounded-xl transiton-colors">Cancel</button>
+                <button type="submit" className="px-8 py-3 bg-teal-600 text-white font-bold rounded-xl shadow-lg hover:shadow-xl hover:bg-teal-700 transition-all active:scale-95">Add Product</button>
+              </div>
+            </form>
           </div>
-        )}
-      </main>
-
-      <style>{`
-        .admin-dashboard {
-          min-height: 100vh;
-          background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-          color: #e2e8f0;
-          font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-        }
-
-        .admin-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 1rem 2rem;
-          background: rgba(15, 23, 42, 0.8);
-          border-bottom: 1px solid rgba(148, 163, 184, 0.1);
-          backdrop-filter: blur(8px);
-        }
-
-        .header-left {
-          display: flex;
-          align-items: center;
-          gap: 1rem;
-        }
-
-        .header-left h1 {
-          margin: 0;
-          font-size: 1.5rem;
-          font-weight: 600;
-          color: #f1f5f9;
-        }
-
-        .header-actions {
-          display: flex;
-          gap: 0.75rem;
-        }
-
-        .user-badge {
-          padding: 0.25rem 0.75rem;
-          border-radius: 6px;
-          font-size: 0.85rem;
-          font-weight: 500;
-        }
-
-        .user-badge.admin {
-          background: linear-gradient(135deg, #4f46e5, #3730a3);
-          color: #fff;
-        }
-
-        .refresh-btn {
-          padding: 0.5rem 1rem;
-          background: rgba(71, 85, 105, 0.5);
-          border: 1px solid rgba(148, 163, 184, 0.2);
-          border-radius: 6px;
-          color: #e2e8f0;
-          cursor: pointer;
-          font-size: 0.875rem;
-          transition: all 0.2s;
-        }
-
-        .refresh-btn:hover {
-          background: rgba(71, 85, 105, 0.7);
-        }
-
-        .switch-view-btn {
-          padding: 0.5rem 1rem;
-          background: rgba(71, 85, 105, 0.5);
-          border: 1px solid rgba(148, 163, 184, 0.2);
-          border-radius: 6px;
-          color: #e2e8f0;
-          cursor: pointer;
-          font-size: 0.875rem;
-          transition: all 0.2s;
-        }
-
-        .switch-view-btn:hover {
-          background: rgba(71, 85, 105, 0.7);
-        }
-
-        .message {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 0.75rem 1rem;
-          margin: 1rem 2rem;
-          border-radius: 6px;
-          font-size: 0.875rem;
-        }
-
-        .message.success { 
-          background: rgba(22, 163, 74, 0.15); 
-          border: 1px solid rgba(22, 163, 74, 0.4);
-          color: #4ade80;
-        }
-        .message.error { 
-          background: rgba(220, 38, 38, 0.15); 
-          border: 1px solid rgba(220, 38, 38, 0.4);
-          color: #f87171;
-        }
-
-        .message button {
-          background: none;
-          border: none;
-          color: inherit;
-          font-size: 1.2rem;
-          cursor: pointer;
-          padding: 0 0.5rem;
-        }
-
-        .admin-tabs {
-          display: flex;
-          gap: 0.25rem;
-          padding: 1rem 2rem;
-          border-bottom: 1px solid rgba(148, 163, 184, 0.1);
-          background: rgba(15, 23, 42, 0.5);
-        }
-
-        .admin-tabs button {
-          padding: 0.625rem 1.25rem;
-          background: transparent;
-          border: 1px solid transparent;
-          border-radius: 6px;
-          color: #94a3b8;
-          cursor: pointer;
-          font-size: 0.875rem;
-          font-weight: 500;
-          transition: all 0.2s;
-        }
-
-        .admin-tabs button:hover {
-          background: rgba(71, 85, 105, 0.3);
-          color: #e2e8f0;
-        }
-
-        .admin-tabs button.active {
-          background: rgba(79, 70, 229, 0.2);
-          border-color: #4f46e5;
-          color: #a5b4fc;
-        }
-
-        .admin-content {
-          padding: 2rem;
-        }
-
-        .section-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 1.5rem;
-        }
-
-        .section-header h2 { 
-          margin: 0;
-          font-size: 1.25rem;
-          font-weight: 600;
-          color: #f1f5f9;
-        }
-        .section-header p { 
-          margin: 0.25rem 0 0;
-          color: #64748b;
-          font-size: 0.875rem;
-        }
-
-        .generate-btn {
-          padding: 0.625rem 1.25rem;
-          background: linear-gradient(135deg, #4f46e5, #3730a3);
-          border: none;
-          border-radius: 6px;
-          color: #fff;
-          cursor: pointer;
-          font-weight: 500;
-          font-size: 0.875rem;
-          transition: all 0.2s;
-        }
-
-        .generate-btn:hover:not(:disabled) {
-          transform: translateY(-1px);
-          box-shadow: 0 4px 12px rgba(79, 70, 229, 0.4);
-        }
-
-        .generate-btn:disabled {
-          opacity: 0.6;
-          cursor: not-allowed;
-        }
-
-        .empty-state {
-          padding: 2.5rem;
-          text-align: center;
-          background: rgba(30, 41, 59, 0.5);
-          border-radius: 8px;
-          color: #64748b;
-          font-size: 0.875rem;
-        }
-
-        .forecast-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-          gap: 1rem;
-        }
-
-        .forecast-card {
-          background: rgba(30, 41, 59, 0.6);
-          border-radius: 8px;
-          padding: 1rem;
-          border-left: 4px solid;
-        }
-
-        .forecast-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 0.75rem;
-        }
-
-        .medication-name {
-          font-weight: 600;
-          font-size: 1rem;
-          color: #f1f5f9;
-        }
-
-        .urgency-badge, .status-badge {
-          padding: 0.25rem 0.5rem;
-          border-radius: 4px;
-          font-size: 0.7rem;
-          text-transform: uppercase;
-          font-weight: 600;
-          color: #fff;
-        }
-
-        .forecast-details .detail-row {
-          display: flex;
-          justify-content: space-between;
-          padding: 0.375rem 0;
-          border-bottom: 1px solid rgba(148, 163, 184, 0.1);
-          font-size: 0.875rem;
-        }
-
-        .forecast-details .detail-row:last-child {
-          border-bottom: none;
-        }
-
-        .forecast-details .detail-row span {
-          color: #94a3b8;
-        }
-
-        .forecast-details .detail-row strong {
-          color: #e2e8f0;
-        }
-
-        .procurement-table, .inventory-table {
-          width: 100%;
-          border-collapse: collapse;
-          background: rgba(30, 41, 59, 0.5);
-          border-radius: 8px;
-          overflow: hidden;
-        }
-
-        .procurement-table th, .inventory-table th {
-          background: rgba(15, 23, 42, 0.8);
-          padding: 0.875rem 1rem;
-          text-align: left;
-          font-weight: 600;
-          font-size: 0.75rem;
-          text-transform: uppercase;
-          letter-spacing: 0.05em;
-          color: #94a3b8;
-        }
-
-        .procurement-table td, .inventory-table td {
-          padding: 0.875rem 1rem;
-          border-bottom: 1px solid rgba(148, 163, 184, 0.1);
-          font-size: 0.875rem;
-        }
-
-        .procurement-table code {
-          background: rgba(15, 23, 42, 0.8);
-          padding: 0.25rem 0.5rem;
-          border-radius: 4px;
-          font-size: 0.8rem;
-          color: #a5b4fc;
-        }
-
-        .action-btn {
-          padding: 0.375rem 0.75rem;
-          border: none;
-          border-radius: 4px;
-          cursor: pointer;
-          font-size: 0.8rem;
-          font-weight: 500;
-        }
-
-        .action-btn.send {
-          background: linear-gradient(135deg, #2563eb, #1d4ed8);
-          color: #fff;
-        }
-
-        .action-btn.receive {
-          background: linear-gradient(135deg, #16a34a, #15803d);
-          color: #fff;
-        }
-
-        .stock-change {
-          font-size: 0.85rem;
-          color: #4ade80;
-          font-weight: 500;
-        }
-
-        .refill-list {
-          display: flex;
-          flex-direction: column;
-          gap: 0.75rem;
-        }
-
-        .refill-card {
-          display: grid;
-          grid-template-columns: 1fr 1fr auto;
-          gap: 1rem;
-          align-items: center;
-          padding: 1rem;
-          background: rgba(30, 41, 59, 0.5);
-          border-radius: 8px;
-          border-left: 4px solid;
-        }
-
-        .refill-customer strong { 
-          display: block;
-          color: #f1f5f9;
-        }
-        .refill-customer span { 
-          color: #64748b;
-          font-size: 0.85rem;
-        }
-
-        .refill-timing {
-          display: flex;
-          flex-direction: column;
-          align-items: flex-end;
-          gap: 0.25rem;
-        }
-
-        .depletion-date { 
-          font-size: 0.8rem;
-          color: #64748b;
-        }
-
-        .low-stock { 
-          background: rgba(220, 38, 38, 0.1);
-        }
-        .stock-warning { 
-          color: #f87171;
-          font-weight: 600;
-        }
-
-        /* Activity Feed Styles */
-        .activity-grid {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 1.5rem;
-        }
-
-        .events-panel, .webhooks-panel {
-          background: rgba(30, 41, 59, 0.5);
-          border-radius: 8px;
-          padding: 1rem;
-          max-height: 500px;
-          overflow-y: auto;
-        }
-
-        .events-panel h3, .webhooks-panel h3 {
-          margin: 0 0 1rem 0;
-          font-size: 0.875rem;
-          font-weight: 600;
-          color: #e2e8f0;
-        }
-
-        .events-list, .webhook-list {
-          display: flex;
-          flex-direction: column;
-          gap: 0.5rem;
-        }
-
-        .event-item {
-          display: flex;
-          gap: 0.75rem;
-          padding: 0.5rem;
-          background: rgba(15, 23, 42, 0.6);
-          border-radius: 4px;
-          font-size: 0.8rem;
-        }
-
-        .event-time {
-          color: #64748b;
-          min-width: 70px;
-        }
-
-        .event-agent {
-          color: #a5b4fc;
-          font-weight: 500;
-          margin-right: 0.5rem;
-        }
-
-        .event-message {
-          color: #cbd5e1;
-        }
-
-        .event-item.stock_received { border-left: 3px solid #16a34a; }
-        .event-item.order_generated { border-left: 3px solid #2563eb; }
-        .event-item.webhook_sent { border-left: 3px solid #d97706; }
-        .event-item.webhook_received { border-left: 3px solid #16a34a; }
-        .event-item.low_stock_detected { border-left: 3px solid #dc2626; }
-        .event-item.customer_order { border-left: 3px solid #0891b2; }
-
-        .webhook-item {
-          padding: 0.75rem;
-          background: rgba(15, 23, 42, 0.6);
-          border-radius: 6px;
-          margin-bottom: 0.5rem;
-        }
-
-        .webhook-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 0.5rem;
-        }
-
-        .direction-badge {
-          padding: 0.2rem 0.5rem;
-          border-radius: 3px;
-          font-size: 0.7rem;
-          font-weight: 600;
-        }
-
-        .direction-badge.outgoing { background: #2563eb; color: #fff; }
-        .direction-badge.incoming { background: #16a34a; color: #fff; }
-
-        .webhook-time {
-          font-size: 0.75rem;
-          color: #64748b;
-        }
-
-        .webhook-endpoint {
-          font-family: 'SF Mono', Monaco, monospace;
-          font-size: 0.75rem;
-          color: #64748b;
-          margin-bottom: 0.5rem;
-        }
-
-        .webhook-details {
-          margin-top: 0.5rem;
-        }
-
-        .webhook-details summary {
-          cursor: pointer;
-          color: #a5b4fc;
-          font-size: 0.8rem;
-        }
-
-        .webhook-details pre {
-          background: rgba(15, 23, 42, 0.8);
-          padding: 0.5rem;
-          border-radius: 4px;
-          font-size: 0.7rem;
-          overflow-x: auto;
-          margin: 0.5rem 0 0 0;
-          max-height: 150px;
-          overflow-y: auto;
-          color: #94a3b8;
-        }
-
-        .badge {
-          background: #dc2626;
-          color: #fff;
-          font-size: 0.65rem;
-          padding: 0.125rem 0.375rem;
-          border-radius: 10px;
-          margin-left: 0.5rem;
-        }
-
-        .actions-cell {
-          min-width: 120px;
-        }
-
-        /* Observability Tab Styles */
-        .observability-section .section-header {
-          flex-wrap: wrap;
-          gap: 1rem;
-        }
-
-        .obs-status {
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-        }
-
-        .status-indicator {
-          padding: 0.375rem 0.75rem;
-          border-radius: 4px;
-          font-size: 0.75rem;
-          font-weight: 500;
-        }
-
-        .status-indicator.enabled {
-          background: rgba(22, 163, 74, 0.2);
-          color: #4ade80;
-          border: 1px solid rgba(22, 163, 74, 0.4);
-        }
-
-        .status-indicator.disabled {
-          background: rgba(100, 116, 139, 0.2);
-          color: #94a3b8;
-          border: 1px solid rgba(100, 116, 139, 0.4);
-        }
-
-        .observability-grid {
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: 1.5rem;
-          margin-top: 1rem;
-        }
-
-        .obs-panel {
-          background: rgba(30, 41, 59, 0.5);
-          border-radius: 8px;
-          padding: 1rem;
-          max-height: 450px;
-          overflow-y: auto;
-        }
-
-        .obs-panel h3 {
-          margin: 0 0 0.25rem 0;
-          font-size: 0.875rem;
-          font-weight: 600;
-          color: #e2e8f0;
-        }
-
-        .panel-subtitle {
-          margin: 0 0 1rem 0;
-          font-size: 0.75rem;
-          color: #64748b;
-        }
-
-        .log-list, .safety-list, .workflow-list {
-          display: flex;
-          flex-direction: column;
-          gap: 0.5rem;
-        }
-
-        .log-item, .safety-item, .workflow-item {
-          padding: 0.625rem;
-          background: rgba(15, 23, 42, 0.6);
-          border-radius: 4px;
-          font-size: 0.8rem;
-          position: relative;
-        }
-
-        .log-header, .safety-header, .workflow-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 0.375rem;
-        }
-
-        .log-time, .safety-time, .workflow-time {
-          color: #64748b;
-          font-size: 0.7rem;
-        }
-
-        .log-type, .safety-type {
-          background: rgba(79, 70, 229, 0.2);
-          color: #a5b4fc;
-          padding: 0.125rem 0.375rem;
-          border-radius: 3px;
-          font-size: 0.65rem;
-          font-weight: 500;
-        }
-
-        .log-agent, .workflow-agent {
-          color: #a5b4fc;
-          font-size: 0.7rem;
-          margin-bottom: 0.25rem;
-        }
-
-        .log-message, .safety-message, .workflow-message {
-          color: #cbd5e1;
-          line-height: 1.4;
-        }
-
-        .log-metadata {
-          margin-top: 0.5rem;
-        }
-
-        .log-metadata summary {
-          cursor: pointer;
-          color: #94a3b8;
-          font-size: 0.7rem;
-        }
-
-        .log-metadata pre {
-          background: rgba(15, 23, 42, 0.8);
-          padding: 0.5rem;
-          border-radius: 4px;
-          font-size: 0.65rem;
-          overflow-x: auto;
-          margin: 0.25rem 0 0 0;
-          max-height: 100px;
-          overflow-y: auto;
-          color: #94a3b8;
-        }
-
-        .feedback-buttons {
-          display: flex;
-          gap: 0.25rem;
-          position: absolute;
-          top: 0.5rem;
-          right: 0.5rem;
-        }
-
-        .feedback-btn {
-          width: 22px;
-          height: 22px;
-          border: none;
-          border-radius: 3px;
-          cursor: pointer;
-          font-size: 0.75rem;
-          font-weight: 600;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          transition: all 0.2s;
-        }
-
-        .feedback-btn.positive {
-          background: rgba(22, 163, 74, 0.2);
-          color: #4ade80;
-        }
-
-        .feedback-btn.positive:hover {
-          background: rgba(22, 163, 74, 0.4);
-        }
-
-        .feedback-btn.negative {
-          background: rgba(220, 38, 38, 0.2);
-          color: #f87171;
-        }
-
-        .feedback-btn.negative:hover {
-          background: rgba(220, 38, 38, 0.4);
-        }
-
-        .langfuse-link {
-          margin-top: 1.5rem;
-          text-align: center;
-        }
-
-        .external-link {
-          display: inline-block;
-          padding: 0.625rem 1.25rem;
-          background: rgba(79, 70, 229, 0.15);
-          border: 1px solid rgba(79, 70, 229, 0.4);
-          border-radius: 6px;
-          color: #a5b4fc;
-          text-decoration: none;
-          font-size: 0.875rem;
-          font-weight: 500;
-          transition: all 0.2s;
-        }
-
-        .external-link:hover {
-          background: rgba(79, 70, 229, 0.25);
-          border-color: rgba(79, 70, 229, 0.6);
-        }
-
-        @media (max-width: 1024px) {
-          .observability-grid { grid-template-columns: 1fr; }
-        }
-
-        @media (max-width: 768px) {
-          .activity-grid { grid-template-columns: 1fr; }
-          .refill-card { grid-template-columns: 1fr; }
-        }
-      `}</style>
-    </div>
+        </div>
+      )}
+    </div >
   );
 }

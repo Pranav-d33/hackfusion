@@ -25,6 +25,7 @@ INDICATIONS = [
 ]
 
 # Medications with Indian brand names
+# Medications with Indian brand names and Prices (INR)
 MEDICATIONS = [
     # Diabetes medications (RX required)
     {
@@ -34,6 +35,7 @@ MEDICATIONS = [
         "dosage": "500mg",
         "form": "tablet",
         "unit_type": "tablet",
+        "price": 45.00,  # 1 strip (random approx)
         "rx_required": True,
         "notes": "First-line diabetes medication",
         "indications": ["Type 2 Diabetes"],
@@ -47,6 +49,7 @@ MEDICATIONS = [
         "dosage": "1000mg",
         "form": "tablet",
         "unit_type": "tablet",
+        "price": 68.50,
         "rx_required": True,
         "notes": "Sustained release formulation",
         "indications": ["Type 2 Diabetes"],
@@ -60,6 +63,7 @@ MEDICATIONS = [
         "dosage": "2mg",
         "form": "tablet",
         "unit_type": "tablet",
+        "price": 140.00,
         "rx_required": True,
         "notes": "Sulfonylurea for diabetes",
         "indications": ["Type 2 Diabetes"],
@@ -73,6 +77,7 @@ MEDICATIONS = [
         "dosage": "100mg",
         "form": "tablet",
         "unit_type": "tablet",
+        "price": 280.00,
         "rx_required": True,
         "notes": "DPP-4 inhibitor",
         "indications": ["Type 2 Diabetes"],
@@ -87,6 +92,7 @@ MEDICATIONS = [
         "dosage": "5mg",
         "form": "tablet",
         "unit_type": "tablet",
+        "price": 35.00,
         "rx_required": True,
         "notes": "Calcium channel blocker for BP",
         "indications": ["Hypertension"],
@@ -100,6 +106,7 @@ MEDICATIONS = [
         "dosage": "40mg",
         "form": "tablet",
         "unit_type": "tablet",
+        "price": 55.00,
         "rx_required": True,
         "notes": "ARB for hypertension",
         "indications": ["Hypertension"],
@@ -113,6 +120,7 @@ MEDICATIONS = [
         "dosage": "50mg",
         "form": "tablet",
         "unit_type": "tablet",
+        "price": 42.00,
         "rx_required": True,
         "notes": "ARB for blood pressure",
         "indications": ["Hypertension"],
@@ -127,6 +135,7 @@ MEDICATIONS = [
         "dosage": "50mcg",
         "form": "tablet",
         "unit_type": "tablet",
+        "price": 120.00, # Bottle price approx
         "rx_required": True,
         "notes": "Thyroid hormone replacement",
         "indications": ["Hypothyroidism"],
@@ -140,6 +149,7 @@ MEDICATIONS = [
         "dosage": "100mcg",
         "form": "tablet",
         "unit_type": "tablet",
+        "price": 150.00,
         "rx_required": True,
         "notes": "Higher dose thyroid replacement",
         "indications": ["Hypothyroidism"],
@@ -153,6 +163,7 @@ MEDICATIONS = [
         "dosage": "5mg",
         "form": "tablet",
         "unit_type": "tablet",
+        "price": 85.00,
         "rx_required": True,
         "notes": "Antithyroid medication",
         "indications": ["Hyperthyroidism"],
@@ -167,6 +178,7 @@ MEDICATIONS = [
         "dosage": "500mg",
         "form": "tablet",
         "unit_type": "tablet",
+        "price": 15.00,
         "rx_required": False,
         "notes": "Fever and pain relief",
         "indications": ["Fever", "Headache", "Cold"],
@@ -180,6 +192,7 @@ MEDICATIONS = [
         "dosage": "650mg",
         "form": "tablet",
         "unit_type": "tablet",
+        "price": 25.00,
         "rx_required": False,
         "notes": "Higher strength fever relief",
         "indications": ["Fever", "Headache"],
@@ -193,6 +206,7 @@ MEDICATIONS = [
         "dosage": "400mg",
         "form": "tablet",
         "unit_type": "tablet",
+        "price": 18.00,
         "rx_required": False,
         "notes": "NSAID for pain and inflammation",
         "indications": ["Fever", "Headache"],
@@ -207,6 +221,7 @@ MEDICATIONS = [
         "dosage": "10mg/5ml",
         "form": "syrup",
         "unit_type": "ml",
+        "price": 110.00,
         "rx_required": False,
         "notes": "Cough suppressant",
         "indications": ["Cough", "Cold"],
@@ -220,6 +235,7 @@ MEDICATIONS = [
         "dosage": "100mg/5ml",
         "form": "syrup",
         "unit_type": "ml",
+        "price": 115.00,
         "rx_required": False,
         "notes": "Expectorant for wet cough",
         "indications": ["Cough"],
@@ -234,6 +250,7 @@ MEDICATIONS = [
         "dosage": "10mg",
         "form": "tablet",
         "unit_type": "tablet",
+        "price": 20.00,
         "rx_required": False,
         "notes": "Antihistamine for allergies",
         "indications": ["Allergies", "Cold"],
@@ -247,6 +264,7 @@ MEDICATIONS = [
         "dosage": "5mg",
         "form": "tablet",
         "unit_type": "tablet",
+        "price": 45.00,
         "rx_required": False,
         "notes": "Non-drowsy antihistamine",
         "indications": ["Allergies"],
@@ -261,6 +279,7 @@ MEDICATIONS = [
         "dosage": "20mg",
         "form": "capsule",
         "unit_type": "capsule",
+        "price": 55.00,
         "rx_required": False,
         "notes": "Proton pump inhibitor for acidity",
         "indications": ["Acidity"],
@@ -274,6 +293,7 @@ MEDICATIONS = [
         "dosage": "40mg",
         "form": "tablet",
         "unit_type": "tablet",
+        "price": 120.00,
         "rx_required": False,
         "notes": "PPI for gastric issues",
         "indications": ["Acidity"],
@@ -287,6 +307,7 @@ MEDICATIONS = [
         "dosage": "150mg",
         "form": "tablet",
         "unit_type": "tablet",
+        "price": 22.00,
         "rx_required": False,
         "notes": "H2 blocker for acidity",
         "indications": ["Acidity"],
@@ -301,6 +322,7 @@ MEDICATIONS = [
         "dosage": "500mg",
         "form": "chewable tablet",
         "unit_type": "tablet",
+        "price": 24.00,
         "rx_required": False,
         "notes": "Vitamin C supplement",
         "indications": ["Cold"],
@@ -315,6 +337,7 @@ MEDICATIONS = [
         "dosage": "500mg",
         "form": "tablet",
         "unit_type": "tablet",
+        "price": 55.00,
         "rx_required": True,
         "notes": "OUT OF STOCK - for demo purposes. Alternative: Glycomet",
         "indications": ["Type 2 Diabetes"],
@@ -349,8 +372,8 @@ async def seed_database():
         # Insert medication
         med_id = await execute_write(
             """INSERT INTO medications 
-            (generic_name, brand_name, active_ingredient, dosage, form, unit_type, rx_required, notes)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (generic_name, brand_name, active_ingredient, dosage, form, unit_type, price, rx_required, notes)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
                 med["generic_name"],
                 med["brand_name"],
@@ -358,6 +381,7 @@ async def seed_database():
                 med["dosage"],
                 med["form"],
                 med["unit_type"],
+                med.get("price", 0.0),
                 med["rx_required"],
                 med.get("notes", "")
             )
