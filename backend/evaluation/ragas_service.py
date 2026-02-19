@@ -4,6 +4,9 @@ import json
 import asyncio
 import httpx
 from typing import List, Dict, Any, Optional
+
+# Import config which loads .env
+from config import OPENROUTER_API_KEY
 from evaluation.store import save_metrics
 
 # Use free models to keep costs at zero
@@ -11,7 +14,6 @@ EVAL_MODEL = "mistralai/mistral-7b-instruct:free"
 # Fallback model if the first one fails
 FALLBACK_MODEL = "google/gemma-2-9b-it:free"
 
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 class RagasEvaluator:

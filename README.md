@@ -62,6 +62,18 @@ npm run dev
 
 Frontend runs at http://localhost:5173
 
+### 4. Configure Firebase Login (Frontend)
+
+1. Copy the Firebase helper env so the login modal can initialize:
+	```bash
+	cd frontend
+	cp .env.example .env
+	```
+2. Populate the `VITE_FIREBASE_*` keys in `frontend/.env` using the Firebase project settings (API key, auth domain, project ID, app ID, etc.).
+3. Keep the service-account JSON outside the repo; store it locally or in a secret manager.
+
+Once the Firebase keys are available, the login modal will sign users in through Firebase Auth before talking to the FastAPI auth routes.
+
 ## Demo Flows
 
 ### Flow 1: Indication Query

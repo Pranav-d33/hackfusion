@@ -1,5 +1,33 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 
+// Script name badge display
+const SCRIPT_BADGES = {
+    'Devanagari': { label: 'हिंदी', color: 'bg-orange-500' },
+    'Tamil': { label: 'தமிழ்', color: 'bg-purple-500' },
+    'Telugu': { label: 'తెలుగు', color: 'bg-blue-500' },
+    'Bengali': { label: 'বাংলা', color: 'bg-green-500' },
+    'Gujarati': { label: 'ગુજરાતી', color: 'bg-yellow-500' },
+    'Kannada': { label: 'ಕನ್ನಡ', color: 'bg-pink-500' },
+    'Malayalam': { label: 'മലയാളം', color: 'bg-indigo-500' },
+    'Gurmukhi': { label: 'ਪੰਜਾਬੀ', color: 'bg-teal-500' },
+    'Odia': { label: 'ଓଡ଼ିଆ', color: 'bg-cyan-500' },
+    'Arabic': { label: 'عربی', color: 'bg-emerald-500' },
+    'Latin': { label: 'EN', color: 'bg-gray-500' },
+};
+
+function getLanguageBadge(scriptInfo) {
+    if (!scriptInfo) return SCRIPT_BADGES.Latin;
+
+    if (scriptInfo.script && scriptInfo.script !== 'Latin' && SCRIPT_BADGES[scriptInfo.script]) {
+        return SCRIPT_BADGES[scriptInfo.script];
+    }
+
+    const lang = (scriptInfo.lang || '').toLowerCase();
+    if (lang.startsWith('de')) return { label: 'DE', color: 'bg-blue-500' };
+    if (lang.startsWith('ar')) return SCRIPT_BADGES.Arabic;
+    return { label: 'EN', color: 'bg-gray-500' };
+}
+
 export default function LiveOverlay({
     isOpen,
     onClose,
@@ -9,7 +37,8 @@ export default function LiveOverlay({
     messages,
     onUpload,
     audioLevel = 0,
-    cart
+    cart,
+    scriptInfo = { lang: 'en-IN', script: 'Latin', direction: 'ltr' }
 }) {
     const scrollRef = useRef(null);
     const [showUploadPrompt, setShowUploadPrompt] = useState(false);
@@ -71,6 +100,7 @@ export default function LiveOverlay({
     if (!isOpen) return null;
 
     const cartCount = cart?.item_count || 0;
+    const activeBadge = getLanguageBadge(scriptInfo);
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -79,6 +109,16 @@ export default function LiveOverlay({
                 className="absolute inset-0 bg-white/60 backdrop-blur-md transition-opacity duration-500"
                 onClick={onClose}
             ></div>
+
+            {/* Detected Language Badge - Top Left */}
+            {isListening && activeBadge && (
+                <div className="absolute top-6 left-6 z-20 pointer-events-none">
+                    <div className={`flex items-center gap-2 px-4 py-2 rounded-xl shadow-lg text-white font-semibold text-sm ${activeBadge.color} transition-all duration-200`}>
+                        <span className="w-2 h-2 bg-white/80 rounded-full animate-pulse"></span>
+                        {activeBadge.label}
+                    </div>
+                </div>
+            )}
 
             {/* Cart Badge - Bottom Right */}
             {cartCount > 0 && (
@@ -126,10 +166,27 @@ export default function LiveOverlay({
                                 </div>
                             </div>
                         ))}
+                        {/* Real-time transcript with native script support */}
                         {isListening && transcript && (
-                            <div className="flex justify-end">
-                                <div className="max-w-[80%] rounded-2xl px-6 py-4 text-lg text-gray-500 bg-gray-100/50 italic border border-dashed border-gray-300">
-                                    {transcript}...
+                            <div className="flex justify-end animate-fade-in">
+                                <div 
+                                    className="relative max-w-[80%] rounded-2xl px-6 py-4 text-lg text-gray-800 bg-white/80 border border-gray-200 backdrop-blur-sm shadow-sm transition-all duration-150"
+                                    style={{ 
+                                        direction: scriptInfo.direction,
+                                        fontFamily: scriptInfo.script !== 'Latin' 
+                                            ? `"Noto Sans ${scriptInfo.script}", "Noto Sans", system-ui, sans-serif`
+                                            : 'inherit'
+                                    }}
+                                >
+                                    {/* Language/Script Badge - inline for smoother feel */}
+                                    {activeBadge && (
+                                        <span className={`inline-flex items-center gap-1 mr-2 px-2 py-0.5 text-xs font-semibold text-white rounded-full ${activeBadge.color} shadow-sm`}>
+                                            <span className="w-1.5 h-1.5 bg-white/80 rounded-full animate-pulse"></span>
+                                            {activeBadge.label}
+                                        </span>
+                                    )}
+                                    <span className="font-medium">{transcript}</span>
+                                    <span className="inline-block w-1 h-5 ml-1 bg-red-400 rounded-full animate-pulse align-middle"></span>
                                 </div>
                             </div>
                         )}
@@ -289,6 +346,13 @@ export default function LiveOverlay({
                     15% { opacity: 1; transform: translateY(0) scale(1); }
                     75% { opacity: 1; transform: translateY(0) scale(1); }
                     100% { opacity: 0; transform: translateY(-20px) scale(0.8); }
+                }
+                .animate-fade-in {
+                    animation: fade-in 0.15s ease-out;
+                }
+                @keyframes fade-in {
+                    from { opacity: 0; transform: translateY(8px); }
+                    to { opacity: 1; transform: translateY(0); }
                 }
             `}</style>
         </div>

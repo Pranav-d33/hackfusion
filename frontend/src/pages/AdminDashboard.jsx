@@ -1,17 +1,107 @@
 /**
- * Admin Dashboard - Professional Redesign (White & Teal Theme)
+ * Admin Dashboard — Compact Teal & White Redesign
+ * Consolidated from 6 tabs → 3 tabs: Overview, Supply Chain, Intelligence
+ * All features preserved, more visual and compact layout
  */
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Zap, BarChart2, ShoppingCart, RefreshCw, Package, Activity,
   Phone, Brain, Loader2, ThumbsUp, ThumbsDown, CheckCircle,
-  X, Search, MessageSquare, TrendingUp, Truck, Users, AlertTriangle
+  X, Search, MessageSquare, TrendingUp, Truck, Users, AlertTriangle,
+  ChevronDown, ChevronUp, Eye, Plus, ArrowRight
 } from 'lucide-react';
 
 const API_BASE = '/api';
 
+function parsePackageSize(packageSize) {
+  if (!packageSize) return { count: null, unit: 'unit' };
+  const match = String(packageSize).match(/(\d+)\s*(st|stk|stück|tab|tablets?|caps?|capsules?|ml|mg|g|pcs?|pieces?|units?)?/i);
+  if (!match) return { count: null, unit: 'unit' };
+  return { count: parseInt(match[1], 10), unit: match[2]?.toLowerCase() || 'unit' };
+}
+
+function suggestedReorderForMed(med) {
+  const parsed = parsePackageSize(med.package_size);
+  const unitsPerPack = parsed.count || 1;
+  const avgDaily = med.avg_daily_consumption || null;
+  if (avgDaily && avgDaily > 0) {
+    const daysOfStock = med.stock_quantity / avgDaily;
+    const threshold = Math.max(Math.ceil(avgDaily * 7), 5);
+    const reorderQty = Math.max(Math.ceil(avgDaily * 30 / unitsPerPack), 2) * unitsPerPack;
+    return { threshold, reorderQty, daysOfStock: Math.round(daysOfStock) };
+  }
+  const threshold = Math.max(Math.ceil(unitsPerPack * 0.3), 5);
+  const reorderQty = unitsPerPack * 3;
+  return { threshold, reorderQty, daysOfStock: null };
+}
+
+/* ─── SVG Progress Ring for Admin ─── */
+function AdminRing({ pct, size = 56, strokeWidth = 5, color = '#14B8A6', children }) {
+  const r = (size - strokeWidth) / 2;
+  const circ = 2 * Math.PI * r;
+  const offset = circ - (Math.min(100, Math.max(0, pct)) / 100) * circ;
+  return (
+    <div className="relative flex-shrink-0" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="-rotate-90">
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#F3F4F6" strokeWidth={strokeWidth} />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={strokeWidth}
+          strokeDasharray={circ} strokeDashoffset={offset} strokeLinecap="round"
+          className="transition-all duration-1000" />
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center">{children}</div>
+    </div>
+  );
+}
+
+/* ─── Mini Horizontal Bar for inline visuals ─── */
+function MiniBar({ value, max, color = 'teal', showLabel = true }) {
+  const pct = max > 0 ? Math.min(100, (value / max) * 100) : 0;
+  const colorMap = { teal: 'bg-teal-500', red: 'bg-red-500', amber: 'bg-amber-400', blue: 'bg-blue-500', green: 'bg-green-500', purple: 'bg-purple-500' };
+  return (
+    <div className="flex items-center gap-2 w-full">
+      <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+        <div className={`h-full rounded-full ${colorMap[color] || colorMap.teal} transition-all duration-700`} style={{ width: `${pct}%` }} />
+      </div>
+      {showLabel && <span className="text-[9px] font-mono text-gray-400 w-8 text-right">{Math.round(pct)}%</span>}
+    </div>
+  );
+}
+
+/* ─── Stat Card Component (Enhanced with Ring Visual) ─── */
+function StatCard({ icon, label, value, sub, color = 'teal', ringPct, ringMax }) {
+  const colorMap = {
+    teal: { bg: 'bg-gradient-to-br from-teal-50 to-white', border: 'border-teal-100', text: 'text-teal-600', ring: '#14B8A6', iconBg: 'bg-teal-100' },
+    red: { bg: 'bg-gradient-to-br from-red-50 to-white', border: 'border-red-100', text: 'text-red-600', ring: '#DC2626', iconBg: 'bg-red-100' },
+    amber: { bg: 'bg-gradient-to-br from-amber-50 to-white', border: 'border-amber-100', text: 'text-amber-600', ring: '#F59E0B', iconBg: 'bg-amber-100' },
+    blue: { bg: 'bg-gradient-to-br from-blue-50 to-white', border: 'border-blue-100', text: 'text-blue-600', ring: '#3B82F6', iconBg: 'bg-blue-100' },
+    purple: { bg: 'bg-gradient-to-br from-purple-50 to-white', border: 'border-purple-100', text: 'text-purple-600', ring: '#8B5CF6', iconBg: 'bg-purple-100' },
+  };
+  const c = colorMap[color] || colorMap.teal;
+  const pct = ringPct != null ? ringPct : (ringMax ? Math.min(100, (Number(value) / ringMax) * 100) : null);
+
+  return (
+    <div className={`rounded-2xl border ${c.border} ${c.bg} p-4 transition-all hover:shadow-md hover:-translate-y-0.5`}>
+      <div className="flex items-center gap-3">
+        {/* Ring or Icon */}
+        {pct != null ? (
+          <AdminRing pct={pct} size={48} strokeWidth={4} color={c.ring}>
+            <span className={`text-xs font-bold ${c.text}`}>{typeof value === 'number' ? value : '—'}</span>
+          </AdminRing>
+        ) : (
+          <div className={`w-10 h-10 rounded-xl ${c.iconBg} ${c.text} flex items-center justify-center`}>{icon}</div>
+        )}
+        <div className="flex-1 min-w-0">
+          <div className={`text-[10px] font-bold uppercase tracking-wider ${c.text} opacity-80`}>{label}</div>
+          {pct == null && <div className={`text-2xl font-bold ${c.text}`}>{value}</div>}
+          {sub && <div className="text-[10px] text-gray-400 mt-0.5 truncate">{sub}</div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function AdminDashboard({ onSwitchToUser, user }) {
-  const [activeTab, setActiveTab] = useState('activity');
+  const [activeTab, setActiveTab] = useState('overview');
   const [medications, setMedications] = useState([]);
   const [lowStockPredictions, setLowStockPredictions] = useState([]);
   const [procurementQueue, setProcurementQueue] = useState([]);
@@ -21,876 +111,493 @@ export default function AdminDashboard({ onSwitchToUser, user }) {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState(null);
 
-  // Observability state
+  const setScopedMessage = useCallback((next) => {
+    const payload = typeof next === 'string' ? { type: 'success', text: next } : next;
+    setMessage({ ...payload, tab: payload.tab ?? activeTab });
+  }, [activeTab]);
+
   const [observabilityStatus, setObservabilityStatus] = useState(null);
   const [executionLogs, setExecutionLogs] = useState([]);
   const [safetyDecisions, setSafetyDecisions] = useState([]);
   const [workflowTraces, setWorkflowTraces] = useState([]);
   const [ragMetrics, setRagMetrics] = useState(null);
-
-  // New Medication Form State
   const [showAddMedModal, setShowAddMedModal] = useState(false);
-  const [newMed, setNewMed] = useState({
-    brand_name: '',
-    generic_name: '',
-    dosage: '',
-    stock_quantity: 0,
-    rx_required: false,
-    active_ingredient: '',
-    form: 'tablet',
-    unit_type: 'tablet'
-  });
+  const [newMed, setNewMed] = useState({ brand_name: '', generic_name: '', dosage: '', stock_quantity: 0, rx_required: false, active_ingredient: '', form: 'tablet', unit_type: 'tablet' });
+  const [showPatientDataModal, setShowPatientDataModal] = useState(false);
+  const [patientData, setPatientData] = useState([]);
+  const [loadingPatients, setLoadingPatients] = useState(false);
+  const [expandedSections, setExpandedSections] = useState({ events: true, webhook: false, inventory: true, forecast: true, procurement: true, refills: true, logs: false });
 
-  // Refresh all data
-  const refreshAllData = useCallback(() => {
-    fetchMedications();
-    fetchLowStockPredictions();
-    fetchProcurementQueue();
-    fetchRefillAlerts();
-    fetchEvents();
-    fetchWebhookLogs();
-    if (activeTab === 'observability') {
-      fetchObservabilityData();
-      fetchRagMetrics();
-    }
-  }, [activeTab]);
+  const toggleSection = (key) => setExpandedSections(p => ({ ...p, [key]: !p[key] }));
 
-  // Fetch data on mount and refresh events periodically
-  useEffect(() => {
-    refreshAllData();
-
-    // Auto-refresh every 3 seconds
-    const interval = setInterval(() => {
-      fetchEvents();
-      fetchWebhookLogs();
-      if (activeTab === 'observability') {
-        fetchObservabilityData();
-        fetchRagMetrics();
-      }
-    }, 3000);
-    return () => clearInterval(interval);
-  }, [activeTab]);
-
-  const fetchMedications = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/admin/medications`);
-      const data = await res.json();
-      setMedications(data.medications || []);
-    } catch (err) {
-      console.error('Failed to fetch medications:', err);
-    }
-  };
-
-  const fetchLowStockPredictions = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/forecast/low-stock`);
-      const data = await res.json();
-      setLowStockPredictions(data.predictions || []);
-    } catch (err) {
-      console.error('Failed to fetch predictions:', err);
-    }
-  };
-
-  const fetchProcurementQueue = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/procurement/queue`);
-      const data = await res.json();
-      setProcurementQueue(data.orders || []);
-    } catch (err) {
-      console.error('Failed to fetch procurement queue:', err);
-    }
-  };
-
-  const fetchRefillAlerts = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/refill/alerts?days=14`);
-      const data = await res.json();
-      setRefillAlerts(data.alerts || []);
-    } catch (err) {
-      console.error('Failed to fetch refill alerts:', err);
-    }
-  };
-
-  const fetchEvents = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/events?limit=30`);
-      const data = await res.json();
-      setEvents(data.events || []);
-    } catch (err) {
-      console.error('Failed to fetch events:', err);
-    }
-  };
-
-  const fetchWebhookLogs = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/webhooks/logs?limit=10`);
-      const data = await res.json();
-      setWebhookLogs(data.logs || []);
-    } catch (err) {
-      console.error('Failed to fetch webhook logs:', err);
-    }
-  };
-
+  // ═══ Data Fetchers ═══
+  const fetchMedications = async () => { try { const r = await fetch(`${API_BASE}/admin/medications`); const d = await r.json(); setMedications(d.medications || []); } catch (e) { console.error(e); } };
+  const fetchLowStockPredictions = async () => { try { const r = await fetch(`${API_BASE}/refill/predictions`); const d = await r.json(); setLowStockPredictions(d.predictions || []); } catch (e) { console.error(e); } };
+  const fetchProcurementQueue = async () => { try { const r = await fetch(`${API_BASE}/procurement/queue`); const d = await r.json(); setProcurementQueue(d.orders || []); } catch (e) { console.error(e); } };
+  const fetchRefillAlerts = async () => { try { const r = await fetch(`${API_BASE}/refill/alerts?days=14`); const d = await r.json(); setRefillAlerts(d.alerts || []); } catch (e) { console.error(e); } };
+  const fetchEvents = async () => { try { const r = await fetch(`${API_BASE}/events?limit=30`); const d = await r.json(); setEvents(d.events || []); } catch (e) { console.error(e); } };
+  const fetchWebhookLogs = async () => { try { const r = await fetch(`${API_BASE}/webhooks/logs?limit=10`); const d = await r.json(); setWebhookLogs(d.logs || []); } catch (e) { console.error(e); } };
   const fetchObservabilityData = async () => {
     try {
-      const [statusRes, logsRes, safetyRes, workflowRes] = await Promise.all([
-        fetch(`${API_BASE}/observability/status`),
-        fetch(`${API_BASE}/observability/execution-logs?limit=30`),
-        fetch(`${API_BASE}/observability/safety-decisions?limit=20`),
-        fetch(`${API_BASE}/observability/workflow-traces?limit=20`),
-      ]);
-
-      const [status, logs, safety, workflows] = await Promise.all([
-        statusRes.json(),
-        logsRes.json(),
-        safetyRes.json(),
-        workflowRes.json(),
-      ]);
-
-      setObservabilityStatus(status);
-      setExecutionLogs(logs.logs || []);
-      setSafetyDecisions(safety.decisions || []);
-      setWorkflowTraces(workflows.traces || []);
-    } catch (err) {
-      console.error('Failed to fetch observability data:', err);
-    }
+      const [s, l, sf, w] = await Promise.all([fetch(`${API_BASE}/observability/status`), fetch(`${API_BASE}/observability/execution-logs?limit=30`), fetch(`${API_BASE}/observability/safety-decisions?limit=20`), fetch(`${API_BASE}/observability/workflow-traces?limit=20`)]);
+      const [status, logs, safety, workflows] = await Promise.all([s.json(), l.json(), sf.json(), w.json()]);
+      setObservabilityStatus(status); setExecutionLogs(logs.logs || []); setSafetyDecisions(safety.decisions || []); setWorkflowTraces(workflows.traces || []);
+    } catch (e) { console.error(e); }
   };
+  const fetchRagMetrics = async () => { try { const r = await fetch(`${API_BASE}/observability/rag-metrics`); const d = await r.json(); setRagMetrics(d); } catch (e) { console.error(e); } };
+  const fetchPatientData = async () => { setLoadingPatients(true); try { const r = await fetch(`${API_BASE}/data/export/orders`); const d = await r.json(); setPatientData(d.orders || []); } catch (e) { console.error(e); } finally { setLoadingPatients(false); } };
 
-  const generateProcurementOrders = async () => {
+  // ═══ Actions ═══
+  const refreshAllData = useCallback(async () => {
     setLoading(true);
-    try {
-      const res = await fetch(`${API_BASE}/procurement/generate?urgency=attention`, {
-        method: 'POST',
-      });
-      const data = await res.json();
-      setMessage({ type: 'success', text: data.message });
-      fetchProcurementQueue();
-      fetchEvents();
-    } catch (err) {
-      setMessage({ type: 'error', text: 'Failed to generate orders' });
-    }
-    setLoading(false);
-  };
+    try { await Promise.all([fetchMedications(), fetchLowStockPredictions(), fetchProcurementQueue(), fetchRefillAlerts(), fetchEvents(), fetchWebhookLogs()]); if (activeTab === 'intelligence') await Promise.all([fetchObservabilityData(), fetchRagMetrics()]); } finally { setLoading(false); }
+  }, [activeTab]);
 
-  const sendOrderToSupplier = async (orderId) => {
-    try {
-      const res = await fetch(`${API_BASE}/procurement/${orderId}/send`, {
-        method: 'POST',
-      });
-      const data = await res.json();
-      setMessage({ type: 'success', text: data.message });
-      fetchProcurementQueue();
-      fetchEvents();
-      fetchWebhookLogs();
-    } catch (err) {
-      setMessage({ type: 'error', text: 'Failed to send order' });
-    }
-  };
+  useEffect(() => { refreshAllData(); const i = setInterval(() => { fetchEvents(); fetchWebhookLogs(); if (activeTab === 'intelligence') { fetchObservabilityData(); fetchRagMetrics(); } }, 3000); return () => clearInterval(i); }, [activeTab]);
 
-  const markOrderReceived = async (orderId) => {
-    try {
-      const res = await fetch(`${API_BASE}/procurement/${orderId}/receive`, {
-        method: 'POST',
-      });
-      const data = await res.json();
-      if (data.success) {
-        setMessage({
-          type: 'success',
-          text: `${data.message} - Stock updated`
-        });
-        refreshAllData();
-      } else {
-        setMessage({ type: 'error', text: data.error });
-      }
-    } catch (err) {
-      setMessage({ type: 'error', text: 'Failed to mark received' });
-    }
-  };
-
-  const fetchRagMetrics = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/observability/rag-metrics`);
-      const data = await res.json();
-      setRagMetrics(data);
-    } catch (err) {
-      console.error('Failed to fetch RAG metrics:', err);
-    }
-  };
-
-  const handleRunEval = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(`${API_BASE}/observability/run-eval`, { method: 'POST' });
-      const data = await res.json();
-      setMessage({ type: 'success', text: data.message });
-      // Poll for updates a few times
-      let checks = 0;
-      const interval = setInterval(() => {
-        fetchRagMetrics();
-        checks++;
-        if (checks > 5) clearInterval(interval);
-      }, 2000);
-    } catch (err) {
-      setMessage({ type: 'error', text: 'Failed to trigger evaluation' });
-    }
-    setLoading(false);
-  };
-
-  const submitFeedback = async (traceId, rating) => {
-    try {
-      await fetch(`${API_BASE}/observability/feedback`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ trace_id: traceId, rating }),
-      });
-      setMessage({ type: 'success', text: 'Feedback recorded' });
-    } catch (err) {
-      setMessage({ type: 'error', text: 'Failed to submit feedback' });
-    }
-  };
-
+  const generateProcurementOrders = async () => { setLoading(true); try { const r = await fetch(`${API_BASE}/procurement/generate?urgency=attention`, { method: 'POST' }); const d = await r.json(); setScopedMessage({ type: 'success', text: d.message, tab: 'supply' }); fetchProcurementQueue(); fetchEvents(); } catch { setScopedMessage({ type: 'error', text: 'Failed to generate orders', tab: 'supply' }); } setLoading(false); };
+  const sendOrderToSupplier = async (orderId) => { try { const r = await fetch(`${API_BASE}/procurement/${orderId}/send`, { method: 'POST' }); const d = await r.json(); setScopedMessage({ type: 'success', text: d.message, tab: 'supply' }); fetchProcurementQueue(); fetchEvents(); fetchWebhookLogs(); } catch { setScopedMessage({ type: 'error', text: 'Failed to send order', tab: 'supply' }); } };
+  const markOrderReceived = async (orderId) => { try { const r = await fetch(`${API_BASE}/procurement/${orderId}/receive`, { method: 'POST' }); const d = await r.json(); if (d.success) { setScopedMessage({ type: 'success', text: `${d.message} - Stock updated`, tab: 'supply' }); refreshAllData(); } else { setScopedMessage({ type: 'error', text: d.error, tab: 'supply' }); } } catch { setScopedMessage({ type: 'error', text: 'Failed to mark received', tab: 'supply' }); } };
+  const handleRunEval = async () => { setLoading(true); try { const r = await fetch(`${API_BASE}/observability/run-eval`, { method: 'POST' }); const d = await r.json(); setScopedMessage({ type: 'success', text: d.message, tab: 'intelligence' }); let c = 0; const i = setInterval(() => { fetchRagMetrics(); c++; if (c > 5) clearInterval(i); }, 2000); } catch { setScopedMessage({ type: 'error', text: 'Failed to trigger evaluation', tab: 'intelligence' }); } setLoading(false); };
+  const submitFeedback = async (traceId, rating) => { try { await fetch(`${API_BASE}/observability/feedback`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ trace_id: traceId, rating }) }); setScopedMessage({ type: 'success', text: 'Feedback recorded', tab: 'intelligence' }); } catch { setScopedMessage({ type: 'error', text: 'Failed to submit feedback', tab: 'intelligence' }); } };
   const handleCreateMedication = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch(`${API_BASE}/admin/medications`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          brand_name: newMed.brand_name,
-          generic_name: newMed.generic_name,
-          active_ingredient: newMed.active_ingredient || newMed.generic_name,
-          dosage: newMed.dosage,
-          form: newMed.form,
-          unit_type: newMed.unit_type,
-          rx_required: newMed.rx_required,
-          notes: "Added manually via Admin Panel"
-        })
-      });
-
-      if (!res.ok) throw new Error("Failed to create medication");
-      const data = await res.json();
-
-      if (newMed.stock_quantity > 0) {
-        await fetch(`${API_BASE}/admin/inventory/${data.id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ stock_quantity: parseInt(newMed.stock_quantity) })
-        });
-      }
-
-      setMessage({ type: 'success', text: 'Medication added successfully' });
-      setShowAddMedModal(false);
-      setNewMed({
-        brand_name: '',
-        generic_name: '',
-        dosage: '',
-        stock_quantity: 0,
-        rx_required: false,
-        active_ingredient: '',
-        form: 'tablet',
-        unit_type: 'tablet'
-      });
-      fetchMedications();
-      if (activeTab === 'inventory') fetchMedications();
-      if (activeTab === 'forecast') fetchLowStockPredictions();
-    } catch (err) {
-      console.error(err);
-      setMessage({ type: 'error', text: 'Failed to add medication' });
-    }
+      const r = await fetch(`${API_BASE}/admin/medications`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ product_name: newMed.brand_name, package_size: newMed.dosage, description: newMed.generic_name ? `Generic: ${newMed.generic_name}` : undefined }) });
+      if (!r.ok) throw new Error('Failed');
+      const d = await r.json();
+      if (newMed.stock_quantity > 0) await fetch(`${API_BASE}/admin/inventory/${d.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ stock_quantity: parseInt(newMed.stock_quantity) }) });
+      setScopedMessage({ type: 'success', text: 'Medication added', tab: 'supply' });
+      setShowAddMedModal(false); setNewMed({ brand_name: '', generic_name: '', dosage: '', stock_quantity: 0, rx_required: false, active_ingredient: '', form: 'tablet', unit_type: 'tablet' });
+      fetchMedications(); fetchLowStockPredictions();
+    } catch { setScopedMessage({ type: 'error', text: 'Failed to add medication', tab: 'supply' }); }
   };
+  const handleUpdateStock = async (id, qty) => { try { await fetch(`${API_BASE}/admin/inventory/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ stock_quantity: parseInt(qty) }) }); setScopedMessage({ type: 'success', text: 'Stock updated', tab: 'supply' }); fetchMedications(); } catch { setScopedMessage({ type: 'error', text: 'Failed to update stock', tab: 'supply' }); } };
 
-  const handleUpdateStock = async (id, qty) => {
-    try {
-      await fetch(`${API_BASE}/admin/inventory/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ stock_quantity: parseInt(qty) })
-      });
-      setMessage({ type: 'success', text: 'Stock updated' });
-      fetchMedications();
-    } catch (err) {
-      setMessage({ type: 'error', text: 'Failed to update stock' });
-    }
-  };
+  const getUrgencyColor = (u) => ({ critical: 'bg-red-100 text-red-700 border-red-200', warning: 'bg-amber-100 text-amber-700 border-amber-200', attention: 'bg-blue-100 text-blue-700 border-blue-200' }[u] || 'bg-green-100 text-green-700 border-green-200');
+  const getStatusColor = (s) => ({ pending: 'bg-amber-100 text-amber-800', ordered: 'bg-blue-100 text-blue-800', received: 'bg-green-100 text-green-800', cancelled: 'bg-red-100 text-red-800' }[s] || 'bg-gray-100 text-gray-800');
 
-  const getUrgencyColor = (urgency) => {
-    switch (urgency) {
-      case 'critical': return 'bg-red-100 text-red-800 border-red-200';
-      case 'warning': return 'bg-amber-100 text-amber-800 border-amber-200';
-      case 'attention': return 'bg-blue-100 text-blue-800 border-blue-200';
-      default: return 'bg-green-100 text-green-800 border-green-200';
-    }
-  };
+  const lowStockCount = medications.filter(m => m.stock_quantity <= 10).length;
+  const criticalPreds = lowStockPredictions.filter(p => p.urgency === 'critical').length;
+  const pendingOrders = procurementQueue.filter(o => o.status === 'pending').length;
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'pending': return 'bg-amber-100 text-amber-800';
-      case 'ordered': return 'bg-blue-100 text-blue-800';
-      case 'received': return 'bg-green-100 text-green-800';
-      case 'cancelled': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const menus = [
-    { id: 'activity', label: 'Activity Feed', icon: <Zap size={20} />, count: events.length },
-    { id: 'forecast', label: 'Forecast', icon: <TrendingUp size={20} />, count: lowStockPredictions.length },
-    { id: 'procurement', label: 'Procurement', icon: <ShoppingCart size={20} />, count: procurementQueue.length > 0 ? procurementQueue.length : null },
-    { id: 'refills', label: 'Customer Refills', icon: <RefreshCw size={20} />, count: refillAlerts.length > 0 ? refillAlerts.length : null },
-    { id: 'inventory', label: 'Inventory', icon: <Package size={20} /> },
-    { id: 'observability', label: 'Observability', icon: <Activity size={20} /> },
+  const tabs = [
+    { id: 'overview', label: 'Overview', icon: <Activity size={18} /> },
+    { id: 'supply', label: 'Supply Chain', icon: <Package size={18} /> },
+    { id: 'intelligence', label: 'Intelligence', icon: <Brain size={18} /> },
   ];
+
+  /* ─── Collapsible Section Wrapper ─── */
+  const Section = ({ id, title, icon, badge, children, actions }) => (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden transition-all hover:shadow-md">
+      <button onClick={() => toggleSection(id)} className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-gray-50/50 transition-colors">
+        <div className="flex items-center gap-2.5">
+          <span className="text-teal-600">{icon}</span>
+          <span className="font-bold text-sm text-gray-800">{title}</span>
+          {badge != null && <span className="px-2 py-0.5 bg-teal-100 text-teal-700 text-[10px] font-bold rounded-full">{badge}</span>}
+        </div>
+        <div className="flex items-center gap-2">
+          {actions && <div onClick={e => e.stopPropagation()}>{actions}</div>}
+          {expandedSections[id] ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+        </div>
+      </button>
+      {expandedSections[id] && <div className="border-t border-gray-100">{children}</div>}
+    </div>
+  );
 
   return (
     <div className="flex h-screen bg-gray-50 font-sans">
-      {/* Sidebar Navigation */}
-      <aside className="w-64 bg-white border-r border-gray-200 flex flex-col z-10 shadow-lg">
-        <div className="p-6 flex items-center gap-3 border-b border-gray-100">
-          <div className="w-8 h-8 rounded-lg bg-teal-600 flex items-center justify-center text-white font-bold text-xl">M</div>
-          <h1 className="text-xl font-bold text-gray-800 tracking-tight">Mediloon Admin</h1>
+      {/* ═══ Slim Sidebar ═══ */}
+      <aside className="w-56 bg-white border-r border-gray-100 flex flex-col shadow-sm">
+        <div className="p-4 flex items-center gap-2.5 border-b border-gray-100">
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-teal-500 to-teal-700 flex items-center justify-center text-white font-bold text-lg shadow-md shadow-teal-200">M</div>
+          <div>
+            <div className="text-sm font-bold text-gray-800 leading-none">Mediloon</div>
+            <div className="text-[9px] font-semibold text-teal-500 uppercase tracking-widest">Admin Panel</div>
+          </div>
         </div>
 
-        <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-          {menus.map(menu => (
-            <button
-              key={menu.id}
-              onClick={() => setActiveTab(menu.id)}
-              className={`
-                        w-full flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-200 group
-                        ${activeTab === menu.id
-                  ? 'bg-teal-50 text-teal-700 font-semibold shadow-sm ring-1 ring-teal-200'
-                  : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                }
-                    `}
-            >
-              <div className="flex items-center gap-3">
-                <span className="text-lg opacity-80 group-hover:scale-110 transition-transform">{menu.icon}</span>
-                <span>{menu.label}</span>
-              </div>
-              {menu.count && (
-                <span className={`
-                            px-2 py-0.5 rounded-full text-xs font-bold
-                            ${activeTab === menu.id ? 'bg-teal-200 text-teal-800' : 'bg-gray-100 text-gray-600'}
-                        `}>
-                  {menu.count}
-                </span>
-              )}
+        <nav className="flex-1 p-3 space-y-1">
+          {tabs.map(t => (
+            <button key={t.id} onClick={() => { setActiveTab(t.id); setMessage(null); }}
+              className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm transition-all duration-200 ${activeTab === t.id ? 'bg-teal-50 text-teal-700 font-semibold shadow-sm ring-1 ring-teal-200' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-800'}`}>
+              {t.icon}<span>{t.label}</span>
             </button>
           ))}
         </nav>
 
-        <div className="p-4 border-t border-gray-100 space-y-2">
-          <div className="px-4 py-3 bg-gray-50 rounded-xl mb-2">
-            <p className="text-xs text-gray-400 uppercase font-bold tracking-wider mb-1">Logged in as</p>
+        <div className="p-3 border-t border-gray-100 space-y-2">
+          <div className="px-3 py-2 bg-gray-50 rounded-xl">
+            <div className="text-[9px] text-gray-400 uppercase font-bold tracking-wider mb-0.5">Logged in</div>
             <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded-full bg-teal-100 flex items-center justify-center text-teal-700 font-bold text-xs">
-                {user?.name?.[0] || 'A'}
-              </div>
-              <span className="text-sm font-medium text-gray-700">{user?.name || 'Admin User'}</span>
+              <div className="w-5 h-5 rounded-full bg-teal-100 flex items-center justify-center text-teal-700 font-bold text-[10px]">{user?.name?.[0] || 'A'}</div>
+              <span className="text-xs font-medium text-gray-700 truncate">{user?.name || 'Admin'}</span>
             </div>
           </div>
-          <button
-            onClick={onSwitchToUser}
-            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gray-900 text-white rounded-xl hover:bg-gray-800 transition-colors shadow-lg hover:shadow-xl active:scale-95"
-          >
-            <span>Switch to User View</span>
-            <Users className="w-4 h-4" />
+          <button onClick={onSwitchToUser} className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-gray-900 text-white rounded-xl text-xs font-semibold hover:bg-gray-800 transition-colors shadow active:scale-95">
+            <Users size={14} /> User View
           </button>
         </div>
       </aside>
 
-      {/* Main Content Area */}
-      <main className="flex-1 flex flex-col overflow-hidden bg-gray-50/50">
-
-        {/* Top Header for Context */}
-        <header className="h-16 bg-white border-b border-gray-200 px-8 flex items-center justify-between shadow-sm z-0">
-          <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-            {menus.find(m => m.id === activeTab)?.icon}
-            {menus.find(m => m.id === activeTab)?.label}
-          </h2>
-          <div className="flex items-center gap-4">
-            <button
-              onClick={refreshAllData}
-              className="p-2 text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition-all"
-              title="Refresh Data"
-            >
-              <svg className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+      {/* ═══ Main Content ═══ */}
+      <main className="flex-1 flex flex-col overflow-hidden">
+        {/* Header */}
+        <header className="h-12 bg-white border-b border-gray-100 px-6 flex items-center justify-between shadow-sm">
+          <div className="flex items-center gap-2">
+            {tabs.find(t => t.id === activeTab)?.icon}
+            <h2 className="text-lg font-bold text-gray-800">{tabs.find(t => t.id === activeTab)?.label}</h2>
+          </div>
+          <div className="flex items-center gap-3">
+            <button onClick={refreshAllData} className={`p-1.5 text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition-all ${loading ? 'animate-spin' : ''}`}>
+              <RefreshCw size={16} />
             </button>
-            <div className="h-6 w-px bg-gray-200"></div>
-            <span className="text-sm text-gray-500">{new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
+            <span className="text-xs text-gray-400">{new Date().toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</span>
           </div>
         </header>
 
+        {/* Toast */}
+        {message && (
+          <div className={`mx-6 mt-3 p-3 rounded-xl flex items-center justify-between text-sm shadow-sm animate-fade-in-up ${message.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+            <span className="font-medium">{message.text}</span>
+            <button onClick={() => setMessage(null)} className="opacity-60 hover:opacity-100"><X size={16} /></button>
+          </div>
+        )}
+
         {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto p-8">
-          {message && (
-            <div className={`mb-6 p-4 rounded-xl flex items-center justify-between shadow-sm animate-fade-in-up ${message.type === 'success' ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
-              <span className="font-medium">{message.text}</span>
-              <button onClick={() => setMessage(null)} className="opacity-60 hover:opacity-100"><X size={18} /></button>
-            </div>
-          )}
+        <div className="flex-1 overflow-y-auto p-6 space-y-4">
 
-          {/* Inventory Tab */}
-          {activeTab === 'inventory' && (
-            <div className="space-y-6 animate-fade-in-up">
-              <div className="flex justify-between items-center bg-white p-4 rounded-2xl shadow-sm border border-gray-200">
-                <div>
-                  <h3 className="font-bold text-gray-800">Inventory Overview</h3>
-                  <p className="text-sm text-gray-500">Manage stock levels and add new products</p>
+          {/* ═══════════ OVERVIEW TAB ═══════════ */}
+          {activeTab === 'overview' && (
+            <div className="space-y-4 animate-fade-in-up">
+              {/* ★ Priority Procurement Section (High Visibility) */}
+              <div className="bg-gradient-to-r from-gray-900 to-gray-800 rounded-2xl p-5 text-white shadow-lg relative overflow-hidden mb-2 group">
+                <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
+                  <Truck size={120} />
                 </div>
-                <button
-                  onClick={() => setShowAddMedModal(true)}
-                  className="px-6 py-2.5 bg-teal-600 text-white rounded-xl shadow-lg shadow-teal-200 hover:bg-teal-700 hover:shadow-xl transition-all active:scale-95 font-medium flex items-center gap-2"
-                >
-                  <span>+</span> Add Medication
-                </button>
+                <div className="flex items-center justify-between relative z-10">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className="p-1.5 bg-white/10 rounded-lg backdrop-blur-sm">
+                        <Zap size={18} className="text-yellow-400" />
+                      </div>
+                      <h3 className="font-brand font-bold text-lg">Priority Procurement</h3>
+                    </div>
+                    <p className="text-gray-400 text-sm max-w-md">
+                      AI-driven restocking. {procurementQueue.length} orders pending approval.
+                      {procurementQueue.length > 0 && <span className="text-white font-semibold ml-1">Action required.</span>}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="text-right hidden sm:block">
+                      <div className="text-2xl font-mono font-bold leading-none">{procurementQueue.filter(o => o.status === 'ordered').length}</div>
+                      <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">On Order</div>
+                    </div>
+                    <div className="w-px h-8 bg-white/10 hidden sm:block" />
+                    <button
+                      onClick={generateProcurementOrders}
+                      disabled={loading}
+                      className="px-5 py-2.5 bg-white text-gray-900 rounded-xl font-bold text-sm hover:bg-gray-100 active:scale-95 transition-all flex items-center gap-2 shadow-xl shadow-white/5"
+                    >
+                      {loading ? <Loader2 className="animate-spin" size={16} /> : <Zap size={16} className="fill-gray-900" />}
+                      Auto-Generate
+                    </button>
+                  </div>
+                </div>
               </div>
 
-              <div className="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden">
-                <table className="w-full text-left">
-                  <thead>
-                    <tr className="bg-gray-50 border-b border-gray-100 text-xs uppercase text-gray-500 font-semibold tracking-wider">
-                      <th className="px-6 py-4">Medication</th>
-                      <th className="px-6 py-4">Generic</th>
-                      <th className="px-6 py-4">Dosage</th>
-                      <th className="px-6 py-4 text-center">Stock Level</th>
-                      <th className="px-6 py-4 text-center">RX Required</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {medications.map((med) => (
-                      <tr key={med.id} className={`hover:bg-teal-50/30 transition-colors ${med.stock_quantity <= 10 ? 'bg-red-50/50' : ''}`}>
-                        <td className="px-6 py-4 font-medium text-gray-900">{med.brand_name}</td>
-                        <td className="px-6 py-4 text-gray-600">{med.generic_name}</td>
-                        <td className="px-6 py-4 text-gray-500">
-                          <span className="px-2 py-1 bg-gray-100 rounded text-xs">{med.dosage}</span>
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                          <div className="inline-flex items-center gap-2">
-                            <input
-                              type="number"
-                              className={`w-20 px-3 py-1.5 rounded-lg border text-center transition-all focus:ring-2 focus:ring-teal-500/20 ${med.stock_quantity <= 10 ? 'border-red-300 text-red-600 bg-white' : 'border-gray-200 text-gray-800 bg-gray-50'}`}
-                              defaultValue={med.stock_quantity}
-                              onBlur={(e) => handleUpdateStock(med.id, e.target.value)}
-                            />
-                            {med.stock_quantity <= 10 && <span className="text-red-500 text-xs font-bold animate-pulse">LOW</span>}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-center">
-                          {med.rx_required ? (
-                            <span className="inline-flex px-2 py-1 bg-orange-100 text-orange-700 rounded text-xs font-bold">YES</span>
-                          ) : (
-                            <span className="inline-flex px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-bold">NO</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              {/* Stat Cards Row */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <StatCard icon={<Package size={16} />} label="Total Products" value={medications.length} sub={`${lowStockCount} low stock`} ringMax={Math.max(medications.length, 50)} />
+                <StatCard icon={<AlertTriangle size={16} />} label="Critical Forecasts" value={criticalPreds} sub={`of ${lowStockPredictions.length} predictions`} color={criticalPreds > 0 ? 'red' : 'teal'} ringMax={Math.max(lowStockPredictions.length, 1)} />
+                <StatCard icon={<Truck size={16} />} label="Pending Orders" value={pendingOrders} sub={`${procurementQueue.length} total`} color={pendingOrders > 0 ? 'amber' : 'teal'} ringMax={Math.max(procurementQueue.length, 1)} />
+                <StatCard icon={<RefreshCw size={16} />} label="Refill Alerts" value={refillAlerts.length} sub="Upcoming depletions" color={refillAlerts.length > 0 ? 'blue' : 'teal'} ringMax={20} />
               </div>
-            </div>
-          )}
 
-          {/* Other Tabs Placeholder to be filled... reusing logic from previous implementation but with new UI */}
-
-          {/* Activity Tab */}
-          {activeTab === 'activity' && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-fade-in-up">
-              <div className="bg-white rounded-3xl shadow-md border border-gray-200 overflow-hidden flex flex-col h-[600px]">
-                <div className="p-6 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
-                  <h3 className="font-bold text-gray-800 flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
-                    Live Events Feed
-                  </h3>
-                  <span className="text-xs font-mono text-gray-400">REALTIME</span>
-                </div>
-                <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                  {events.length === 0 ? (
-                    <div className="text-center py-20 text-gray-400">No events recorded yet.</div>
-                  ) : (
-                    events.map((event, i) => (
-                      <div key={i} className="flex gap-4 p-3 rounded-xl hover:bg-gray-50 transition-colors border border-transparent hover:border-gray-100">
-                        <div className="text-xs font-mono text-gray-400 whitespace-nowrap pt-1">
-                          {new Date(event.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 text-[10px] font-bold uppercase tracking-wider">{event.agent}</span>
-                            <span className="text-xs font-semibold text-gray-900 uppercase">{event.event_type}</span>
+              {/* Two-column: Events + Forecast */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {/* Live Events */}
+                <Section id="events" title="Live Events" icon={<Zap size={16} />} badge={events.length}>
+                  <div className="max-h-[400px] overflow-y-auto divide-y divide-gray-50">
+                    {events.length === 0 ? <div className="py-10 text-center text-gray-400 text-sm">No events yet</div> : events.slice(0, 15).map((ev, i) => (
+                      <div key={i} className="flex gap-3 px-5 py-2.5 hover:bg-gray-50/50 transition-colors text-sm">
+                        <span className="text-[10px] font-mono text-gray-400 whitespace-nowrap pt-0.5">{new Date(ev.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5 mb-0.5">
+                            <span className="px-1.5 py-0.5 bg-teal-50 text-teal-600 text-[9px] font-bold uppercase rounded">{ev.agent}</span>
+                            <span className="text-[10px] font-semibold text-gray-600 uppercase">{ev.event_type}</span>
                           </div>
-                          <p className="text-sm text-gray-600 leading-relaxed font-norma">{event.message}</p>
+                          <p className="text-xs text-gray-600 truncate">{ev.message}</p>
                         </div>
                       </div>
-                    ))
-                  )}
-                </div>
+                    ))}
+                  </div>
+                </Section>
+
+                {/* Stock Forecast Preview */}
+                <Section id="forecast" title="Stock Forecasts" icon={<TrendingUp size={16} />} badge={lowStockPredictions.length}>
+                  <div className="max-h-[400px] overflow-y-auto p-3 space-y-2">
+                    {lowStockPredictions.length === 0 ? (
+                      <div className="py-8 text-center"><CheckCircle size={28} className="mx-auto text-green-400 mb-2" /><p className="text-sm font-semibold text-gray-600">All stocks healthy</p></div>
+                    ) : lowStockPredictions.slice(0, 8).map((pred, i) => {
+                      const uc = getUrgencyColor(pred.urgency);
+                      const daysLeft = pred.days_until_stockout || 0;
+                      const ringColor = daysLeft <= 3 ? '#DC2626' : daysLeft <= 7 ? '#F59E0B' : '#14B8A6';
+                      const pct = Math.max(0, Math.min(100, ((30 - Math.max(0, daysLeft)) / 30) * 100));
+                      return (
+                        <div key={i} className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 hover:border-teal-200 transition-all hover:-translate-y-0.5">
+                          <AdminRing pct={pct} size={40} strokeWidth={3.5} color={ringColor}>
+                            <span className="text-[10px] font-bold" style={{ color: ringColor }}>{daysLeft}d</span>
+                          </AdminRing>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-semibold text-sm text-gray-800 truncate">{pred.brand_name}</div>
+                            <div className="text-[10px] text-gray-400 mb-1">Stock: {pred.current_stock} · {pred.units_per_day}/day</div>
+                            <MiniBar value={30 - daysLeft} max={30} color={daysLeft <= 3 ? 'red' : daysLeft <= 7 ? 'amber' : 'teal'} showLabel={false} />
+                          </div>
+                          <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded flex-shrink-0 ${uc}`}>{pred.urgency}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </Section>
               </div>
 
-              <div className="bg-white rounded-3xl shadow-md border border-gray-200 overflow-hidden flex flex-col h-[600px]">
-                <div className="p-6 border-b border-gray-100 bg-gray-50/50 flex justify-between items-center">
-                  <h3 className="font-bold text-gray-800">Webhook Traffic</h3>
-                  <span className="px-2 py-1 bg-gray-200 text-gray-600 rounded text-xs font-mono">HTTP/1.1</span>
-                </div>
-                <div className="flex-1 overflow-y-auto p-0">
-                  {webhookLogs.length === 0 ? (
-                    <div className="text-center py-20 text-gray-400">No webhook logs available.</div>
-                  ) : (
-                    <table className="w-full text-left text-sm">
-                      <thead className="bg-gray-50 text-gray-500 font-medium">
-                        <tr>
-                          <th className="px-4 py-3">Time</th>
-                          <th className="px-4 py-3">Method</th>
-                          <th className="px-4 py-3">Endpoint</th>
-                          <th className="px-4 py-3 text-right">Payload</th>
+              {/* Webhook Logs */}
+              <Section id="webhook" title="Webhook Traffic" icon={<MessageSquare size={16} />} badge={webhookLogs.length}>
+                <div className="max-h-[300px] overflow-y-auto">
+                  {webhookLogs.length === 0 ? <div className="py-8 text-center text-gray-400 text-sm">No logs</div> : (
+                    <table className="w-full text-xs">
+                      <thead className="bg-gray-50 text-gray-500 font-semibold uppercase"><tr><th className="px-4 py-2 text-left">Time</th><th className="px-4 py-2 text-left">Method</th><th className="px-4 py-2 text-left">Endpoint</th><th className="px-4 py-2 text-right">Payload</th></tr></thead>
+                      <tbody className="divide-y divide-gray-50">{webhookLogs.map((log, i) => (
+                        <tr key={i} className="hover:bg-gray-50 font-mono">
+                          <td className="px-4 py-2 text-gray-400">{new Date(log.created_at).toLocaleTimeString()}</td>
+                          <td className="px-4 py-2"><span className={`px-1.5 py-0.5 rounded font-bold ${log.direction === 'outgoing' ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'}`}>{log.direction === 'outgoing' ? 'POST' : 'Recv'}</span></td>
+                          <td className="px-4 py-2 text-gray-700 truncate max-w-[200px]">{log.endpoint}</td>
+                          <td className="px-4 py-2 text-right"><details className="inline-block"><summary className="text-teal-600 hover:text-teal-800 cursor-pointer font-medium">JSON</summary><div className="fixed right-8 mt-1 w-80 bg-gray-900 text-green-400 p-3 rounded-xl shadow-2xl z-50 text-xs overflow-auto max-h-72"><pre>{JSON.stringify(log.payload, null, 2)}</pre></div></details></td>
                         </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100">
-                        {webhookLogs.map((log, i) => (
-                          <tr key={i} className="hover:bg-gray-50 font-mono text-xs">
-                            <td className="px-4 py-3 text-gray-400">{new Date(log.created_at).toLocaleTimeString()}</td>
-                            <td className="px-4 py-3">
-                              <span className={`px-1.5 py-0.5 rounded font-bold ${log.direction === 'outgoing' ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'}`}>
-                                {log.direction === 'outgoing' ? 'POST' : 'Recv'}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 text-gray-700 truncate max-w-[150px]" title={log.endpoint}>{log.endpoint}</td>
-                            <td className="px-4 py-3 text-right">
-                              <details className="cursor-pointer group relative inline-block text-left">
-                                <summary className="list-none text-teal-600 hover:text-teal-800 font-medium">View JSON</summary>
-                                <div className="fixed right-10 mt-2 w-96 bg-gray-900 text-green-400 p-4 rounded-xl shadow-2xl z-50 text-xs overflow-auto max-h-96 hidden group-open:block">
-                                  <pre>{JSON.stringify(log.payload, null, 2)}</pre>
-                                </div>
-                              </details>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
+                      ))}</tbody>
                     </table>
                   )}
                 </div>
-              </div>
+              </Section>
             </div>
           )}
 
-          {/* Forecast Tab */}
-          {activeTab === 'forecast' && (
-            <div className="animate-fade-in-up">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {lowStockPredictions.map((pred, i) => {
-                  const colorClass = getUrgencyColor(pred.urgency);
-                  return (
-                    <div key={i} className={`bg-white p-6 rounded-3xl shadow-sm border-l-4 hover:shadow-md transition-shadow ${colorClass.split(' ')[2]}`}>
-                      <div className="flex justify-between items-start mb-4">
-                        <div>
-                          <h4 className="font-bold text-lg text-gray-900">{pred.brand_name}</h4>
-                          <p className="text-sm text-gray-500">Predicted Stockout</p>
-                        </div>
-                        <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${colorClass.split(' ')[0]} ${colorClass.split(' ')[1]}`}>
-                          {pred.urgency}
-                        </span>
-                      </div>
-                      <div className="space-y-3">
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-500">Current Stock</span>
-                          <span className="font-mono font-medium">{pred.current_stock}</span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-500">Velocity</span>
-                          <span className="font-mono font-medium">{pred.units_per_day}/day</span>
-                        </div>
-                        <div className="pt-3 border-t border-gray-100 flex justify-between items-center">
-                          <span className="text-xs font-bold text-gray-400 uppercase">Empty In</span>
-                          <span className="text-xl font-bold text-gray-900">{pred.days_until_stockout} days</span>
-                        </div>
-                        <div className="text-xs text-center text-teal-600 bg-teal-50 py-2 rounded-lg font-medium">
-                          Expected: {pred.predicted_stockout_date}
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-              {lowStockPredictions.length === 0 && (
-                <div className="text-center py-20">
-                  <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4"><CheckCircle size={32} /></div>
-                  <h3 className="text-xl font-bold text-gray-800">No Risk Detected</h3>
-                  <p className="text-gray-500">Inventory levels are healthy for the next 14 days.</p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Procurement */}
-          {activeTab === 'procurement' && (
-            <div className="animate-fade-in-up space-y-6">
-              <div className="flex justify-between items-center bg-white p-4 rounded-2xl shadow-sm border border-gray-200">
-                <div>
-                  <h3 className="font-bold text-gray-800">Procurement Orders</h3>
-                  <p className="text-sm text-gray-500">Manage supplier orders and deliveries</p>
-                </div>
-                <button
-                  onClick={generateProcurementOrders}
-                  disabled={loading}
-                  className="px-6 py-2.5 bg-gray-900 text-white rounded-xl shadow-lg hover:bg-gray-800 transition-all font-medium flex items-center gap-2"
-                >
-                  {loading ? <Loader2 className="animate-spin" size={16} /> : <Zap size={16} />} Auto-Generate Orders
-                </button>
+          {/* ═══════════ SUPPLY CHAIN TAB ═══════════ */}
+          {activeTab === 'supply' && (
+            <div className="space-y-4 animate-fade-in-up">
+              {/* Stat Row */}
+              <div className="grid grid-cols-3 gap-3">
+                <StatCard icon={<Package size={16} />} label="Products" value={medications.length} sub={`${lowStockCount} need attention`} />
+                <StatCard icon={<ShoppingCart size={16} />} label="Orders" value={procurementQueue.length} sub={`${pendingOrders} pending`} color={pendingOrders > 0 ? 'amber' : 'teal'} />
+                <StatCard icon={<RefreshCw size={16} />} label="Customer Refills" value={refillAlerts.length} sub="Due within 14 days" color={refillAlerts.length > 0 ? 'blue' : 'teal'} />
               </div>
 
-              <div className="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden">
-                <table className="w-full text-left">
-                  <thead className="bg-gray-50 border-b border-gray-100 text-xs uppercase text-gray-500">
-                    <tr>
-                      <th className="px-6 py-4">Status</th>
-                      <th className="px-6 py-4">Order Details</th>
-                      <th className="px-6 py-4">Supplier</th>
-                      <th className="px-6 py-4">Est. Delivery</th>
-                      <th className="px-6 py-4 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {procurementQueue.map((order) => {
-                      const statusClass = getStatusColor(order.status);
+              {/* Inventory */}
+              <Section id="inventory" title="Inventory" icon={<Package size={16} />} badge={medications.length}
+                actions={<button onClick={() => setShowAddMedModal(true)} className="px-3 py-1.5 bg-teal-600 text-white rounded-lg text-[11px] font-semibold hover:bg-teal-700 transition-colors flex items-center gap-1"><Plus size={12} /> Add</button>}>
+                <div className="max-h-[400px] overflow-auto">
+                  <table className="w-full text-xs text-left">
+                    <thead className="bg-gray-50 text-gray-500 uppercase font-semibold sticky top-0"><tr><th className="px-4 py-2.5">Medication</th><th className="px-4 py-2.5">Package</th><th className="px-4 py-2.5 text-center">Stock</th><th className="px-4 py-2.5 text-center">Threshold</th><th className="px-4 py-2.5 text-center">RX</th></tr></thead>
+                    <tbody className="divide-y divide-gray-50">{medications.map(med => {
+                      const sg = suggestedReorderForMed(med);
+                      const threshold = med.reorder_threshold > 0 ? med.reorder_threshold : sg.threshold;
                       return (
-                        <tr key={order.order_id} className="hover:bg-gray-50 transition-colors">
-                          <td className="px-6 py-4">
-                            <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${statusClass}`}>
-                              {order.status}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="font-bold text-gray-900">{order.brand_name}</div>
-                            <div className="text-sm text-gray-500">{order.quantity || order.order_quantity} units</div>
-                          </td>
-                          <td className="px-6 py-4 font-medium text-gray-700">{order.supplier_name || order.supplier?.name}</td>
-                          <td className="px-6 py-4 text-gray-600">{order.estimated_delivery || '-'}</td>
-                          <td className="px-6 py-4 text-right">
-                            <div className="flex justify-end gap-2">
-                              {order.status === 'pending' && (
-                                <button onClick={() => sendOrderToSupplier(order.order_id)} className="px-4 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 shadow-sm">Send</button>
-                              )}
-                              {order.status === 'ordered' && (
-                                <button onClick={() => markOrderReceived(order.order_id)} className="px-4 py-1.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 shadow-sm">Received</button>
-                              )}
-                              {order.status === 'received' && (
-                                <span className="text-xs text-gray-400 font-mono">Completed</span>
-                              )}
+                        <tr key={med.id} className={`hover:bg-teal-50/30 transition-colors ${med.stock_quantity <= 10 ? 'bg-red-50/40' : ''}`}>
+                          <td className="px-4 py-2.5 font-medium text-gray-800">{med.product_name || '-'}</td>
+                          <td className="px-4 py-2.5 text-gray-500"><span className="px-1.5 py-0.5 bg-gray-100 rounded text-[10px]">{med.package_size || '-'}</span></td>
+                          <td className="px-4 py-2.5 text-center">
+                            <div className="inline-flex items-center gap-1.5">
+                              <input type="number" className={`w-16 px-2 py-1 rounded-lg border text-center text-xs ${med.stock_quantity <= 10 ? 'border-red-300 text-red-600' : 'border-gray-200 text-gray-700'}`} defaultValue={med.stock_quantity} onBlur={e => handleUpdateStock(med.id, e.target.value)} />
+                              {med.stock_quantity <= 10 && <span className="text-red-500 text-[9px] font-bold animate-pulse">LOW</span>}
                             </div>
                           </td>
+                          <td className="px-4 py-2.5 text-center text-gray-500">{threshold}</td>
+                          <td className="px-4 py-2.5 text-center">{med.rx_required ? <span className="px-1.5 py-0.5 bg-orange-100 text-orange-700 rounded text-[10px] font-bold">RX</span> : <span className="text-gray-300">—</span>}</td>
                         </tr>
                       );
-                    })}
-                  </tbody>
-                </table>
-                {procurementQueue.length === 0 && (
-                  <div className="text-center py-12 text-gray-400">No active orders</div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Refills */}
-          {activeTab === 'refills' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in-up">
-              {refillAlerts.map((alert, i) => (
-                <div key={i} className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 hover:shadow-md transition-all relative overflow-hidden group">
-                  <div className={`absolute top-0 left-0 w-1.5 h-full ${alert.days_until_depletion <= 3 ? 'bg-red-500' : 'bg-amber-400'}`}></div>
-                  <div className="pl-4">
-                    <div className="flex justify-between items-start mb-2">
-                      <h4 className="font-bold text-lg text-gray-900">{alert.customer_name}</h4>
-                      <a href={`tel:${alert.customer_phone}`} className="w-8 h-8 rounded-full bg-teal-50 text-teal-600 flex items-center justify-center hover:bg-teal-100">
-                        <Phone size={16} />
-                      </a>
-                    </div>
-                    <p className="text-sm text-gray-500 mb-4">{alert.customer_phone}</p>
-
-                    <div className="bg-gray-50 rounded-xl p-3 mb-4">
-                      <div className="font-medium text-gray-800">{alert.brand_name}</div>
-                      <div className="text-xs text-gray-500">{alert.dosage}</div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <span className={`px-2 py-1 rounded-md text-xs font-bold ${alert.days_until_depletion <= 3 ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
-                        {alert.days_until_depletion <= 0 ? 'EMPTY' : `${alert.days_until_depletion} days left`}
-                      </span>
-                      <span className="text-xs text-gray-400">Due: {alert.depletion_date}</span>
-                    </div>
-                  </div>
+                    })}</tbody>
+                  </table>
                 </div>
-              ))}
-              {refillAlerts.length === 0 && (
-                <div className="col-span-full text-center py-20 text-gray-400">No customer refills due.</div>
-              )}
-            </div>
-          )}
+              </Section>
 
-          {/* Observability */}
-          {activeTab === 'observability' && (
-            <div className="space-y-6 animate-fade-in-up">
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-200">
-                  <h3 className="font-bold text-gray-800 mb-4">Execution Status</h3>
-                  <div className="flex items-center gap-3">
-                    <div className={`w-3 h-3 rounded-full ${observabilityStatus?.langfuse_enabled ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.4)]' : 'bg-gray-300'}`}></div>
-                    <span className="font-medium text-gray-700">{observabilityStatus?.langfuse_enabled ? 'Langfuse Connected' : 'Langfuse Disconnected'}</span>
-                  </div>
+              {/* Procurement */}
+              <Section id="procurement" title="Procurement Orders" icon={<Truck size={16} />} badge={procurementQueue.length}
+                actions={<button onClick={generateProcurementOrders} disabled={loading} className="px-3 py-1.5 bg-gray-900 text-white rounded-lg text-[11px] font-semibold hover:bg-gray-800 transition-colors flex items-center gap-1">{loading ? <Loader2 className="animate-spin" size={12} /> : <Zap size={12} />} Auto-Generate</button>}>
+                <div className="max-h-[350px] overflow-auto">
+                  {procurementQueue.length === 0 ? <div className="py-8 text-center text-gray-400 text-sm">No active orders</div> : (
+                    <table className="w-full text-xs text-left">
+                      <thead className="bg-gray-50 text-gray-500 uppercase font-semibold sticky top-0"><tr><th className="px-4 py-2.5">Status</th><th className="px-4 py-2.5">Item</th><th className="px-4 py-2.5">Supplier</th><th className="px-4 py-2.5 text-right">Actions</th></tr></thead>
+                      <tbody className="divide-y divide-gray-50">{procurementQueue.map(order => (
+                        <tr key={order.order_id} className="hover:bg-gray-50 transition-colors">
+                          <td className="px-4 py-2.5"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${getStatusColor(order.status)}`}>{order.status}</span></td>
+                          <td className="px-4 py-2.5"><div className="font-semibold text-gray-800">{order.brand_name}</div><div className="text-gray-400">{order.quantity || order.order_quantity} units</div></td>
+                          <td className="px-4 py-2.5 text-gray-600">{order.supplier_name || order.supplier?.name}</td>
+                          <td className="px-4 py-2.5 text-right">
+                            {order.status === 'pending' && <button onClick={() => sendOrderToSupplier(order.order_id)} className="px-3 py-1 bg-blue-600 text-white rounded-lg text-[10px] font-semibold hover:bg-blue-700">Send</button>}
+                            {order.status === 'ordered' && <button onClick={() => markOrderReceived(order.order_id)} className="px-3 py-1 bg-green-600 text-white rounded-lg text-[10px] font-semibold hover:bg-green-700">Received</button>}
+                            {order.status === 'received' && <span className="text-[10px] text-gray-400">Done</span>}
+                          </td>
+                        </tr>
+                      ))}</tbody>
+                    </table>
+                  )}
                 </div>
+              </Section>
 
-                {/* RAG Intelligence Card */}
-                <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-200 lg:col-span-2">
-                  <div className="flex justify-between items-start mb-6">
-                    <div>
-                      <h3 className="font-bold text-gray-800 flex items-center gap-2">
-                        <Brain className="text-purple-600" size={24} /> RAG Intelligence & Quality
-                      </h3>
-                      <p className="text-sm text-gray-500">Automated evaluation of retrieval quality and hallucination using RAGAS.</p>
-                    </div>
-                    <button
-                      onClick={handleRunEval}
-                      disabled={loading}
-                      className="px-4 py-2 bg-indigo-600 text-white rounded-xl shadow-lg shadow-indigo-200 hover:bg-indigo-700 hover:shadow-xl transition-all active:scale-95 text-sm font-bold flex items-center gap-2"
-                    >
-                      {loading ? <Loader2 className="animate-spin" size={16} /> : <Zap size={16} />} Run Quality Check
-                    </button>
-                  </div>
-
-                  {ragMetrics?.latest ? (
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm font-medium">
-                          <span className="text-gray-600">Faithfulness</span>
-                          <span className={`${ragMetrics.latest.faithfulness_score >= 0.8 ? 'text-green-600' : 'text-amber-600'}`}>
-                            {(ragMetrics.latest.faithfulness_score * 100).toFixed(0)}%
-                          </span>
+              {/* Customer Refills */}
+              <Section id="refills" title="Customer Refills" icon={<RefreshCw size={16} />} badge={refillAlerts.length}
+                actions={<button onClick={() => { setShowPatientDataModal(true); fetchPatientData(); }} className="px-3 py-1.5 bg-teal-50 text-teal-700 rounded-lg text-[11px] font-semibold hover:bg-teal-100 transition-colors flex items-center gap-1 border border-teal-200"><Users size={12} /> Patients</button>}>
+                <div className="max-h-[350px] overflow-y-auto p-3">
+                  {refillAlerts.length === 0 ? <div className="py-8 text-center text-gray-400 text-sm">No refills due</div> : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      {refillAlerts.map((alert, i) => (
+                        <div key={i} className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 hover:border-teal-200 transition-all">
+                          <div className={`w-1.5 h-10 rounded-full flex-shrink-0 ${alert.days_until_depletion <= 3 ? 'bg-red-500' : 'bg-amber-400'}`} />
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-semibold text-gray-800 truncate">{alert.customer_name}</div>
+                            <div className="text-[10px] text-gray-400">{alert.brand_name} · {alert.dosage}</div>
+                          </div>
+                          <div className="text-right flex-shrink-0">
+                            <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${alert.days_until_depletion <= 3 ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                              {alert.days_until_depletion <= 0 ? 'EMPTY' : `${alert.days_until_depletion}d`}
+                            </span>
+                          </div>
+                          <a href={`tel:${alert.customer_phone}`} className="w-7 h-7 rounded-full bg-teal-50 text-teal-600 flex items-center justify-center hover:bg-teal-100 flex-shrink-0"><Phone size={12} /></a>
                         </div>
-                        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                          <div
-                            className={`h-full rounded-full transition-all duration-1000 ${ragMetrics.latest.faithfulness_score >= 0.8 ? 'bg-green-500' : 'bg-amber-500'}`}
-                            style={{ width: `${ragMetrics.latest.faithfulness_score * 100}%` }}
-                          ></div>
-                        </div>
-                        <p className="text-xs text-gray-400">Measures if answer is derived from context (Anti-Hallucination)</p>
-                      </div>
-
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm font-medium">
-                          <span className="text-gray-600">Context Precision</span>
-                          <span className={`${ragMetrics.latest.context_precision_score >= 0.7 ? 'text-blue-600' : 'text-amber-600'}`}>
-                            {(ragMetrics.latest.context_precision_score * 100).toFixed(0)}%
-                          </span>
-                        </div>
-                        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                          <div
-                            className={`h-full rounded-full transition-all duration-1000 ${ragMetrics.latest.context_precision_score >= 0.7 ? 'bg-blue-500' : 'bg-amber-500'}`}
-                            style={{ width: `${ragMetrics.latest.context_precision_score * 100}%` }}
-                          ></div>
-                        </div>
-                        <p className="text-xs text-gray-400">Measures if retrieved documents are relevant to the query</p>
-                      </div>
-
-                      <div className="space-y-2">
-                        <div className="flex justify-between text-sm font-medium">
-                          <span className="text-gray-600">Answer Relevancy</span>
-                          <span className={`${ragMetrics.latest.answer_relevancy_score >= 0.8 ? 'text-purple-600' : 'text-amber-600'}`}>
-                            {(ragMetrics.latest.answer_relevancy_score * 100).toFixed(0)}%
-                          </span>
-                        </div>
-                        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                          <div
-                            className={`h-full rounded-full transition-all duration-1000 ${ragMetrics.latest.answer_relevancy_score >= 0.8 ? 'bg-purple-500' : 'bg-amber-500'}`}
-                            style={{ width: `${ragMetrics.latest.answer_relevancy_score * 100}%` }}
-                          ></div>
-                        </div>
-                        <p className="text-xs text-gray-400">Measures if the answer directly addresses the user question</p>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="text-center py-8 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
-                      <p className="text-gray-500 mb-2">No evaluation data available yet.</p>
-                      <p className="text-xs text-gray-400">Run a quality check to generate baseline metrics.</p>
+                      ))}
                     </div>
                   )}
                 </div>
+              </Section>
+            </div>
+          )}
+
+          {/* ═══════════ INTELLIGENCE TAB ═══════════ */}
+          {activeTab === 'intelligence' && (
+            <div className="space-y-4 animate-fade-in-up">
+              {/* Status + RAG Row */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+                  <div className="text-xs font-semibold text-gray-500 uppercase mb-3">System Status</div>
+                  <div className="flex items-center gap-2.5">
+                    <div className={`w-3 h-3 rounded-full ${observabilityStatus?.langfuse_enabled ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.4)]' : 'bg-gray-300'}`} />
+                    <span className="text-sm font-medium text-gray-700">{observabilityStatus?.langfuse_enabled ? 'Langfuse Connected' : 'Disconnected'}</span>
+                  </div>
+                </div>
+
+                {/* RAG Quality */}
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 lg:col-span-2">
+                  <div className="flex justify-between items-center mb-3">
+                    <div className="flex items-center gap-2"><Brain size={16} className="text-purple-600" /><span className="text-xs font-semibold text-gray-500 uppercase">RAG Quality</span></div>
+                    <button onClick={handleRunEval} disabled={loading} className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-[11px] font-semibold hover:bg-indigo-700 transition-colors flex items-center gap-1 shadow-sm">{loading ? <Loader2 className="animate-spin" size={12} /> : <Zap size={12} />} Evaluate</button>
+                  </div>
+                  {ragMetrics?.latest ? (
+                    <div className="grid grid-cols-3 gap-4">
+                      {[{ name: 'Faithfulness', score: ragMetrics.latest.faithfulness_score, ring: '#22C55E' }, { name: 'Precision', score: ragMetrics.latest.context_precision_score, ring: '#3B82F6' }, { name: 'Relevancy', score: ragMetrics.latest.answer_relevancy_score, ring: '#8B5CF6' }].map(m => (
+                        <div key={m.name} className="flex flex-col items-center text-center">
+                          <AdminRing pct={m.score * 100} size={56} strokeWidth={5} color={m.ring}>
+                            <span className="text-sm font-bold" style={{ color: m.ring }}>{(m.score * 100).toFixed(0)}%</span>
+                          </AdminRing>
+                          <span className="text-[10px] font-semibold text-gray-500 mt-2">{m.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : <div className="text-center py-4 bg-gray-50 rounded-xl text-xs text-gray-400">No evaluation data. Run a quality check.</div>}
+                </div>
               </div>
 
-              <div className="bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="p-4 border-b border-gray-100 bg-gray-50">
-                  <h3 className="font-bold text-gray-800">Agent Execution Logs</h3>
-                </div>
-                <div className="max-h-[600px] overflow-y-auto">
+              {/* Execution Logs */}
+              <Section id="logs" title="Agent Execution Logs" icon={<Activity size={16} />} badge={executionLogs.length}>
+                <div className="max-h-[500px] overflow-y-auto divide-y divide-gray-50">
                   {executionLogs.map((log, i) => (
-                    <div key={i} className="p-4 border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
-                      <div className="flex justify-between items-start mb-2">
+                    <div key={i} className="px-5 py-3 hover:bg-gray-50/50 transition-colors">
+                      <div className="flex justify-between items-start mb-1">
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-mono text-gray-400">{new Date(log.created_at).toLocaleTimeString()}</span>
-                          <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-bold text-[10px] uppercase tracking-wide">{log.agent}</span>
+                          <span className="text-[10px] font-mono text-gray-400">{new Date(log.created_at).toLocaleTimeString()}</span>
+                          <span className="px-1.5 py-0.5 bg-blue-50 text-blue-700 font-bold text-[9px] uppercase rounded">{log.agent}</span>
                         </div>
                         <div className="flex gap-1">
-                          <button onClick={() => submitFeedback(log.trace_id || log.id, 'positive')} className="text-gray-300 hover:text-green-500 px-2"><ThumbsUp size={16} /></button>
-                          <button onClick={() => submitFeedback(log.trace_id || log.id, 'negative')} className="text-gray-300 hover:text-red-500 px-2"><ThumbsDown size={16} /></button>
+                          <button onClick={() => submitFeedback(log.trace_id || log.id, 'positive')} className="text-gray-300 hover:text-green-500 px-1"><ThumbsUp size={13} /></button>
+                          <button onClick={() => submitFeedback(log.trace_id || log.id, 'negative')} className="text-gray-300 hover:text-red-500 px-1"><ThumbsDown size={13} /></button>
                         </div>
                       </div>
-                      <p className="text-sm text-gray-700 font-medium">{log.message}</p>
+                      <p className="text-xs text-gray-700">{log.message}</p>
                       {log.metadata && (
-                        <details className="mt-2 text-xs text-gray-500">
-                          <summary className="cursor-pointer hover:text-teal-600">Show Metadata</summary>
-                          <pre className="mt-2 bg-gray-900 text-gray-300 p-2 rounded-lg overflow-x-auto">{JSON.stringify(log.metadata, null, 2)}</pre>
-                        </details>
+                        <details className="mt-1 text-[10px] text-gray-500"><summary className="cursor-pointer hover:text-teal-600">Metadata</summary><pre className="mt-1 bg-gray-900 text-gray-300 p-2 rounded-lg overflow-x-auto text-[10px]">{JSON.stringify(log.metadata, null, 2)}</pre></details>
                       )}
                     </div>
                   ))}
                 </div>
-              </div>
+              </Section>
             </div>
           )}
-
         </div>
-      </main >
+      </main>
 
-      {/* Add Medication Modal */}
+      {/* ═══ Add Medication Modal ═══ */}
       {showAddMedModal && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl p-8 w-full max-w-lg border border-gray-100 animate-zoom-in">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-2xl font-bold text-gray-800">Add New Medication</h3>
-              <button onClick={() => setShowAddMedModal(false)} className="w-8 h-8 rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 flex items-center justify-center"><X size={20} /></button>
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md border border-gray-100 animate-zoom-in">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold text-gray-800">Add Medication</h3>
+              <button onClick={() => setShowAddMedModal(false)} className="w-7 h-7 rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 flex items-center justify-center"><X size={16} /></button>
             </div>
-            <form onSubmit={handleCreateMedication} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-gray-500 uppercase">Brand Name</label>
-                  <input type="text" required className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition-all" value={newMed.brand_name} onChange={e => setNewMed({ ...newMed, brand_name: e.target.value })} placeholder="e.g. Panado" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-gray-500 uppercase">Generic</label>
-                  <input type="text" required className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition-all" value={newMed.generic_name} onChange={e => setNewMed({ ...newMed, generic_name: e.target.value })} placeholder="e.g. Paracetamol" />
-                </div>
+            <form onSubmit={handleCreateMedication} className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="text-[10px] font-bold text-gray-500 uppercase">Brand</label><input type="text" required className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" value={newMed.brand_name} onChange={e => setNewMed({ ...newMed, brand_name: e.target.value })} /></div>
+                <div><label className="text-[10px] font-bold text-gray-500 uppercase">Generic</label><input type="text" required className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" value={newMed.generic_name} onChange={e => setNewMed({ ...newMed, generic_name: e.target.value })} /></div>
               </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-gray-500 uppercase">Dosage</label>
-                  <input type="text" required className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition-all" value={newMed.dosage} onChange={e => setNewMed({ ...newMed, dosage: e.target.value })} placeholder="e.g. 500mg" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-gray-500 uppercase">Stock Qty</label>
-                  <input type="number" required className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none transition-all" value={newMed.stock_quantity} onChange={e => setNewMed({ ...newMed, stock_quantity: e.target.value })} />
-                </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label className="text-[10px] font-bold text-gray-500 uppercase">Dosage</label><input type="text" required className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" value={newMed.dosage} onChange={e => setNewMed({ ...newMed, dosage: e.target.value })} /></div>
+                <div><label className="text-[10px] font-bold text-gray-500 uppercase">Stock</label><input type="number" required className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" value={newMed.stock_quantity} onChange={e => setNewMed({ ...newMed, stock_quantity: e.target.value })} /></div>
               </div>
-
-              <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
-                <input type="checkbox" id="rx" className="w-5 h-5 rounded text-teal-600 focus:ring-teal-500" checked={newMed.rx_required} onChange={e => setNewMed({ ...newMed, rx_required: e.target.checked })} />
-                <label htmlFor="rx" className="font-medium text-gray-700 cursor-pointer select-none">Prescription Required (RX)</label>
+              <div className="flex items-center gap-2 p-2.5 bg-gray-50 rounded-xl">
+                <input type="checkbox" id="rx" className="w-4 h-4 rounded text-teal-600" checked={newMed.rx_required} onChange={e => setNewMed({ ...newMed, rx_required: e.target.checked })} />
+                <label htmlFor="rx" className="text-sm font-medium text-gray-700 cursor-pointer">Prescription Required</label>
               </div>
-
-              <div className="flex justify-end gap-3 pt-4">
-                <button type="button" onClick={() => setShowAddMedModal(false)} className="px-6 py-3 text-gray-500 font-bold hover:bg-gray-50 rounded-xl transiton-colors">Cancel</button>
-                <button type="submit" className="px-8 py-3 bg-teal-600 text-white font-bold rounded-xl shadow-lg hover:shadow-xl hover:bg-teal-700 transition-all active:scale-95">Add Product</button>
+              <div className="flex justify-end gap-2 pt-2">
+                <button type="button" onClick={() => setShowAddMedModal(false)} className="px-4 py-2.5 text-gray-500 text-sm font-semibold hover:bg-gray-50 rounded-xl">Cancel</button>
+                <button type="submit" className="px-6 py-2.5 bg-teal-600 text-white text-sm font-bold rounded-xl shadow-lg hover:bg-teal-700 transition-all active:scale-95">Add</button>
               </div>
             </form>
           </div>
         </div>
       )}
-    </div >
+
+      {/* ═══ Patient Data Modal ═══ */}
+      {showPatientDataModal && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl border border-gray-100 animate-zoom-in" style={{ maxHeight: '85vh' }}>
+            <div className="flex justify-between items-center p-5 border-b border-gray-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-teal-100 text-teal-700 flex items-center justify-center"><Users size={16} /></div>
+                <div><h3 className="text-base font-bold text-gray-800">Patient Orders</h3><p className="text-xs text-gray-400">{patientData.length} records</p></div>
+              </div>
+              <button onClick={() => setShowPatientDataModal(false)} className="w-7 h-7 rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 flex items-center justify-center"><X size={16} /></button>
+            </div>
+            <div className="overflow-y-auto" style={{ maxHeight: 'calc(85vh - 80px)' }}>
+              {loadingPatients ? <div className="flex items-center justify-center py-16"><Loader2 className="animate-spin text-teal-600" size={32} /></div> : patientData.length === 0 ? (
+                <div className="text-center py-16"><Users size={28} className="mx-auto text-gray-300 mb-2" /><p className="text-sm font-semibold text-gray-600">No data</p></div>
+              ) : (
+                <table className="w-full text-xs text-left">
+                  <thead className="bg-gray-50 text-gray-500 uppercase font-semibold sticky top-0"><tr><th className="px-4 py-3">Patient</th><th className="px-4 py-3">Date</th><th className="px-4 py-3">Product</th><th className="px-4 py-3 text-right">Qty</th><th className="px-4 py-3 text-right">Total (EUR)</th><th className="px-4 py-3">Frequency</th></tr></thead>
+                  <tbody className="divide-y divide-gray-50">{patientData.map((row, idx) => (
+                    <tr key={row.order_id || idx} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-3"><span className="font-mono text-gray-600 bg-gray-100 px-1.5 py-0.5 rounded">{row.customer_id || '-'}</span></td>
+                      <td className="px-4 py-3 text-gray-600">{row.purchase_date ? new Date(row.purchase_date).toLocaleDateString() : '-'}</td>
+                      <td className="px-4 py-3 font-semibold text-gray-800">{row.product_name || '-'}</td>
+                      <td className="px-4 py-3 text-right font-semibold">{row.quantity ?? '-'}</td>
+                      <td className="px-4 py-3 text-right font-semibold">{row.line_total_eur != null ? Number(row.line_total_eur).toFixed(2) : '-'}</td>
+                      <td className="px-4 py-3 text-gray-600">{row.dosage_frequency || '-'}</td>
+                    </tr>
+                  ))}</tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

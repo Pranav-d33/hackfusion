@@ -234,7 +234,7 @@ async def run_rag_evaluation(limit: int = 10):
     # ideally we want to filter for traces that actually HAVE retrieval
     traces = await execute_query(
         """SELECT * FROM traces 
-           WHERE metadata LIKE '%retrieved_context%' 
+           WHERE metadata_json LIKE '%retrieved_context%' 
            ORDER BY created_at DESC 
            LIMIT ?""",
         (limit * 2,)
@@ -243,7 +243,7 @@ async def run_rag_evaluation(limit: int = 10):
     samples = []
     for t in traces:
         t_dict = dict(t)
-        meta = json.loads(t_dict.get("metadata", "{}"))
+        meta = json.loads(t_dict.get("metadata_json", "{}"))
         
         # Only evaluate if we have the necessary components
         if meta.get("retrieved_context") and meta.get("user_input") and meta.get("final_response"):

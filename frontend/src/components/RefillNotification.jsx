@@ -1,9 +1,13 @@
 /**
- * Refill Notification Component
- * Toast/popup component showing refill alerts for logged-in customers.
+ * Refill Notification Component (Redesigned)
+ * Elegant floating toast + slide-out panel for auto-suggested refills.
+ * Matches Mediloon white-glass UI with red accents.
  */
 import React, { useState, useEffect } from 'react';
-import { Bell, Pill, X, AlertCircle, AlertTriangle, CheckCircle, Clock, Calendar, ShoppingCart } from 'lucide-react';
+import {
+  Bell, Pill, X, AlertCircle, AlertTriangle, CheckCircle,
+  Clock, Calendar, ShoppingCart, TrendingUp, Sparkles,
+} from 'lucide-react';
 
 const API_BASE = '/api';
 
@@ -11,15 +15,29 @@ export default function RefillNotification({ customerId, onReorder }) {
   const [alerts, setAlerts] = useState([]);
   const [dismissed, setDismissed] = useState(new Set());
   const [expanded, setExpanded] = useState(false);
+  const [autoDismissed, setAutoDismissed] = useState(false);
+  const [toastAlert, setToastAlert] = useState(null);
 
   useEffect(() => {
     if (customerId) {
       fetchAlerts();
-      // Refresh every 5 minutes
       const interval = setInterval(fetchAlerts, 5 * 60 * 1000);
       return () => clearInterval(interval);
     }
   }, [customerId]);
+
+  // Show auto-toast for most critical alert
+  useEffect(() => {
+    if (alerts.length > 0 && !autoDismissed) {
+      const critical = alerts.find(a => a.urgency === 'critical');
+      if (critical && !dismissed.has(critical.medication_id)) {
+        setToastAlert(critical);
+        // Auto-hide toast after 10 seconds
+        const t = setTimeout(() => setToastAlert(null), 10000);
+        return () => clearTimeout(t);
+      }
+    }
+  }, [alerts, autoDismissed, dismissed]);
 
   const fetchAlerts = async () => {
     try {
@@ -36,241 +54,168 @@ export default function RefillNotification({ customerId, onReorder }) {
   };
 
   const handleReorder = (alert) => {
-    if (onReorder) {
-      onReorder(alert);
-    }
+    if (onReorder) onReorder(alert);
+    dismissAlert(alert.medication_id);
   };
 
   const activeAlerts = alerts.filter(a => !dismissed.has(a.medication_id));
   const criticalCount = activeAlerts.filter(a => a.urgency === 'critical').length;
+  const soonCount = activeAlerts.filter(a => a.urgency === 'soon').length;
 
   if (activeAlerts.length === 0) return null;
 
+  const urgencyIcon = (urgency) => {
+    switch (urgency) {
+      case 'critical': return <AlertCircle size={16} className="text-red-500" />;
+      case 'soon': return <AlertTriangle size={16} className="text-amber-500" />;
+      default: return <CheckCircle size={16} className="text-emerald-500" />;
+    }
+  };
+
+  const urgencyBg = (urgency) => {
+    switch (urgency) {
+      case 'critical': return 'bg-red-50 border-red-100';
+      case 'soon': return 'bg-amber-50 border-amber-100';
+      default: return 'bg-emerald-50 border-emerald-100';
+    }
+  };
+
   return (
-    <div className="refill-notification">
-      <button
-        className={`notification-toggle ${criticalCount > 0 ? 'critical' : ''}`}
-        onClick={() => setExpanded(!expanded)}
-      >
-        <div className="flex items-center gap-2">
-          <Bell size={18} />
-          <span>{activeAlerts.length} Refill{activeAlerts.length > 1 ? 's' : ''} Due</span>
-        </div>
-        {criticalCount > 0 && <span className="critical-badge">{criticalCount} urgent</span>}
-      </button>
+    <>
+      {/* ===== Auto-Toast Pop-up ===== */}
+      {toastAlert && !expanded && (
+        <div className="fixed top-20 right-4 z-[1001] animate-fade-in-up">
+          <div className="bg-white rounded-2xl shadow-2xl border border-red-100 p-4 w-[320px] relative overflow-hidden">
+            {/* Top accent */}
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-red-500 to-rose-400" />
 
-      {expanded && (
-        <div className="notification-panel">
-          <div className="panel-header">
-            <h3 className="flex items-center gap-2"><Pill size={16} /> Medication Refills</h3>
-            <button className="close-btn" onClick={() => setExpanded(false)}><X size={18} /></button>
-          </div>
+            <button
+              onClick={() => { setToastAlert(null); setAutoDismissed(true); }}
+              className="absolute top-3 right-3 p-1 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors"
+            >
+              <X size={14} />
+            </button>
 
-          <div className="alert-list">
-            {activeAlerts.map((alert, i) => (
-              <div key={i} className={`alert-item ${alert.urgency}`}>
-                <div className="alert-icon">
-                  {alert.urgency === 'critical' ? <AlertCircle size={20} className="text-red-500" /> : alert.urgency === 'soon' ? <AlertTriangle size={20} className="text-amber-500" /> : <CheckCircle size={20} className="text-green-500" />}
-                </div>
-                <div className="alert-content">
-                  <strong>{alert.brand_name}</strong>
-                  <span className="dosage">{alert.dosage}</span>
-                  <p className="alert-message flex items-center gap-1.5 align-middle">
-                    {alert.days_until_depletion <= 0
-                      ? <><AlertTriangle size={14} className="text-red-400" /> Medicine has run out!</>
-                      : alert.days_until_depletion === 1
-                        ? <><Clock size={14} className="text-amber-400 text-sm" /> Runs out tomorrow</>
-                        : <><Calendar size={14} className="text-blue-400" /> Runs out in {alert.days_until_depletion} days</>
-                    }
-                  </p>
-                </div>
-                <div className="alert-actions">
+            <div className="flex items-start gap-3 mt-1">
+              <div className="p-2 bg-red-50 rounded-xl">
+                <Sparkles size={20} className="text-red-500" />
+              </div>
+              <div className="flex-1">
+                <p className="text-xs font-semibold text-red-500 uppercase tracking-wide mb-0.5">Smart Refill Suggestion</p>
+                <p className="text-sm font-semibold text-gray-900">{toastAlert.brand_name}</p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {toastAlert.days_until_depletion <= 0
+                    ? 'This medicine has likely run out!'
+                    : toastAlert.days_until_depletion === 1
+                      ? 'Runs out tomorrow — time to reorder'
+                      : `Runs out in ${toastAlert.days_until_depletion} days`}
+                </p>
+
+                <div className="flex items-center gap-2 mt-3">
                   <button
-                    className="reorder-btn flex items-center gap-1"
-                    onClick={() => handleReorder(alert)}
+                    onClick={() => { handleReorder(toastAlert); setToastAlert(null); }}
+                    className="flex-1 text-xs bg-red-500 hover:bg-red-600 text-white py-2 rounded-lg flex items-center justify-center gap-1.5 transition-colors shadow-sm"
                   >
-                    <ShoppingCart size={14} /> Reorder
+                    <ShoppingCart size={13} /> Reorder Now
                   </button>
                   <button
-                    className="dismiss-btn"
-                    onClick={() => dismissAlert(alert.medication_id)}
+                    onClick={() => { setToastAlert(null); setExpanded(true); }}
+                    className="text-xs text-gray-500 hover:text-gray-700 py-2 px-3 rounded-lg hover:bg-gray-100 transition-colors"
                   >
-                    <X size={14} />
+                    View All
                   </button>
                 </div>
               </div>
-            ))}
+            </div>
           </div>
         </div>
       )}
 
-      <style>{`
-        .refill-notification {
-          position: fixed;
-          bottom: 24px;
-          right: 24px;
-          z-index: 1000;
-        }
+      {/* ===== Floating Toggle Button ===== */}
+      <div className="fixed bottom-6 right-6 z-[1000]">
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className={`
+            flex items-center gap-2 px-4 py-2.5 rounded-full font-semibold text-sm
+            shadow-lg transition-all duration-300 hover:-translate-y-0.5
+            ${criticalCount > 0
+              ? 'bg-gradient-to-r from-red-500 to-rose-500 text-white shadow-red-200'
+              : 'bg-white text-gray-700 border border-gray-200 shadow-gray-200 hover:border-red-200'}
+          `}
+        >
+          <Bell size={16} className={criticalCount > 0 ? 'animate-bounce-subtle' : ''} />
+          <span>{activeAlerts.length} Refill{activeAlerts.length > 1 ? 's' : ''}</span>
+          {criticalCount > 0 && (
+            <span className="bg-white/20 text-white text-[10px] px-2 py-0.5 rounded-full font-bold">
+              {criticalCount} urgent
+            </span>
+          )}
+        </button>
 
-        .notification-toggle {
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-          padding: 0.75rem 1.25rem;
-          background: linear-gradient(135deg, #3b82f6, #2563eb);
-          border: none;
-          border-radius: 50px;
-          color: #fff;
-          font-weight: 600;
-          cursor: pointer;
-          box-shadow: 0 4px 20px rgba(59, 130, 246, 0.4);
-          transition: all 0.3s;
-          animation: pulse 2s infinite;
-        }
+        {/* ===== Expanded Panel ===== */}
+        {expanded && (
+          <div className="absolute bottom-14 right-0 w-[380px] max-h-[460px] bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden animate-fade-in-up">
+            {/* Panel Header */}
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100 bg-gray-50/50">
+              <div className="flex items-center gap-2">
+                <Pill size={16} className="text-red-500" />
+                <h3 className="text-sm font-semibold text-gray-800">Smart Refill Alerts</h3>
+              </div>
+              <div className="flex items-center gap-2">
+                {criticalCount > 0 && (
+                  <span className="text-[10px] bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-semibold">
+                    {criticalCount} critical
+                  </span>
+                )}
+                {soonCount > 0 && (
+                  <span className="text-[10px] bg-amber-100 text-amber-600 px-2 py-0.5 rounded-full font-semibold">
+                    {soonCount} soon
+                  </span>
+                )}
+                <button onClick={() => setExpanded(false)} className="p-1 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors">
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
 
-        .notification-toggle.critical {
-          background: linear-gradient(135deg, #ef4444, #dc2626);
-          box-shadow: 0 4px 20px rgba(239, 68, 68, 0.4);
-        }
-
-        .notification-toggle:hover {
-          transform: translateY(-2px);
-        }
-
-        @keyframes pulse {
-          0%, 100% { box-shadow: 0 4px 20px rgba(59, 130, 246, 0.4); }
-          50% { box-shadow: 0 4px 30px rgba(59, 130, 246, 0.6); }
-        }
-
-        .critical-badge {
-          background: rgba(255, 255, 255, 0.2);
-          padding: 0.2rem 0.5rem;
-          border-radius: 10px;
-          font-size: 0.75rem;
-          margin-left: 0.5rem;
-        }
-
-        .notification-panel {
-          position: absolute;
-          bottom: 60px;
-          right: 0;
-          width: 360px;
-          max-height: 400px;
-          overflow-y: auto;
-          background: #1e1e2e;
-          border-radius: 16px;
-          box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .panel-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 1rem;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .panel-header h3 {
-          margin: 0;
-          font-size: 1rem;
-          color: #fff;
-        }
-
-        .close-btn {
-          background: none;
-          border: none;
-          color: #888;
-          font-size: 1.5rem;
-          cursor: pointer;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-
-        .alert-list {
-          padding: 0.5rem;
-        }
-
-        .alert-item {
-          display: flex;
-          align-items: flex-start;
-          gap: 0.75rem;
-          padding: 0.75rem;
-          border-radius: 8px;
-          margin-bottom: 0.5rem;
-          background: rgba(255, 255, 255, 0.05);
-        }
-
-        .alert-item.critical {
-          background: rgba(239, 68, 68, 0.15);
-          border: 1px solid rgba(239, 68, 68, 0.3);
-        }
-
-        .alert-item.soon {
-          background: rgba(245, 158, 11, 0.15);
-          border: 1px solid rgba(245, 158, 11, 0.3);
-        }
-
-        .alert-icon {
-          font-size: 1.25rem;
-          display: flex;
-          align-items: center;
-          padding-top: 2px;
-        }
-
-        .alert-content {
-          flex: 1;
-          color: #fff;
-        }
-
-        .alert-content strong {
-          display: block;
-          margin-bottom: 0.25rem;
-        }
-
-        .dosage {
-          font-size: 0.8rem;
-          color: #888;
-        }
-
-        .alert-message {
-          margin: 0.5rem 0 0;
-          font-size: 0.85rem;
-          color: #bbb;
-        }
-
-        .alert-actions {
-          display: flex;
-          flex-direction: column;
-          gap: 0.5rem;
-        }
-
-        .reorder-btn {
-          padding: 0.4rem 0.75rem;
-          background: linear-gradient(135deg, #22c55e, #16a34a);
-          border: none;
-          border-radius: 6px;
-          color: #fff;
-          font-size: 0.8rem;
-          cursor: pointer;
-          white-space: nowrap;
-        }
-
-        .dismiss-btn {
-          background: none;
-          border: none;
-          color: #666;
-          cursor: pointer;
-          font-size: 0.9rem;
-          display: flex;
-          justify-content: center;
-        }
-
-        .dismiss-btn:hover {
-          color: #999;
-        }
-      `}</style>
-    </div>
+            {/* Alert List */}
+            <div className="overflow-y-auto max-h-[360px] p-3 space-y-2">
+              {activeAlerts.map((alert, i) => (
+                <div key={i} className={`rounded-xl border p-3 ${urgencyBg(alert.urgency)} transition-all hover:shadow-sm`}>
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5">{urgencyIcon(alert.urgency)}</div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-900 truncate">{alert.brand_name}</p>
+                      <p className="text-[11px] text-gray-500">{alert.dosage}</p>
+                      <p className="text-xs text-gray-600 mt-1 flex items-center gap-1">
+                        {alert.days_until_depletion <= 0
+                          ? <><AlertTriangle size={11} className="text-red-400" /> Medicine has run out</>
+                          : alert.days_until_depletion === 1
+                            ? <><Clock size={11} className="text-amber-400" /> Runs out tomorrow</>
+                            : <><Calendar size={11} className="text-blue-400" /> Runs out in {alert.days_until_depletion} days</>}
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-end gap-1.5">
+                      <button
+                        onClick={() => handleReorder(alert)}
+                        className="text-[11px] bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg flex items-center gap-1 transition-colors shadow-sm"
+                      >
+                        <ShoppingCart size={11} /> Reorder
+                      </button>
+                      <button
+                        onClick={() => dismissAlert(alert.medication_id)}
+                        className="text-[10px] text-gray-400 hover:text-gray-600 transition-colors"
+                      >
+                        Dismiss
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </>
   );
 }

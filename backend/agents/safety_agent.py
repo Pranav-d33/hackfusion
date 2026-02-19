@@ -45,6 +45,11 @@ async def check_input_safety(user_input: str) -> Dict[str, Any]:
     
     text = user_input.lower().strip()
     
+    # Short inputs that are clearly conversational / dose responses should not be blocked
+    # "as prescribed" is a valid dose response, not a medical advice request
+    if text in ("as prescribed", "prescribed", "as directed", "as needed"):
+        return {"safe": True}
+    
     # Check for blocked patterns
     for pattern in BLOCKED_PATTERNS:
         if pattern in text:

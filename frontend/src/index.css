@@ -2,251 +2,203 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================
+   MEDILOON DESIGN SYSTEM — index.css
+   Primary: Red (#DC2626) + White
+   Fonts: Outfit (brand/headings), DM Sans (body)
+   ============================================ */
+
+/* --- Base Layer --- */
 @layer base {
-  body {
-    @apply bg-gray-50 text-gray-900 antialiased overflow-x-hidden;
-    font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
-  }
+    html {
+        scroll-behavior: smooth;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+    }
+
+    body {
+        @apply font-body text-ink-primary bg-surface-snow;
+    }
+
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6 {
+        @apply font-brand font-bold tracking-tight;
+    }
+
+    ::selection {
+        @apply bg-mediloon-100 text-mediloon-800;
+    }
+
+    /* Refined scrollbar */
+    ::-webkit-scrollbar {
+        width: 5px;
+        height: 5px;
+    }
+
+    ::-webkit-scrollbar-track {
+        @apply bg-transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+        @apply bg-mediloon-200 rounded-full;
+        transition: background 0.2s;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+        @apply bg-mediloon-400;
+    }
+
+    /* Firefox scrollbar */
+    * {
+        scrollbar-width: thin;
+        scrollbar-color: #FECACA transparent;
+    }
 }
 
-/* --- Utilities --- */
-.glass-panel {
-  @apply bg-white/80 backdrop-blur-xl border border-white/40 shadow-xl;
+/* --- Component Layer --- */
+@layer components {
+
+    /* Glass Card */
+    .glass-card {
+        @apply bg-white/80 backdrop-blur-xl border border-white/60 rounded-3xl shadow-glass;
+    }
+
+    .glass-card-solid {
+        @apply bg-white border border-surface-fog/50 rounded-3xl shadow-glass;
+    }
+
+    /* Feature Badge */
+    .feature-badge {
+        @apply inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-brand font-semibold rounded-full;
+    }
+
+    .feature-badge-red {
+        @apply feature-badge bg-mediloon-50 text-mediloon-600 border border-mediloon-200;
+    }
+
+    .feature-badge-emerald {
+        @apply feature-badge bg-accent-emerald-light text-accent-emerald border border-accent-emerald/20;
+    }
+
+    .feature-badge-amber {
+        @apply feature-badge bg-accent-amber-light text-accent-amber border border-accent-amber/20;
+    }
+
+    /* RX/OTC Badges */
+    .rx-badge {
+        @apply inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-brand font-bold uppercase tracking-wider rounded-md;
+    }
+
+    .rx-required {
+        @apply bg-accent-amber-light text-amber-700 border border-amber-200;
+    }
+
+    .rx-otc {
+        @apply bg-accent-emerald-light text-emerald-700 border border-emerald-200;
+    }
+
+    /* Premium Button Styles */
+    .btn-primary {
+        @apply px-6 py-3 bg-mediloon-600 text-white font-brand font-bold rounded-2xl shadow-lg shadow-mediloon-200 hover:shadow-xl hover:shadow-mediloon-300 hover:bg-mediloon-700 active:scale-[0.97] transition-all duration-200 ease-out;
+    }
+
+    .btn-secondary {
+        @apply px-6 py-3 bg-white text-mediloon-600 font-brand font-semibold rounded-2xl border-2 border-mediloon-200 hover:border-mediloon-400 hover:bg-mediloon-50 active:scale-[0.97] transition-all duration-200 ease-out;
+    }
+
+    .btn-ghost {
+        @apply px-4 py-2 text-ink-muted font-body font-medium rounded-xl hover:bg-surface-cloud hover:text-ink-primary active:scale-[0.97] transition-all duration-200;
+    }
+
+    /* Hover lift */
+    .hover-lift {
+        @apply transition-all duration-300 ease-out;
+    }
+
+    .hover-lift:hover {
+        @apply -translate-y-0.5 shadow-lift-lg;
+    }
+
+    /* Glow Ring (for mic button etc.) */
+    .glow-ring {
+        @apply relative;
+    }
+
+    .glow-ring::after {
+        content: '';
+        @apply absolute inset-0 rounded-full;
+        box-shadow: 0 0 20px rgba(220, 38, 38, 0.3);
+        animation: glow-pulse 2s ease-in-out infinite;
+    }
+
+    /* Loading dots */
+    .loading-dot {
+        @apply w-2 h-2 rounded-full bg-mediloon-300;
+        animation: dot-bounce 1.4s infinite ease-in-out both;
+    }
+
+    .loading-dot:nth-child(1) {
+        animation-delay: -0.32s;
+    }
+
+    .loading-dot:nth-child(2) {
+        animation-delay: -0.16s;
+    }
+
+    .loading-dot:nth-child(3) {
+        animation-delay: 0s;
+    }
+
+    /* Message enter animation */
+    .message-enter {
+        @apply animate-fade-in-up;
+    }
+
+    /* Med card hover */
+    .med-card {
+        @apply hover-lift;
+    }
+
+    .med-card:hover {
+        @apply border-mediloon-300 shadow-glow-red-sm;
+    }
+
+    /* Feature card */
+    .feature-card {
+        @apply bg-white rounded-2xl border border-surface-fog p-5 hover-lift cursor-default;
+        @apply hover:border-mediloon-200 hover:shadow-glow-red-sm;
+    }
+
+    /* Trace new log entry animation */
+    .new-log-entry {
+        animation: slide-up 0.3s ease-out;
+    }
+
+    /* Gradient text */
+    .text-gradient-red {
+        @apply bg-gradient-to-r from-mediloon-600 to-mediloon-500 bg-clip-text text-transparent;
+    }
 }
 
-.glass-dark {
-  @apply bg-gray-900/90 backdrop-blur-xl border border-gray-700/50 shadow-2xl;
-}
+/* --- Utility Layer --- */
+@layer utilities {
+    .text-balance {
+        text-wrap: balance;
+    }
 
-/* --- Scrollbar --- */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
+    .preserve-3d {
+        transform-style: preserve-3d;
+    }
 
-::-webkit-scrollbar-track {
-  @apply bg-transparent;
-}
+    .perspective-1000 {
+        perspective: 1000px;
+    }
 
-::-webkit-scrollbar-thumb {
-  @apply bg-gray-300/50 rounded-full hover:bg-red-400/50 transition-colors;
-}
-
-/* --- Animations --- */
-
-/* 1. Siri-like Liquid Sphere */
-@keyframes liquid-morph {
-  0% {
-    border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
-  }
-
-  50% {
-    border-radius: 30% 60% 70% 40% / 50% 60% 30% 60%;
-  }
-
-  100% {
-    border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
-  }
-}
-
-.siri-sphere {
-  @apply absolute inset-0 bg-gradient-to-br from-red-500 to-rose-600 opacity-90;
-  animation: liquid-morph 6s ease-in-out infinite;
-  filter: blur(10px);
-}
-
-.siri-sphere-inner {
-  @apply absolute inset-2 bg-gradient-to-tr from-rose-400 to-orange-400 opacity-80;
-  animation: liquid-morph 6s ease-in-out infinite reverse;
-  filter: blur(5px);
-}
-
-.siri-container {
-  @apply relative flex items-center justify-center transition-all duration-300;
-  filter: drop-shadow(0 0 15px rgba(220, 38, 38, 0.4));
-}
-
-.siri-active .siri-sphere {
-  animation-duration: 3s;
-  transform: scale(1.1);
-}
-
-/* 2. Chat Zoom Transition */
-.voice-mode-enter {
-  animation: zoom-in-fade 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-@keyframes zoom-in-fade {
-  from {
-    opacity: 0;
-    transform: scale(0.9) translateY(20px);
-  }
-
-  to {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-  }
-}
-
-/* 3. Cart Pop Animation */
-@keyframes cart-pop {
-  0% {
-    transform: scale(1);
-  }
-
-  40% {
-    transform: scale(1.2) rotate(-3deg);
-  }
-
-  60% {
-    transform: scale(0.9);
-  }
-
-  100% {
-    transform: scale(1) rotate(0);
-  }
-}
-
-.animate-cart-pop {
-  animation: cart-pop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-}
-
-/* 4. Micro-interactions */
-.btn-hover {
-  @apply transition-all duration-200 active:scale-95 hover:shadow-lg hover:-translate-y-0.5;
-}
-
-/* 5. Trace Log Highlight */
-@keyframes flash-highlight {
-  0% {
-    background-color: rgba(34, 197, 94, 0.2);
-  }
-
-  100% {
-    background-color: transparent;
-  }
-}
-
-.new-log-entry {
-  animation: flash-highlight 1s ease-out;
-}
-
-/* 6. Fade animations */
-@keyframes fade-in-up {
-  from {
-    opacity: 0;
-    transform: translateY(12px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.animate-fade-in-up {
-  animation: fade-in-up 0.35s ease-out forwards;
-}
-
-/* 7. Bounce Subtle */
-@keyframes bounce-subtle {
-
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-
-  50% {
-    transform: translateY(-3px);
-  }
-}
-
-.animate-bounce-subtle {
-  animation: bounce-subtle 0.6s ease-in-out infinite;
-}
-
-/* 8. Mic pulse */
-@keyframes mic-pulse {
-
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 rgba(229, 57, 53, 0.5);
-    transform: scale(1);
-  }
-
-  50% {
-    box-shadow: 0 0 0 15px rgba(229, 57, 53, 0);
-    transform: scale(1.05);
-  }
-}
-
-.mic-listening {
-  animation: mic-pulse 1.2s ease-in-out infinite;
-}
-
-/* --- Component Styles --- */
-
-.rx-badge {
-  @apply inline-flex items-center px-2 py-0.5 rounded text-xs font-medium transition-all duration-200;
-}
-
-.rx-required {
-  @apply bg-orange-100 text-orange-800;
-}
-
-.rx-otc {
-  @apply bg-green-100 text-green-800;
-}
-
-.med-card {
-  @apply transition-all duration-200 hover:shadow-lg hover:border-red-200 hover:-translate-y-0.5;
-}
-
-.cart-badge {
-  @apply absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center;
-}
-
-.btn-primary {
-  @apply transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98];
-}
-
-/* 9. Confetti Animation */
-@keyframes confetti-fall {
-  0% {
-    transform: translateY(-20vh) rotate(0deg);
-    opacity: 1;
-  }
-
-  100% {
-    transform: translateY(100vh) rotate(720deg);
-    opacity: 0;
-  }
-}
-
-.confetti-particle {
-  position: absolute;
-  top: -10px;
-  width: 8px;
-  height: 8px;
-  border-radius: 2px;
-  animation: confetti-fall 3s ease-in-out forwards;
-}
-
-/* 10. Checkmark Draw */
-.checkmark-draw {
-  stroke-dasharray: 30;
-  stroke-dashoffset: 30;
-  animation: draw-check 0.6s ease-out 0.3s forwards;
-}
-
-@keyframes draw-check {
-  to {
-    stroke-dashoffset: 0;
-  }
-}
-
-/* Focus states */
-button:focus-visible,
-input:focus-visible {
-  @apply outline-none ring-2 ring-red-400/50 ring-offset-2;
+    .backface-hidden {
+        backface-visibility: hidden;
+    }
 }

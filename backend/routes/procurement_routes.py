@@ -24,7 +24,7 @@ router = APIRouter(prefix="/api/procurement", tags=["procurement"])
 
 
 class GenerateOrderRequest(BaseModel):
-    medication_id: int
+    product_id: int
     quantity: Optional[int] = None
 
 
@@ -90,7 +90,7 @@ async def create_order(request: GenerateOrderRequest):
     """
     try:
         order = await generate_procurement_order(
-            medication_id=request.medication_id,
+            product_id=request.product_id,
             quantity=request.quantity
         )
         if "error" in order:

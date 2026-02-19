@@ -1,5 +1,5 @@
 /**
- * TextInput - Text input with send button and file upload
+ * TextInput — Sleek input bar with send and upload buttons
  */
 import React, { useState, useRef } from 'react';
 
@@ -25,7 +25,6 @@ export default function TextInput({ onSend, onUpload, disabled, placeholder }) {
     const handleFileChange = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
-
         setIsUploading(true);
         try {
             await onUpload(file);
@@ -54,13 +53,15 @@ export default function TextInput({ onSend, onUpload, disabled, placeholder }) {
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={disabled || isUploading}
-                className={`px-3 py-3 rounded-xl border border-gray-200 text-gray-500 hover:bg-gray-50 hover:text-gray-700 transition-colors ${isUploading ? 'animate-pulse' : ''
-                    }`}
+                className={`p-3 rounded-2xl border-2 border-surface-fog text-ink-faint 
+                    hover:border-mediloon-200 hover:text-mediloon-500 hover:bg-mediloon-50/50 
+                    transition-all duration-200 active:scale-95
+                    ${isUploading ? 'animate-pulse' : ''}`}
             >
                 {isUploading ? (
-                    <svg className="w-5 h-5 animate-spin p-0.5" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                     </svg>
                 ) : (
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -69,6 +70,7 @@ export default function TextInput({ onSend, onUpload, disabled, placeholder }) {
                 )}
             </button>
 
+            {/* Text Input */}
             <input
                 type="text"
                 value={text}
@@ -77,20 +79,23 @@ export default function TextInput({ onSend, onUpload, disabled, placeholder }) {
                 placeholder={placeholder || "Type a message or speak..."}
                 disabled={disabled}
                 className={`
-                    flex-1 px-4 py-3 rounded-xl border-2 border-gray-200
-                    focus:border-mediloon-red focus:outline-none focus:ring-2 focus:ring-red-100
+                    flex-1 px-4 py-3 rounded-2xl border-2 border-surface-fog
+                    font-body text-ink-primary placeholder:text-ink-ghost
+                    focus:border-mediloon-400 focus:outline-none focus:ring-2 focus:ring-mediloon-100
                     transition-all duration-200
-                    ${disabled ? 'opacity-50 cursor-not-allowed bg-gray-50' : 'bg-white'}
+                    ${disabled ? 'opacity-50 cursor-not-allowed bg-surface-cloud' : 'bg-white'}
                 `}
             />
+
+            {/* Send Button */}
             <button
                 type="submit"
                 disabled={disabled || !text.trim()}
                 className={`
-                    px-5 py-3 rounded-xl font-medium transition-all duration-200
+                    px-5 py-3 rounded-2xl font-brand font-semibold transition-all duration-200
                     ${text.trim() && !disabled
-                        ? 'bg-mediloon-red text-white hover:bg-mediloon-red-dark shadow-md hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0'
-                        : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                        ? 'bg-gradient-to-r from-mediloon-500 to-mediloon-600 text-white shadow-md shadow-mediloon-200 hover:shadow-lg hover:shadow-mediloon-300 hover:-translate-y-0.5 active:translate-y-0 active:scale-95'
+                        : 'bg-surface-cloud text-ink-ghost cursor-not-allowed'
                     }
                 `}
             >

@@ -99,15 +99,15 @@ async def fulfill_order(order_data: Dict[str, Any]) -> Dict[str, Any]:
     stock_triggers = 0
     
     for item in items:
-        med_id = item.get("medication_id")
-        brand_name = item.get("brand_name", "Unknown")
+        prod_id = item.get("product_catalog_id") or item.get("medication_id")
+        brand_name = item.get("brand_name") or item.get("product_name", "Unknown")
         print(f"    - {brand_name} x{item.get('quantity', 1)} (Processed)")
 
         # Check current stock to see if we need to reorder
         # (We read fresh state from DB)
         stock_data = await execute_query(
-            "SELECT stock_quantity FROM inventory WHERE medication_id = ?",
-            (med_id,)
+            "SELECT stock_quantity FROM inventory_items WHERE product_catalog_id = ?",
+            (prod_id,)
         )
         current_stock = stock_data[0]['stock_quantity'] if stock_data else 0
         

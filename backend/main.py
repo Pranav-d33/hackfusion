@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from config import CORS_ORIGINS, API_HOST, API_PORT
 from db.database import init_db
-from db.seed_data import seed_database
+from db.seed_data import seed_all
 from routes.agent_routes import router as agent_router
 from routes.admin_routes import router as admin_router
 from routes.refill_routes import router as refill_router
@@ -52,8 +52,8 @@ async def lifespan(app: FastAPI):
     await init_db()
     print("✅ Database initialized")
     
-    # Seed database
-    await seed_database()
+    # Seed database (skip LLM translation on startup for speed)
+    await seed_all(skip_translation=True)
     print("✅ Database seeded")
     
     # Initialize vector store

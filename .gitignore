@@ -68,5 +68,7 @@ dist-ssr/
 *.log
 
 # Sensitive Data (PDFs in root that seem like PS)
-Hackfusionps.pdf
+Hackfusionps (1).pdf
 Hackfusionps1.pdf
+.agents
+hackfusion-192ec-firebase-adminsdk-fbsvc-c88c97d9e7.json

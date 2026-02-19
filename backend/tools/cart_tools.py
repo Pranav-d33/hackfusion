@@ -1,6 +1,7 @@
 """
 Tool Layer - Cart Tools
 Session-based cart management.
+Queries V2 schema: cart, product_catalog, orders, inventory_items.
 """
 from typing import Dict, Any, List
 from datetime import datetime
@@ -13,79 +14,76 @@ from db.database import execute_query, execute_write
 
 async def add_to_cart(session_id: str, med_id: int, qty: int = 1, dose: str = None) -> Dict[str, Any]:
     """
-    Add a medication to the cart.
-    
+    Add a product to the cart.
+
     Args:
         session_id: User session ID
-        med_id: Medication ID
+        med_id: Product catalog ID
         qty: Quantity to add
         dose: Optional prescribed dose
-    
+
     Returns:
         Updated cart state
     """
-    # Ensure qty is int
     qty = int(qty) if qty is not None else 1
-    
+
     # Check if item already in cart
     existing = await execute_query(
-        "SELECT id, quantity, dose FROM cart WHERE session_id = ? AND medication_id = ?",
+        "SELECT id, quantity, dose FROM cart WHERE session_id = ? AND product_catalog_id = ?",
         (session_id, med_id)
     )
-    
+
     if existing:
-        # Update quantity and dose (if provided)
         new_qty = existing[0]['quantity'] + qty
         update_query = "UPDATE cart SET quantity = ?, added_at = CURRENT_TIMESTAMP"
         params = [new_qty]
-        
+
         if dose:
             update_query += ", dose = ?"
             params.append(dose)
-        
+
         update_query += " WHERE id = ?"
         params.append(existing[0]['id'])
-        
+
         await execute_write(update_query, tuple(params))
     else:
-        # Insert new item
         await execute_write(
-            "INSERT INTO cart (session_id, medication_id, quantity, dose) VALUES (?, ?, ?, ?)",
+            "INSERT INTO cart (session_id, product_catalog_id, quantity, dose) VALUES (?, ?, ?, ?)",
             (session_id, med_id, qty, dose)
         )
-    
+
     return await get_cart(session_id)
 
 
 async def get_cart(session_id: str) -> Dict[str, Any]:
     """
     Get current cart state for a session.
-    
+
     Args:
         session_id: User session ID
-    
+
     Returns:
         Cart with items and total
     """
     items = await execute_query("""
-        SELECT 
+        SELECT
             c.id as cart_item_id,
-            c.medication_id,
+            c.product_catalog_id as medication_id,
             c.quantity,
             c.dose,
-            m.brand_name,
-            m.generic_name,
-            m.dosage,
-            m.form,
-            m.unit_type,
-            m.price,
-            m.rx_required
+            pc.product_name as brand_name,
+            pc.product_name as generic_name,
+            pc.package_size as dosage,
+            pc.package_size as form,
+            'unit' as unit_type,
+            COALESCE(pc.base_price_eur, 0) as price,
+            0 as rx_required
         FROM cart c
-        JOIN medications m ON c.medication_id = m.id
+        JOIN product_catalog pc ON c.product_catalog_id = pc.id
         WHERE c.session_id = ?
         ORDER BY c.added_at DESC
     """, (session_id,))
-    
+
     cart_items = [
         {
             "cart_item_id": item['cart_item_id'],
@@ -94,19 +92,19 @@ async def get_cart(session_id: str) -> Dict[str, Any]:
             "dose": item.get('dose'),
             "brand_name": item['brand_name'],
             "generic_name": item['generic_name'],
-            "dosage": item['dosage'],
-            "form": item['form'],
+            "dosage": item['dosage'] or "",
+            "form": item['form'] or "unit",
             "unit_type": item['unit_type'],
-            "price": item['price'],
-            "item_total": item['price'] * int(item['quantity']),
+            "price": item['price'] or 0,
+            "item_total": (item['price'] or 0) * int(item['quantity']),
             "rx_required": bool(item['rx_required']),
         }
         for item in items
     ]
-    
+
     subtotal = sum(item['item_total'] for item in cart_items)
     tax = subtotal * 0.10
-    shipping = 50.0 if subtotal > 0 and subtotal < 500 else 0.0  # Free shipping over 500
+    shipping = 5.0 if subtotal > 0 and subtotal < 50 else 0.0
     total = subtotal + tax + shipping
 
     return {
@@ -122,16 +120,7 @@ async def get_cart(session_id: str) -> Dict[str, Any]:
 
 
 async def remove_from_cart(session_id: str, cart_item_id: int) -> Dict[str, Any]:
-    """
-    Remove an item from the cart.
-    
-    Args:
-        session_id: User session ID
-        cart_item_id: Cart item ID to remove
-    
-    Returns:
-        Updated cart state
-    """
+    """Remove an item from the cart."""
     await execute_write(
         "DELETE FROM cart WHERE session_id = ? AND id = ?",
         (session_id, cart_item_id)
@@ -140,20 +129,10 @@ async def remove_from_cart(session_id: str, cart_item_id: int) -> Dict[str, Any]
 
 
 async def update_cart_quantity(session_id: str, cart_item_id: int, qty: int) -> Dict[str, Any]:
-    """
-    Update quantity of a cart item.
-    
-    Args:
-        session_id: User session ID
-        cart_item_id: Cart item ID
-        qty: New quantity
-    
-    Returns:
-        Updated cart state
-    """
+    """Update quantity of a cart item."""
     if qty <= 0:
         return await remove_from_cart(session_id, cart_item_id)
-    
+
     await execute_write(
         "UPDATE cart SET quantity = ? WHERE session_id = ? AND id = ?",
         (qty, session_id, cart_item_id)
@@ -162,15 +141,7 @@ async def update_cart_quantity(session_id: str, cart_item_id: int, qty: int) -> 
 
 
 async def clear_cart(session_id: str) -> Dict[str, Any]:
-    """
-    Clear all items from cart.
-    
-    Args:
-        session_id: User session ID
-    
-    Returns:
-        Empty cart state
-    """
+    """Clear all items from cart."""
     await execute_write(
         "DELETE FROM cart WHERE session_id = ?",
         (session_id,)
@@ -181,51 +152,37 @@ async def clear_cart(session_id: str) -> Dict[str, Any]:
 async def checkout(session_id: str, customer_id: int = None) -> Dict[str, Any]:
     """
     Convert cart to order, trigger warehouse fulfillment, and clear cart.
-    
-    Agentic Action Sequence:
-    1. Validate cart → 2. Create order → 3. Save purchase history → 
-    4. Deduct inventory → 5. Trigger fulfillment webhook → 6. Clear cart
-    
+
     Args:
         session_id: User session ID
-        customer_id: Optional customer ID for purchase history tracking
-    
+        customer_id: Optional customer ID
+
     Returns:
         Order confirmation with fulfillment status
     """
     cart = await get_cart(session_id)
-    
+
     if not cart['items']:
         return {"error": "Cart is empty"}
-    
-    # Create order with cart items
+
     items_json = json.dumps(cart['items'])
     order_id = await execute_write(
-        "INSERT INTO orders (session_id, items_json, status) VALUES (?, ?, 'confirmed')",
-        (session_id, items_json)
+        "INSERT INTO orders (session_id, customer_id, items_json, status) VALUES (?, ?, ?, 'confirmed')",
+        (session_id, customer_id, items_json)
     )
-    
-    # For each item: save to purchase_history and deduct from inventory
+
+    # Deduct from inventory for each item
     for item in cart['items']:
-        med_id = item['medication_id']
+        product_id = item['medication_id']
         qty = item['quantity']
-        
-        # Save to purchase_history (affects refill predictions)
-        if customer_id:
-            await execute_write(
-                """INSERT INTO purchase_history 
-                   (customer_id, medication_id, quantity, daily_dose, purchase_date)
-                   VALUES (?, ?, ?, 1, CURRENT_DATE)""",
-                (customer_id, med_id, qty)
-            )
-        
-        # Deduct from inventory (real-time stock update)
+
         await execute_write(
-            """UPDATE inventory SET stock_quantity = stock_quantity - ?
-               WHERE medication_id = ? AND stock_quantity >= ?""",
-            (qty, med_id, qty)
+            """UPDATE inventory_items SET stock_quantity = stock_quantity - ?,
+                   last_updated = CURRENT_TIMESTAMP
+               WHERE product_catalog_id = ? AND stock_quantity >= ?""",
+            (qty, product_id, qty)
         )
-    
+
     # Log customer order event
     try:
         from services.event_service import log_event, EventType, Agent
@@ -237,25 +194,22 @@ async def checkout(session_id: str, customer_id: int = None) -> Dict[str, Any]:
         )
     except Exception as e:
         print(f"Failed to log order event: {e}")
-    
-    # Trigger warehouse fulfillment (agentic tool use)
+
+    # Trigger warehouse fulfillment
     fulfillment_result = await trigger_warehouse_fulfillment(
         order_id=order_id,
         items=cart['items'],
         session_id=session_id,
     )
-    
-    # Handle Warehouse Failure (Simulation)
+
     warehouse_status = "fulfilled"
     warehouse_message = ""
     if not fulfillment_result.get("success"):
         warehouse_status = "fulfillment_failed"
         warehouse_message = f" (Warehouse Note: {fulfillment_result.get('message', 'Processing delayed')})"
-        # We DO NOT rollback the order in this MVP, we just notify.
-        # In a real system, this might trigger a 'manual review' queue.
 
-    # Final Checkout Log
     try:
+        from services.event_service import log_event, Agent
         await log_event(
             "CHECKOUT_COMPLETED",
             Agent.ORCHESTRATOR,
@@ -264,10 +218,9 @@ async def checkout(session_id: str, customer_id: int = None) -> Dict[str, Any]:
         )
     except Exception:
         pass
-    
-    # Clear cart
+
     await clear_cart(session_id)
-    
+
     return {
         "order_id": order_id,
         "status": "confirmed",
@@ -286,22 +239,15 @@ async def trigger_warehouse_fulfillment(
     items: List[Dict[str, Any]],
     session_id: str,
 ) -> Dict[str, Any]:
-    """
-    Trigger warehouse fulfillment via internal API call.
-    
-    This demonstrates the agent's ability to:
-    - Execute real-world actions (tool use)
-    - Trigger webhook-style events
-    - Chain actions autonomously
-    """
+    """Trigger warehouse fulfillment via internal API call."""
     import httpx
-    
+
     payload = {
         "order_id": order_id,
         "items": items,
         "session_id": session_id,
     }
-    
+
     try:
         async with httpx.AsyncClient() as client:
             response = await client.post(
@@ -311,7 +257,6 @@ async def trigger_warehouse_fulfillment(
             )
             return response.json()
     except Exception as e:
-        # Fallback for testing/simulated environment (Direct Call)
         print(f"⚠️ Warehouse web call failed ({e}). Falling back to direct call...")
         try:
             from routes.warehouse_routes import fulfill_order

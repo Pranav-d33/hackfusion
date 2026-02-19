@@ -1,7 +1,7 @@
 """
 Data Export Routes
 Export real-time database data as CSV or JSON.
-Shows that data is dynamic, not hardcoded.
+Queries V2 schema: product_catalog, inventory_items, customer_orders, procurement_orders.
 """
 from fastapi import APIRouter
 from fastapi.responses import Response
@@ -19,135 +19,141 @@ router = APIRouter(prefix="/api/data", tags=["data"])
 
 @router.get("/export/medications")
 async def export_medications(format: str = "json") -> Response:
-    """
-    Export current medications with real-time stock levels.
-    Shows that inventory updates are reflected in exports.
-    """
-    medications = await execute_query("""
-        SELECT 
-            m.id as medication_id,
-            m.generic_name,
-            m.brand_name,
-            m.active_ingredient,
-            m.dosage,
-            m.form,
-            m.unit_type,
-            m.rx_required,
-            COALESCE(i.stock_quantity, 0) as stock_quantity,
-            m.notes
-        FROM medications m
-        LEFT JOIN inventory i ON m.id = i.medication_id
-        ORDER BY m.brand_name
+    """Export current products with real-time stock levels."""
+    products = await execute_query("""
+        SELECT
+            pc.id as product_id,
+            pc.product_name,
+            pc.pzn,
+            pc.package_size,
+            pc.description,
+            pc.base_price_eur,
+            COALESCE(inv.stock_quantity, 0) as stock_quantity
+        FROM product_catalog pc
+        LEFT JOIN inventory_items inv ON pc.id = inv.product_catalog_id
+        ORDER BY pc.product_name
     """)
-    
+
     if format == "csv":
         output = io.StringIO()
         writer = csv.DictWriter(output, fieldnames=[
-            'medication_id', 'generic_name', 'brand_name', 'active_ingredient',
-            'dosage', 'form', 'unit_type', 'rx_required', 'stock_quantity', 'notes'
+            'product_id', 'product_name', 'pzn', 'package_size',
+            'description', 'base_price_eur', 'stock_quantity'
         ])
         writer.writeheader()
-        for med in medications:
-            writer.writerow(dict(med))
-        
+        for p in products:
+            writer.writerow(dict(p))
+
         return Response(
             content=output.getvalue(),
             media_type="text/csv",
             headers={
-                "Content-Disposition": f"attachment; filename=medications_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+                "Content-Disposition": f"attachment; filename=products_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
             }
         )
-    
-    return {"medications": [dict(m) for m in medications], "count": len(medications), "exported_at": datetime.now().isoformat()}
+
+    return {"products": products, "count": len(products), "exported_at": datetime.now().isoformat()}
+
+
+@router.get("/export/inventory")
+async def export_inventory(format: str = "json") -> Response:
+    """Export current inventory state."""
+    inventory = await execute_query("""
+        SELECT
+            pc.id as product_id,
+            pc.product_name,
+            pc.pzn,
+            inv.stock_quantity,
+            inv.reorder_threshold,
+            inv.reorder_quantity,
+            inv.last_updated
+        FROM inventory_items inv
+        JOIN product_catalog pc ON inv.product_catalog_id = pc.id
+        ORDER BY pc.product_name
+    """)
+
+    if format == "csv":
+        output = io.StringIO()
+        writer = csv.DictWriter(output, fieldnames=[
+            'product_id', 'product_name', 'pzn',
+            'stock_quantity', 'reorder_threshold', 'reorder_quantity', 'last_updated'
+        ])
+        writer.writeheader()
+        for row in inventory:
+            writer.writerow(dict(row))
+
+        return Response(
+            content=output.getvalue(),
+            media_type="text/csv",
+            headers={
+                "Content-Disposition": f"attachment; filename=inventory_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+            }
+        )
+
+    return {"inventory": inventory, "count": len(inventory), "exported_at": datetime.now().isoformat()}
 
 
 @router.get("/export/orders")
 async def export_orders(format: str = "json") -> Response:
-    """
-    Export consumer order history - shows real purchases affecting this data.
-    """
+    """Export customer order history."""
     orders = await execute_query("""
-        SELECT 
-            ph.id as order_id,
-            ph.customer_id,
-            c.name as customer_name,
-            ph.medication_id,
-            m.brand_name,
-            ph.quantity,
-            ph.daily_dose,
-            ph.purchase_date,
-            'completed' as order_status,
-            GROUP_CONCAT(ind.label) as indication
-        FROM purchase_history ph
-        JOIN customers c ON ph.customer_id = c.id
-        JOIN medications m ON ph.medication_id = m.id
-        LEFT JOIN medication_indications mi ON m.id = mi.medication_id
-        LEFT JOIN indications ind ON mi.indication_id = ind.id
-        GROUP BY ph.id
-        ORDER BY ph.purchase_date DESC
+        SELECT
+            co.id as order_id,
+            c.external_patient_id as customer_id,
+            c.age as customer_age,
+            c.gender as customer_gender,
+            co.purchase_date,
+            coi.quantity,
+            coi.line_total_eur,
+            pc.product_name,
+            co.dosage_frequency
+        FROM customer_orders co
+        JOIN customers c ON co.customer_id = c.id
+        JOIN customer_order_items coi ON co.id = coi.order_id
+        LEFT JOIN product_catalog pc ON coi.product_catalog_id = pc.id
+        ORDER BY co.purchase_date DESC
     """)
-    
+
     if format == "csv":
         output = io.StringIO()
         writer = csv.DictWriter(output, fieldnames=[
-            'order_id', 'customer_id', 'customer_name', 'medication_id', 
-            'brand_name', 'quantity', 'daily_dose', 'purchase_date', 
-            'order_status', 'indication'
+            'order_id', 'customer_id', 'customer_age', 'customer_gender',
+            'purchase_date', 'product_name', 'quantity', 'line_total_eur', 'dosage_frequency'
         ])
         writer.writeheader()
-        for order in orders:
-            writer.writerow(dict(order))
-        
+        for row in orders:
+            writer.writerow(dict(row))
+
         return Response(
             content=output.getvalue(),
             media_type="text/csv",
             headers={
-                "Content-Disposition": f"attachment; filename=order_history_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+                "Content-Disposition": f"attachment; filename=orders_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
             }
         )
-    
-    return {"orders": [dict(o) for o in orders], "count": len(orders), "exported_at": datetime.now().isoformat()}
+
+    return {"orders": orders, "count": len(orders), "exported_at": datetime.now().isoformat()}
 
 
-@router.get("/realtime-stats")
-async def realtime_stats() -> Dict[str, Any]:
-    """
-    Get real-time stats showing data is live, not hardcoded.
-    """
-    # Total medications
-    meds = await execute_query("SELECT COUNT(*) as count FROM medications")
-    
-    # Total stock
-    stock = await execute_query("SELECT SUM(stock_quantity) as total FROM inventory")
-    
-    # Total orders
-    orders = await execute_query("SELECT COUNT(*) as count FROM purchase_history")
-    
-    # Recent orders (last 24h)
-    recent = await execute_query("""
-        SELECT COUNT(*) as count FROM purchase_history 
-        WHERE purchase_date >= date('now', '-1 day')
-    """)
-    
-    # Low stock items
+@router.get("/dashboard")
+async def get_dashboard_data():
+    """Get aggregated data for the admin dashboard."""
+    product_count = await execute_query("SELECT COUNT(*) as count FROM product_catalog")
+    customer_count = await execute_query("SELECT COUNT(*) as count FROM customers")
+    order_count = await execute_query("SELECT COUNT(*) as count FROM customer_orders")
+
     low_stock = await execute_query("""
-        SELECT COUNT(*) as count FROM inventory WHERE stock_quantity < 50
+        SELECT COUNT(*) as count FROM inventory_items WHERE stock_quantity < reorder_threshold
     """)
-    
-    # Pending procurement
-    pending = await execute_query("""
+
+    pending_procurement = await execute_query("""
         SELECT COUNT(*) as count FROM procurement_orders WHERE status = 'pending'
     """)
-    
+
     return {
-        "timestamp": datetime.now().isoformat(),
-        "stats": {
-            "total_medications": meds[0]['count'] if meds else 0,
-            "total_stock_units": stock[0]['total'] if stock and stock[0]['total'] else 0,
-            "total_orders": orders[0]['count'] if orders else 0,
-            "orders_last_24h": recent[0]['count'] if recent else 0,
-            "low_stock_items": low_stock[0]['count'] if low_stock else 0,
-            "pending_procurement": pending[0]['count'] if pending else 0,
-        },
-        "message": "All data is real-time from database"
+        "products": product_count[0]['count'] if product_count else 0,
+        "customers": customer_count[0]['count'] if customer_count else 0,
+        "orders": order_count[0]['count'] if order_count else 0,
+        "low_stock_items": low_stock[0]['count'] if low_stock else 0,
+        "pending_procurement": pending_procurement[0]['count'] if pending_procurement else 0,
     }

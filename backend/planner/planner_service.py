@@ -161,7 +161,15 @@ What should I do next?"""
             response.raise_for_status()
             data = response.json()
         
-        content = data["choices"][0]["message"]["content"].strip()
+        message = data["choices"][0]["message"]
+        content = (message.get("content") or "").strip()
+        
+        # Some models put output in 'reasoning' field instead of content
+        if not content:
+            reasoning_text = (message.get("reasoning") or "").strip()
+            if reasoning_text:
+                content = reasoning_text
+        
         result = _extract_json(content)
         
         if result:

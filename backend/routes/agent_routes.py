@@ -21,6 +21,7 @@ class ChatRequest(BaseModel):
     session_id: Optional[str] = None
     message: str
     source: str = "text"  # "text" or "voice"
+    language: Optional[str] = None  # detected language from frontend (en/de/ar)
 
 
 class ChatResponse(BaseModel):
@@ -35,6 +36,7 @@ class ChatResponse(BaseModel):
     end_conversation: bool = False
     latency_ms: int = 0
     trace: List[Dict[str, Any]] = []
+    language: Optional[str] = None  # language of the response
 
 
 @router.post("/chat", response_model=ChatResponse)

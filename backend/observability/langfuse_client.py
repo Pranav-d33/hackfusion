@@ -2,10 +2,12 @@
 Langfuse Observability Client
 Provides tracing for NLU, Planner, and Agent operations.
 """
-import os
 from typing import Optional, Any, Dict
 from functools import wraps
 import time
+
+# Import config which loads .env
+from config import LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_HOST
 
 # Try to import langfuse, handle gracefully if not installed
 try:
@@ -17,9 +19,8 @@ except ImportError:
 
 
 # Configuration
-LANGFUSE_PUBLIC_KEY = os.getenv("LANGFUSE_PUBLIC_KEY", "")
-LANGFUSE_SECRET_KEY = os.getenv("LANGFUSE_SECRET_KEY", "")
-LANGFUSE_HOST = os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com")
+# LANGFUSE_PUBLIC_KEY and LANGFUSE_SECRET_KEY are imported from config above
+# LANGFUSE_HOST is imported from config above
 
 # Global client instance
 _client: Optional[Any] = None
@@ -78,11 +79,13 @@ def create_trace(
         return None
     
     try:
-        trace = _client.trace(
+        trace = _client.start_span(
             name=name,
-            session_id=session_id,
-            user_id=user_id,
-            metadata=metadata or {},
+            metadata={
+                **(metadata or {}),
+                "session_id": session_id,
+                "user_id": user_id or "",
+            },
         )
         return trace
     except Exception as e:

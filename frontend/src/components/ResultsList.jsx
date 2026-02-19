@@ -1,5 +1,5 @@
 /**
- * ResultsList - List of medication candidates
+ * ResultsList — Medication candidate cards with visual hierarchy
  */
 import React from 'react';
 
@@ -9,8 +9,8 @@ export default function ResultsList({ candidates, onSelect, selectedId, onFlyToC
     }
 
     return (
-        <div className="space-y-2">
-            <h3 className="text-sm font-medium text-gray-500 uppercase tracking-wide">
+        <div className="space-y-2.5">
+            <h3 className="text-xs font-brand font-semibold text-ink-faint uppercase tracking-wider">
                 Available Medications
             </h3>
             <div className="grid gap-2">
@@ -25,18 +25,19 @@ export default function ResultsList({ candidates, onSelect, selectedId, onFlyToC
                             onSelect(med, index + 1);
                         }}
                         className={`
-              med-card w-full text-left p-4 rounded-xl border-2 transition-all
-              ${selectedId === med.id
-                                ? 'border-mediloon-red bg-red-50'
-                                : 'border-gray-200 bg-white hover:border-mediloon-red/50'
+                            med-card w-full text-left p-4 rounded-2xl border-2 transition-all duration-200
+                            ${selectedId === med.id
+                                ? 'border-mediloon-500 bg-mediloon-50 shadow-glow-red-sm'
+                                : 'border-surface-fog bg-white hover:border-mediloon-200'
                             }
-            `}
+                        `}
+                        style={{ animationDelay: `${index * 80}ms` }}
                     >
                         <div className="flex items-start justify-between">
                             <div className="flex-1">
                                 {/* Brand name */}
                                 <div className="flex items-center gap-2">
-                                    <span className="text-lg font-semibold text-gray-900">
+                                    <span className="text-base font-brand font-bold text-ink-primary">
                                         {med.brand_name}
                                     </span>
                                     {med.rx_required ? (
@@ -47,29 +48,31 @@ export default function ResultsList({ candidates, onSelect, selectedId, onFlyToC
                                 </div>
 
                                 {/* Generic name and dosage */}
-                                <p className="text-sm text-gray-600 mt-0.5">
+                                <p className="text-sm text-ink-muted mt-0.5 font-body">
                                     {med.generic_name} • {med.dosage}
                                 </p>
 
                                 {/* Form */}
-                                <p className="text-xs text-gray-400 mt-1 capitalize">
+                                <p className="text-xs text-ink-faint mt-1 capitalize font-body">
                                     {med.form}
                                 </p>
                             </div>
 
                             {/* Stock indicator */}
-                            <div className="text-right">
+                            <div className="text-right flex flex-col items-end gap-1">
                                 {med.stock_quantity > 0 ? (
-                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                    <span className="feature-badge-emerald">
+                                        <span className="w-1.5 h-1.5 bg-accent-emerald rounded-full" />
                                         In Stock
                                     </span>
                                 ) : (
-                                    <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                    <span className="feature-badge bg-red-50 text-mediloon-600 border border-mediloon-200">
+                                        <span className="w-1.5 h-1.5 bg-mediloon-500 rounded-full" />
                                         Out of Stock
                                     </span>
                                 )}
                                 {med.similarity && (
-                                    <p className="text-xs text-gray-400 mt-1">
+                                    <p className="text-[10px] text-ink-faint mt-1 font-mono">
                                         Match: {Math.round(med.similarity * 100)}%
                                     </p>
                                 )}

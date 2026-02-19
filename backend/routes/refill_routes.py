@@ -11,6 +11,8 @@ from services.refill_service import (
     get_refill_alerts,
     get_customer_history,
     create_refill_message,
+    get_consumption_frequency,
+    get_prediction_timeline,
 )
 from db.database import execute_query
 
@@ -152,5 +154,37 @@ async def initiate_refill(customer_id: int, medication_id: int) -> Dict[str, Any
         }
     except HTTPException:
         raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/customer/{customer_id}/consumption")
+async def customer_consumption(customer_id: int) -> Dict[str, Any]:
+    """
+    Get consumption frequency analysis for a specific customer.
+    Identifies how often they order each medicine, adherence scores,
+    and predicted next order dates.
+    """
+    try:
+        frequency = await get_consumption_frequency(customer_id)
+        return {
+            "customer_id": customer_id,
+            "medications": frequency,
+            "count": len(frequency),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/customer/{customer_id}/timeline")
+async def customer_timeline(customer_id: int) -> Dict[str, Any]:
+    """
+    Get full prediction timeline for a customer.
+    Combines depletion alerts, consumption frequency data,
+    and recent order history for the transparency dashboard.
+    """
+    try:
+        timeline = await get_prediction_timeline(customer_id)
+        return timeline
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
