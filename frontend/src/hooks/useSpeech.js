@@ -67,17 +67,17 @@ function pickInitialLanguage() {
 // Ultra-fast script detection - checks first 50 chars only for speed
 function detectScript(text) {
     if (!text || text.length === 0) return LATIN_RESULT;
-
+    
     // Only check first 50 characters for speed (script is usually consistent)
     const sample = text.length > 50 ? text.slice(0, 50) : text;
-
+    
     for (let i = 0; i < SCRIPT_PATTERNS.length; i++) {
         if (SCRIPT_PATTERNS[i].regex.test(sample)) {
             const { lang, script } = SCRIPT_PATTERNS[i];
             return { lang, script, direction: script === 'Arabic' ? 'rtl' : 'ltr' };
         }
     }
-
+    
     return LATIN_RESULT;
 }
 
@@ -116,8 +116,6 @@ export function useSpeech() {
     const [audioLevel, setAudioLevel] = useState(0);
     const [detectedLanguage, setDetectedLanguage] = useState(initialLanguage);
     const [scriptInfo, setScriptInfo] = useState({ ...LATIN_RESULT, lang: initialLanguage });
-
-    // Voice State
     const [voices, setVoices] = useState([]);
     const [selectedVoice, setSelectedVoice] = useState(null);
 
@@ -128,56 +126,6 @@ export function useSpeech() {
     const animationFrameRef = useRef(null);
     const streamRef = useRef(null);
     const lastDetectionRef = useRef({ ...LATIN_RESULT, lang: initialLanguage }); // Cache last detected state to reduce jitter
-
-    // Load available voices
-    useEffect(() => {
-        if (typeof window === 'undefined' || !window.speechSynthesis) return;
-
-        const loadVoices = () => {
-            const available = window.speechSynthesis.getVoices();
-            if (available.length > 0) {
-                setVoices(available);
-
-                // Try to restore from local storage
-                const savedVoiceName = localStorage.getItem('mediloon_preferred_voice');
-                const savedVoice = available.find(v => v.name === savedVoiceName);
-
-                if (savedVoice) {
-                    setSelectedVoice(savedVoice);
-                } else {
-                    // Auto-select Indian English if available (Prioritize "Google English (India)")
-                    const specificIndianVoice = available.find(v => v.name === 'Google English (India)');
-                    const anyIndianVoice = available.find(v => v.lang === 'en-IN' || v.name.includes('India'));
-
-                    if (specificIndianVoice) {
-                        setSelectedVoice(specificIndianVoice);
-                    } else if (anyIndianVoice) {
-                        setSelectedVoice(anyIndianVoice);
-                    } else {
-                        // Fallback to English
-                        const englishVoice = available.find(v => v.lang.startsWith('en-'));
-                        setSelectedVoice(englishVoice || available[0]);
-                    }
-                }
-            }
-        };
-
-        loadVoices();
-
-        // Chrome loads voices asynchronously
-        window.speechSynthesis.onvoiceschanged = loadVoices;
-
-        return () => {
-            window.speechSynthesis.onvoiceschanged = null;
-        };
-    }, []);
-
-    // Save preference when selected voice changes
-    const changeVoice = useCallback((voice) => {
-        if (!voice) return;
-        setSelectedVoice(voice);
-        localStorage.setItem('mediloon_preferred_voice', voice.name);
-    }, []);
 
     // Start audio analysis for voice reactivity
     const startAudioAnalysis = useCallback(async () => {
@@ -236,6 +184,30 @@ export function useSpeech() {
         setAudioLevel(0);
     }, []);
 
+    // Load available TTS voices
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const synth = window.speechSynthesis;
+        const loadVoices = () => {
+            const available = synth.getVoices();
+            if (available.length > 0) {
+                setVoices(available);
+                if (!selectedVoice) {
+                    const defaultVoice = available.find(v => v.lang.startsWith('en')) || available[0];
+                    setSelectedVoice(defaultVoice);
+                }
+            }
+        };
+        loadVoices();
+        synth.onvoiceschanged = loadVoices;
+        return () => { synth.onvoiceschanged = null; };
+    }, []);
+
+    // Set a specific voice
+    const setVoice = useCallback((voice) => {
+        setSelectedVoice(voice);
+    }, []);
+
     // Initialize speech recognition with auto language detection
     useEffect(() => {
         if (typeof window === 'undefined') return;
@@ -252,7 +224,7 @@ export function useSpeech() {
         recognition.continuous = false;
         recognition.interimResults = true;
         recognition.maxAlternatives = 1;
-
+        
         // Dynamic default based on browser + priority languages (EN, DE, AR)
         recognition.lang = initialLanguage;
 
@@ -277,7 +249,7 @@ export function useSpeech() {
 
             const currentText = finalTranscript || interimTranscript;
             setTranscript(currentText);
-
+            
             // Dynamic language + script detection with stability
             const detected = detectLanguageFromText(currentText, recognition.lang || detectedLanguage || initialLanguage);
 
@@ -373,29 +345,19 @@ export function useSpeech() {
         synthRef.current.cancel();
 
         const utterance = new SpeechSynthesisUtterance(text);
-
-        // Use selected voice if available, otherwise fallback logic
-        if (selectedVoice) {
-            utterance.voice = selectedVoice;
-            utterance.lang = selectedVoice.lang;
-        } else {
-            utterance.lang = options.lang || detectedLanguage || initialLanguage;
-
-            // Fallback voice selection logic
-            const voices = synthRef.current.getVoices();
-            const exactVoice = voices.find(v => v.lang.toLowerCase() === utterance.lang.toLowerCase());
-            const prefixVoice = voices.find(v => v.lang.toLowerCase().startsWith(`${utterance.lang.split('-')[0].toLowerCase()}-`));
-            const englishVoice = voices.find(v => v.lang.toLowerCase().startsWith('en-'));
-
-            utterance.voice = exactVoice || prefixVoice || englishVoice || null;
-        }
-
-        // Use friendly, slightly slower parameters
-        utterance.rate = options.rate || 0.9;
-        utterance.pitch = options.pitch || 1.1;
+        utterance.lang = options.lang || detectedLanguage || initialLanguage;
+        utterance.rate = options.rate || 0.92;
+        utterance.pitch = options.pitch || 1.0;
         utterance.volume = options.volume || 1.0;
 
-        utterance.onstart = () => setIsPlaying(true);
+        const availableVoices = synthRef.current.getVoices();
+        const exactVoice = availableVoices.find(v => v.lang.toLowerCase() === utterance.lang.toLowerCase());
+        const prefixVoice = availableVoices.find(v => v.lang.toLowerCase().startsWith(`${utterance.lang.split('-')[0].toLowerCase()}-`));
+        const englishVoice = availableVoices.find(v => v.lang.toLowerCase().startsWith('en-'));
+
+        utterance.voice = selectedVoice || exactVoice || prefixVoice || englishVoice || null;
+
+        utterance.onstart = () => setIsSpeaking(true);
         utterance.onend = () => {
             setIsSpeaking(false);
             if (options.onEnd) {
@@ -424,10 +386,10 @@ export function useSpeech() {
         // Auto-detected language info
         detectedLanguage,
         scriptInfo,
-        // Voice settings
+        // Voice management
         voices,
         selectedVoice,
-        setVoice: changeVoice,
+        setVoice,
         // Actions
         startListening,
         stopListening,

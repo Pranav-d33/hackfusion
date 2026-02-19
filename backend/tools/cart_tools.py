@@ -12,29 +12,47 @@ sys.path.insert(0, str(__file__).rsplit('/', 2)[0])
 from db.database import execute_query, execute_write
 
 
-async def add_to_cart(session_id: str, med_id: int, qty: int = 1, dose: str = None) -> Dict[str, Any]:
-    """
-    Add a product to the cart.
-
-    Args:
-        session_id: User session ID
-        med_id: Product catalog ID
-        qty: Quantity to add
-        dose: Optional prescribed dose
-
-    Returns:
-        Updated cart state
-    """
+async def add_to_cart(session_id: str, med_id: str, qty: int, dose: str = None) -> Dict[str, Any]:
+    """Adds an item to the cart, checking inventory and existing quantities."""
+    print(f"[DEBUG] add_to_cart called: session_id={session_id}, med_id={med_id}, qty={qty}")
     qty = int(qty) if qty is not None else 1
+    
+    # Check inventory (product_name lives in product_catalog, not inventory_items)
+    stock_record = await execute_query(
+        """SELECT i.stock_quantity, pc.product_name
+           FROM inventory_items i
+           JOIN product_catalog pc ON i.product_catalog_id = pc.id
+           WHERE i.product_catalog_id = ?""",
+        (med_id,)
+    )
+    
+    stock_available = stock_record[0]['stock_quantity'] if stock_record else 0
+    product_name = stock_record[0]['product_name'] if stock_record else "Item"
 
-    # Check if item already in cart
+    # Check cart for existing quantity
     existing = await execute_query(
         "SELECT id, quantity, dose FROM cart WHERE session_id = ? AND product_catalog_id = ?",
         (session_id, med_id)
     )
+    
+    current_cart_qty = existing[0]['quantity'] if existing else 0
+    remaining_stock = stock_available - current_cart_qty
+    
+    if remaining_stock <= 0:
+        return {
+            **await get_cart(session_id), 
+            "warning": f"Sorry, {product_name} is currently out of stock.",
+            "added": False
+        }
+        
+    actual_add_qty = min(qty, remaining_stock)
+    warning_msg = None
+    
+    if actual_add_qty < qty:
+        warning_msg = f"Only {remaining_stock} units of {product_name} available. Added {actual_add_qty} instead of {qty}."
 
     if existing:
-        new_qty = existing[0]['quantity'] + qty
+        new_qty = current_cart_qty + actual_add_qty
         update_query = "UPDATE cart SET quantity = ?, added_at = CURRENT_TIMESTAMP"
         params = [new_qty]
 
@@ -49,10 +67,16 @@ async def add_to_cart(session_id: str, med_id: int, qty: int = 1, dose: str = No
     else:
         await execute_write(
             "INSERT INTO cart (session_id, product_catalog_id, quantity, dose) VALUES (?, ?, ?, ?)",
-            (session_id, med_id, qty, dose)
+            (session_id, med_id, actual_add_qty, dose)
         )
+    
+    print(f"[DEBUG] add_to_cart finished for session_id={session_id}. Item added.")
 
-    return await get_cart(session_id)
+    cart_data = await get_cart(session_id)
+    if warning_msg:
+        cart_data["warning"] = warning_msg
+    
+    return cart_data
 
 
 async def get_cart(session_id: str) -> Dict[str, Any]:
@@ -151,18 +175,16 @@ async def clear_cart(session_id: str) -> Dict[str, Any]:
 
 async def checkout(session_id: str, customer_id: int = None) -> Dict[str, Any]:
     """
-    Convert cart to order, trigger warehouse fulfillment, and clear cart.
-
-    Args:
-        session_id: User session ID
-        customer_id: Optional customer ID
-
-    Returns:
-        Order confirmation with fulfillment status
+    Process checkout:
+    1. Retrieve cart items
+    2. Create order & order items
+    3. Update inventory
+    4. Clear cart
     """
+    print(f"[DEBUG] checkout called: session_id={session_id}, customer_id={customer_id}")
     cart = await get_cart(session_id)
-
     if not cart['items']:
+        print(f"[DEBUG] checkout failed: cart is empty for session_id={session_id}")
         return {"error": "Cart is empty"}
 
     items_json = json.dumps(cart['items'])

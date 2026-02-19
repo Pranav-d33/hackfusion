@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 
 export default function VoiceSettingsModal({ isOpen, onClose, voices, currentVoice, onVoiceChange }) {
-    if (!isOpen) return null;
-
     const [previewText, setPreviewText] = useState("Hello, I am your Mediloon AI assistant.");
     const [isPlaying, setIsPlaying] = useState(false);
+
+    if (!isOpen) return null;
 
     const handlePreview = (voice) => {
         if (!voice) return;

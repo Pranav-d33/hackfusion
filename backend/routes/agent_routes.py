@@ -133,6 +133,23 @@ class UpdateQuantityRequest(BaseModel):
     quantity: int
 
 
+class AddToCartRequest(BaseModel):
+    med_id: int
+    qty: int = 1
+    dose: str = None
+
+
+@router.post("/cart/{session_id}/add")
+async def direct_add_to_cart(session_id: str, request: AddToCartRequest):
+    """
+    Direct add-to-cart endpoint that bypasses the LLM agent.
+    More reliable for UI-driven add operations (clicking medicine cards).
+    """
+    from tools.cart_tools import add_to_cart
+    cart = await add_to_cart(session_id, str(request.med_id), request.qty, dose=request.dose)
+    return cart
+
+
 @router.put("/cart/{session_id}/item/{cart_item_id}")
 async def update_item_quantity(session_id: str, cart_item_id: int, request: UpdateQuantityRequest):
     """

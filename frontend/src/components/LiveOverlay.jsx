@@ -38,7 +38,9 @@ export default function LiveOverlay({
     onUpload,
     audioLevel = 0,
     cart,
-    scriptInfo = { lang: 'en-IN', script: 'Latin', direction: 'ltr' }
+    scriptInfo = { lang: 'en-IN', script: 'Latin', direction: 'ltr' },
+    candidates = [],
+    onSelectCandidate,
 }) {
     const scrollRef = useRef(null);
     const [showUploadPrompt, setShowUploadPrompt] = useState(false);
@@ -64,18 +66,29 @@ export default function LiveOverlay({
         }
     }, [messages, isOpen]);
 
-    // Cart add animation
+    // Cart add animation — show item name from last assistant message
     useEffect(() => {
         const currentCount = cart?.item_count || 0;
         if (isOpen && currentCount > prevCartCount.current) {
             const added = currentCount - prevCartCount.current;
-            setCartNotif(`+${added}`);
-            const timer = setTimeout(() => setCartNotif(null), 2000);
+            // Try to extract medicine name from the last bot message
+            const lastBotMsg = [...messages].reverse().find(m => !m.isUser);
+            let itemName = '';
+            if (lastBotMsg?.text) {
+                const match = lastBotMsg.text.match(/Added\s+(.+?)\s+(?:to your cart|\()/i);
+                if (match) itemName = match[1];
+            }
+            // Also check cart items for the newest addition
+            if (!itemName && cart?.items?.length > 0) {
+                itemName = cart.items[cart.items.length - 1]?.brand_name || '';
+            }
+            setCartNotif(itemName ? `✓ ${itemName}` : `+${added} Added`);
+            const timer = setTimeout(() => setCartNotif(null), 3000);
             prevCartCount.current = currentCount;
             return () => clearTimeout(timer);
         }
         prevCartCount.current = currentCount;
-    }, [cart?.item_count, isOpen]);
+    }, [cart?.item_count, isOpen, messages]);
 
     const handleFileChange = (e) => {
         const file = e.target.files[0];
@@ -137,12 +150,17 @@ export default function LiveOverlay({
 
             {/* Add-to-cart notification */}
             {cartNotif && (
-                <div className="absolute bottom-24 right-8 z-30 pointer-events-none">
-                    <div className="flex items-center gap-2 bg-green-500 text-white px-4 py-2 rounded-xl shadow-lg voice-cart-notif">
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                        </svg>
-                        <span className="font-bold text-sm">{cartNotif} Added</span>
+                <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-30 pointer-events-none">
+                    <div className="flex items-center gap-3 bg-green-500 text-white px-6 py-3 rounded-2xl shadow-2xl voice-cart-notif">
+                        <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0">
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                            </svg>
+                        </div>
+                        <div>
+                            <span className="font-bold text-base block">{cartNotif}</span>
+                            <span className="text-green-100 text-xs">{cart?.item_count || 0} item{(cart?.item_count || 0) !== 1 ? 's' : ''} in cart</span>
+                        </div>
                     </div>
                 </div>
             )}
@@ -192,6 +210,39 @@ export default function LiveOverlay({
                         )}
                     </div>
                 </div>
+
+                {/* Medicine Candidates */}
+                {candidates && candidates.length > 0 && (
+                    <div className="w-full mb-4 pointer-events-auto animate-fade-in-up px-2">
+                        <p className="text-xs text-center text-gray-400 font-medium mb-3 tracking-wide uppercase">Tap to add to cart</p>
+                        <div className="flex gap-2.5 overflow-x-auto pb-1 justify-center flex-wrap">
+                            {candidates.slice(0, 4).map((med, i) => (
+                                <button
+                                    key={med.id || i}
+                                    onClick={() => onSelectCandidate && onSelectCandidate(med)}
+                                    className="flex-shrink-0 flex flex-col items-start bg-white/90 backdrop-blur-sm border border-gray-200 rounded-2xl px-4 py-3 shadow-lg hover:border-red-300 hover:bg-red-50/50 active:scale-95 transition-all"
+                                    style={{ minWidth: '150px', maxWidth: '180px', animationDelay: `${i * 60}ms` }}
+                                >
+                                    <div className="flex items-center gap-1.5 mb-1 w-full">
+                                        <span className="font-bold text-gray-800 text-sm leading-tight truncate flex-1">{med.brand_name}</span>
+                                        {med.rx_required ? (
+                                            <span className="text-[9px] font-bold bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full flex-shrink-0">RX</span>
+                                        ) : (
+                                            <span className="text-[9px] font-bold bg-green-100 text-green-600 px-1.5 py-0.5 rounded-full flex-shrink-0">OTC</span>
+                                        )}
+                                    </div>
+                                    <p className="text-xs text-gray-500 leading-tight">{med.dosage}</p>
+                                    <div className="mt-2 flex items-center gap-1 text-red-500 text-xs font-semibold">
+                                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+                                        </svg>
+                                        Add to Cart
+                                    </div>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
 
                 {/* Upload Prompt */}
                 {showUploadPrompt && (

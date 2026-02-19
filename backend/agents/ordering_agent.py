@@ -156,7 +156,10 @@ session state (pending_add_confirm, pending_rx_check) to know WHICH medication t
 Use the candidate IDs from the session state — do NOT invent IDs.
 
 ## IMPORTANT RULES FOR TOOL CALLS
-- When you need to search for a medication, use `vector_search` with the medication name.
+- **ALWAYS translate tool arguments to English.** The database is in English.
+  - If user says "mujhe fever hai" → call `lookup_by_indication` with `{"indication": "fever"}`.
+  - If user says "kopfschmerzen" → call `lookup_by_indication` with `{"indication": "headache"}`.
+- When you need to search for a medication, use `vector_search` with the English medication name if possible.
 - When user describes a symptom/condition, use `lookup_by_indication`.
 - When adding to cart, use the `med_id` from the candidates/state, NOT a made-up number.
 - NEVER hallucinate medication IDs — only use IDs from the session state.

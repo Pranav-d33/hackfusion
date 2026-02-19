@@ -252,6 +252,13 @@ async def execute_action(
     # ── ask_rx ──────────────────────────────────────────────────────
     if action == "ask_rx":
         med = plan.get("medication") or {}
+        # Resolve medication from session state if LLM didn't provide ID
+        if not med.get("id"):
+            med = (
+                state.get("selected_medication")
+                or state.get("pending_rx_check")
+                or (state.get("candidates", [{}])[0] if state.get("candidates") else {})
+            ) or med
         update_session_state(session_id, {
             "pending_rx_check": med or None,
             "selected_medication": med or None,
@@ -271,6 +278,14 @@ async def execute_action(
     # ── ask_quantity ────────────────────────────────────────────────
     if action == "ask_quantity":
         med = plan.get("medication") or {}
+        # Resolve medication from session state if LLM didn't provide ID
+        if not med.get("id"):
+            med = (
+                state.get("selected_medication")
+                or state.get("pending_add_confirm")
+                or state.get("pending_qty_dose_check")
+                or (state.get("candidates", [{}])[0] if state.get("candidates") else {})
+            ) or med
         update_session_state(session_id, {
             "pending_qty_dose_check": med or None,
             "selected_medication": med or None,
@@ -290,6 +305,13 @@ async def execute_action(
     # ── ask_dose ────────────────────────────────────────────────────
     if action == "ask_dose":
         med = plan.get("medication") or {}
+        # Resolve medication from session state if LLM didn't provide ID
+        if not med.get("id"):
+            med = (
+                state.get("selected_medication")
+                or state.get("pending_qty_dose_check")
+                or (state.get("candidates", [{}])[0] if state.get("candidates") else {})
+            ) or med
         qty = plan.get("quantity", 1)
         update_session_state(session_id, {
             "pending_qty_dose_check": med or None,
@@ -305,21 +327,50 @@ async def execute_action(
 
     # ── checkout ────────────────────────────────────────────────────
     if action == "checkout":
-        customer_id = state.get("customer_id", 2)
-        result = await checkout(session_id, customer_id=customer_id)
-        if result.get("error"):
+        # Check if user already provided delivery address (comes from frontend after login+address flow)
+        address_in_input = False
+        last_user_msg = ""
+        history = state.get("conversation_history", [])
+        for msg in reversed(history):
+            if msg.get("role") == "user":
+                last_user_msg = msg.get("content", "")
+                break
+        if "deliver to:" in last_user_msg.lower() or "delivery address" in last_user_msg.lower():
+            address_in_input = True
+
+        if address_in_input:
+            # User already provided address via the login+address flow — execute checkout
+            customer_id = state.get("customer_id", 2)
+            result = await checkout(session_id, customer_id=customer_id)
+            if result.get("error"):
+                return {
+                    "message": "Your cart is empty. Add some items first!",
+                    "action_taken": "checkout_failed",
+                    "needs_input": True,
+                }
             return {
-                "message": "Your cart is empty. Add some items first!",
-                "action_taken": "checkout_failed",
+                "message": result.get("message", "Order placed!") + " Inventory updated.",
+                "tts_message": "Order placed successfully!",
+                "action_taken": "checkout",
+                "order": result,
+                "end_conversation": True,
+            }
+        else:
+            # Signal frontend to run the login → address → checkout flow
+            cart_data = await get_cart(session_id)
+            if not cart_data.get("items"):
+                return {
+                    "message": "Your cart is empty. Add some items first!",
+                    "action_taken": "checkout_failed",
+                    "needs_input": True,
+                }
+            return {
+                "message": "Let me start the checkout process for you.",
+                "tts_message": "Starting checkout. Please confirm your details.",
+                "cart": cart_data,
+                "action_taken": "checkout_ready",
                 "needs_input": True,
             }
-        return {
-            "message": result.get("message", "Order placed!") + " Inventory updated.",
-            "tts_message": "Order placed successfully!",
-            "action_taken": "checkout",
-            "order": result,
-            "end_conversation": True,
-        }
 
     # ── end / cancel ────────────────────────────────────────────────
     if action == "end":
@@ -387,12 +438,9 @@ async def execute_tool_call(
             f"{i+1}. {m['brand_name']} ({m.get('generic_name','')} {m.get('dosage','')}) — €{m.get('price',0)} — Stock: {m.get('stock_quantity',0)}"
             for i, m in enumerate(results[:5])
         )
-        msg = plan.get("message") or (
-            f"Here are medications for {indication}:\n{med_list}\n\nWhich one would you like?"
-        )
-        tts = plan.get("tts_message") or (
-            f"I found {', '.join(m['brand_name'] for m in results[:3])} for {indication}. Which one?"
-        )
+        # Always build the real medication list — never trust the LLM's placeholder message
+        msg = f"Here are medications for {indication}:\n{med_list}\n\nWhich one would you like to order?"
+        tts = f"I found {', '.join(m['brand_name'] for m in results[:3])} for {indication}. Which one would you like?"
         return {
             "message": msg,
             "tts_message": tts,
@@ -430,8 +478,8 @@ async def execute_tool_call(
                     "selected_medication": med,
                 })
                 return {
-                    "message": plan.get("message") or f"Found {med['brand_name']}. This requires a prescription. Do you have one?",
-                    "tts_message": plan.get("tts_message") or f"Found {med['brand_name']}. Do you have a prescription?",
+                    "message": f"Found {med['brand_name']} ({med.get('dosage','')}) — €{med.get('price',0)}. This requires a prescription. Do you have one?",
+                    "tts_message": f"Found {med['brand_name']}. Do you have a prescription?",
                     "candidates": results,
                     "action_taken": "ask_rx",
                 }
@@ -441,8 +489,8 @@ async def execute_tool_call(
                     "pending_add_confirm": med,
                 })
                 return {
-                    "message": plan.get("message") or f"Found {med['brand_name']} ({med.get('dosage','')}) — €{med.get('price',0)}. Would you like to add it?",
-                    "tts_message": plan.get("tts_message") or f"Found {med['brand_name']}. Want to add it?",
+                    "message": f"Found {med['brand_name']} ({med.get('dosage','')}) — €{med.get('price',0)}. Would you like to add it to your cart?",
+                    "tts_message": f"Found {med['brand_name']}. Want to add it?",
                     "candidates": results,
                     "action_taken": "search_single",
                 }
@@ -451,8 +499,8 @@ async def execute_tool_call(
             f"{i+1}. {m['brand_name']} ({m.get('dosage','')}) — €{m.get('price',0)} — Stock: {m.get('stock_quantity',0)}"
             for i, m in enumerate(results[:5])
         )
-        msg = plan.get("message") or f"Found several matches:\n{med_list}\n\nWhich one?"
-        tts = plan.get("tts_message") or f"Found {', '.join(m['brand_name'] for m in results[:3])}. Which one?"
+        msg = f"Found several matches:\n{med_list}\n\nWhich one would you like to order?"
+        tts = f"I found {', '.join(m['brand_name'] for m in results[:3])}. Which one would you like?"
         return {
             "message": msg,
             "tts_message": tts,
@@ -466,7 +514,30 @@ async def execute_tool_call(
         qty = args.get("qty", 1)
         dose = args.get("dose")
 
-        med = await get_medication_details(med_id)
+        # Validate med_id — if LLM hallucinated, try to resolve from session state
+        med = await get_medication_details(med_id) if med_id else None
+        if not med:
+            # Try selected_medication or pending states first
+            fallback_med = (
+                state.get("selected_medication")
+                or state.get("pending_add_confirm")
+                or state.get("pending_qty_dose_check")
+            )
+            if fallback_med and fallback_med.get("id"):
+                med_id = fallback_med["id"]
+                med = await get_medication_details(med_id)
+            # Try first candidate if still nothing
+            if not med:
+                candidates = state.get("candidates", [])
+                if candidates:
+                    med_id = candidates[0]["id"]
+                    med = await get_medication_details(med_id)
+            if not med:
+                return {
+                    "message": "I couldn't find that medication. Could you try searching again?",
+                    "action_taken": "add_blocked",
+                }
+
         validation = validate_add_to_cart(med, rx_confirmed=True)
 
         if not validation.get("allowed"):
@@ -493,16 +564,20 @@ async def execute_tool_call(
             "selected_medication": None,
             "collected_quantity": None,
             "collected_dose": None,
+            "candidates": [],
+            "cart": cart,
         })
 
-        msg = plan.get("message") or (
-            f"Added {med['brand_name']} ({qty} units) to your cart. "
-            f"Cart has {cart['item_count']} item(s). Checkout or add more?"
+        msg = (
+            f"Added {med['brand_name']} ({qty} unit{'s' if qty != 1 else ''}) to your cart. "
+            f"Cart now has {cart['item_count']} item{'s' if cart['item_count'] != 1 else ''}. "
+            f"Would you like to add more or checkout?"
         )
         return {
             "message": msg,
-            "tts_message": plan.get("tts_message") or f"Added {med['brand_name']}. Checkout or add more?",
+            "tts_message": f"Done! Added {med['brand_name']} to your cart. {cart['item_count']} item{'s' if cart['item_count'] != 1 else ''} total. Add more or say checkout.",
             "cart": cart,
+            "candidates": [],
             "action_taken": "add_to_cart",
         }
 

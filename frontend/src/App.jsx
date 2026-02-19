@@ -139,6 +139,8 @@ export default function App() {
     const [showCartDetail, setShowCartDetail] = useState(false);
     const [checkoutOrder, setCheckoutOrder] = useState(null);
     const [showCheckoutAnim, setShowCheckoutAnim] = useState(false);
+    const [pendingCheckout, setPendingCheckout] = useState(false);
+    const [showLoginForCheckout, setShowLoginForCheckout] = useState(false);
 
     // Animation State
     const [flyingItems, setFlyingItems] = useState([]);
@@ -235,6 +237,21 @@ export default function App() {
         }
     };
 
+    // Checkout flow: enforce login first (defined before handleSend so it can be referenced)
+    const handleCheckoutFlow = useCallback(() => {
+        if (!user) {
+            setPendingCheckout(true);
+            setShowLoginForCheckout(true);
+            return;
+        }
+        if (!user.profile_completed) {
+            setPendingCheckout(true);
+            setShowProfileModal(true);
+            return;
+        }
+        setShowAddressModal(true);
+    }, [user]);
+
     const handleSend = useCallback(async (text) => {
         if (!text.trim() || isLoading) return;
         const userMsg = { id: Date.now(), text, isUser: true };
@@ -264,16 +281,24 @@ export default function App() {
                 const msgToSpeak = data.tts_message || data.message;
                 if (liveMode && msgToSpeak) {
                     const ttsLang = scriptInfo?.lang || 'en-US';
-                    speak(msgToSpeak, { rate: 1.15, lang: ttsLang, onEnd: () => setTimeout(() => startListening(), 300) });
+                    speak(msgToSpeak, { rate: 0.92, lang: ttsLang, onEnd: () => setTimeout(() => startListening(), 300) });
                 }
             }
-            if (data.candidates) setCandidates(data.candidates);
+            // Update candidates — clear them on add/quantity/dose actions, otherwise set from response
+            if (data.action_taken === 'add_to_cart' || data.action_taken === 'ask_quantity' || data.action_taken === 'ask_dose') {
+                setCandidates([]);
+            } else if (data.candidates) {
+                setCandidates(data.candidates);
+            }
             if (data.cart) setCart(data.cart);
             if (data.trace) setTrace(data.trace);
             if (data.latency_ms != null) setLatency(data.latency_ms);
             if (data.trace_url) setTraceUrl(data.trace_url);
             if (data.trace_id) setTraceId(data.trace_id);
-            if (data.action_taken === 'checkout' && data.order) {
+            if (data.action_taken === 'checkout_ready') {
+                // Agent signals checkout intent — run the proper login+address flow
+                handleCheckoutFlow();
+            } else if (data.action_taken === 'checkout' && data.order) {
                 setCheckoutOrder(data.order); setShowCheckoutAnim(true);
             }
         } catch (error) {
@@ -282,7 +307,7 @@ export default function App() {
         } finally {
             setIsLoading(false);
         }
-    }, [sessionId, isLoading, liveMode, speak, startListening, scriptInfo]);
+    }, [sessionId, isLoading, liveMode, speak, startListening, scriptInfo, handleCheckoutFlow]);
 
     const handleFileUpload = useCallback(async (file) => {
         if (!file || isLoading) return;
@@ -307,8 +332,60 @@ export default function App() {
         setUser(null); setSessionToken(null);
     };
 
-    const handleSearchAdd = useCallback((med) => { handleSend(`Add ${med.brand_name}`); setShowSearch(false); }, [handleSend]);
-    const handleCheckoutFlow = useCallback(() => { setShowAddressModal(true); }, []);
+    // Direct add-to-cart via API (bypasses LLM for reliability)
+    const handleDirectAddToCart = useCallback(async (med) => {
+        let sid = sessionId;
+        if (!sid) {
+            try {
+                const initRes = await fetch(`${API_BASE}/chat`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: 'hello', source: 'text' }),
+                });
+                const initData = await initRes.json();
+                if (initData.session_id) {
+                    sid = initData.session_id;
+                    setSessionId(sid);
+                }
+            } catch (err) {
+                console.error('Failed to init session:', err);
+                handleSend(`Add ${med.brand_name}`);
+                return;
+            }
+        }
+        try {
+            const res = await fetch(`${API_BASE}/cart/${sid}/add`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ med_id: med.id, qty: 1 }),
+            });
+            if (res.ok) {
+                const updatedCart = await res.json();
+                setCart(updatedCart);
+                const confirmMsg = `Added ${med.brand_name} to your cart.${updatedCart.warning ? ' ' + updatedCart.warning : ''}`;
+                setMessages(prev => [...prev, {
+                    id: Date.now(),
+                    text: confirmMsg,
+                    isUser: false,
+                }]);
+                // Speak confirmation in voice mode
+                if (liveMode) {
+                    const ttsMsg = `Added ${med.brand_name} to your cart. ${updatedCart.item_count} item${updatedCart.item_count !== 1 ? 's' : ''} total. Add more or say checkout.`;
+                    speak(ttsMsg, { rate: 0.92, onEnd: () => setTimeout(() => startListening(), 300) });
+                }
+            } else {
+                const failMsg = 'Failed to add item. Please try again.';
+                setMessages(prev => [...prev, { id: Date.now(), text: failMsg, isUser: false }]);
+                if (liveMode) speak(failMsg, { rate: 0.92, onEnd: () => setTimeout(() => startListening(), 300) });
+            }
+        } catch (err) {
+            console.error('Direct add-to-cart failed:', err);
+            handleSend(`Add ${med.brand_name}`);
+        }
+    }, [sessionId, handleSend, liveMode, speak, startListening]);
+
+    const handleSearchAdd = useCallback((med) => { handleDirectAddToCart(med); setShowSearch(false); }, [handleDirectAddToCart]);
+
     const handleAddressConfirm = useCallback((address) => { setShowAddressModal(false); handleSend(`Checkout. Deliver to: ${address}`); }, [handleSend]);
     const handleCartUpdate = useCallback((updatedCart) => { setCart(updatedCart); }, []);
 
@@ -323,7 +400,7 @@ export default function App() {
     const hasCartItems = cart?.items?.length > 0;
 
     return (
-        <div className="relative min-h-screen bg-surface-snow flex flex-col font-body selection:bg-mediloon-100 overflow-hidden">
+        <div className="relative min-h-screen bg-surface-snow flex flex-col font-body selection:bg-mediloon-100 overflow-x-hidden">
 
             {/* ═══════════════════════════════════
                 1. HEADER — Glassmorphic with red accent
@@ -393,10 +470,10 @@ export default function App() {
             {/* ═══════════════════════════════════
                 2. MAIN LAYOUT — 3 Column Grid
                ═══════════════════════════════════ */}
-            <main className={`max-w-[98rem] mx-auto w-full px-4 py-3 grid grid-cols-1 lg:grid-cols-[340px_1fr_380px] gap-4 transition-all duration-500 h-[calc(100vh-5.25rem)] overflow-hidden ${liveMode ? 'blur-md scale-95 opacity-50 pointer-events-none' : ''}`}>
+            <main className={`max-w-[98rem] mx-auto w-full px-4 py-3 grid grid-cols-1 lg:grid-cols-[340px_1fr_380px] gap-4 transition-all duration-500 lg:h-[calc(100vh-5.25rem)] lg:overflow-hidden overflow-y-auto ${liveMode ? 'blur-md scale-95 opacity-50 pointer-events-none' : ''}`}>
 
                 {/* ─── LEFT COLUMN: Trace ─── */}
-                <aside className={`flex flex-col gap-3 order-2 lg:order-1 h-full`}>
+                <aside className={`flex flex-col gap-3 order-2 lg:order-1 lg:h-full`}>
                     <div className="flex-1 flex flex-col gap-3 min-h-0">
                         <TracePanel trace={trace} latency={latency} traceUrl={traceUrl} traceId={traceId} />
 
@@ -416,7 +493,7 @@ export default function App() {
 
 
                 {/* ─── CENTER COLUMN: Chat Interface ─── */}
-                <section className="flex flex-col gap-3 order-1 lg:order-2 h-full">
+                <section className="flex flex-col gap-3 order-1 lg:order-2 lg:h-full min-h-0 overflow-hidden">
 
                     {/* Feature Highlights (shown to everyone) */}
                     <FeatureCards />
@@ -444,7 +521,7 @@ export default function App() {
                     />
 
                     {/* Chat Container */}
-                    <div className="flex-1 glass-card-solid flex flex-col overflow-hidden relative">
+                    <div className="flex-1 min-h-0 glass-card-solid flex flex-col overflow-hidden relative">
                         {/* Chat Messages */}
                         <div className="flex-1 overflow-y-auto p-6 space-y-5 scroll-smooth">
                             {messages.map((msg) => (
@@ -460,7 +537,7 @@ export default function App() {
                                 <div className="mb-4">
                                     <ResultsList
                                         candidates={candidates}
-                                        onSelect={(med) => { setSelectedMedId(med.id); handleSend(`Add ${med.brand_name}`); }}
+                                        onSelect={(med) => { setSelectedMedId(med.id); handleDirectAddToCart(med); }}
                                         selectedId={selectedMedId}
                                         onFlyToCart={handleFlyToCart}
                                     />
@@ -512,7 +589,7 @@ export default function App() {
 
 
                 {/* ─── RIGHT COLUMN: Cart, Updates, Past Orders ─── */}
-                <aside className={`flex flex-col gap-3 order-3 h-full overflow-y-auto ${!user ? 'justify-start' : ''}`}>
+                <aside className={`flex flex-col gap-3 order-3 lg:h-full overflow-y-auto ${!user ? 'justify-start' : ''}  `}>
 
                     {/* Past Orders — Now prominent */}
                     {user && (
@@ -608,6 +685,12 @@ export default function App() {
                 audioLevel={audioLevel}
                 cart={cart}
                 scriptInfo={scriptInfo}
+                candidates={candidates}
+                onSelectCandidate={(med) => {
+                    setSelectedMedId(med.id);
+                    handleDirectAddToCart(med);
+                    setCandidates([]);
+                }}
             />
 
             {/* Voice Settings Modal */}
@@ -620,14 +703,20 @@ export default function App() {
             />
 
             {/* Login Modal */}
-            {showLogin && <Login onLogin={(data) => {
+            {(showLogin || showLoginForCheckout) && <Login onLogin={(data) => {
                 setUser(data.user);
                 setSessionToken(data.session_token);
                 localStorage.setItem('session_token', data.session_token);
                 setShowLogin(false);
-                if (!data.user.profile_completed) setShowProfileModal(true);
+                setShowLoginForCheckout(false);
+                if (!data.user.profile_completed) {
+                    setShowProfileModal(true);
+                } else if (pendingCheckout) {
+                    setPendingCheckout(false);
+                    setShowAddressModal(true);
+                }
                 checkFirstTimeLogin();
-            }} onCancel={() => setShowLogin(false)} />}
+            }} onCancel={() => { setShowLogin(false); setShowLoginForCheckout(false); setPendingCheckout(false); }} />}
 
             {/* Profile Modal */}
             {showProfileModal && user && (
@@ -636,7 +725,13 @@ export default function App() {
                     sessionToken={sessionToken}
                     onUpdate={(updatedUser) => setUser(updatedUser)}
                     onSkip={() => console.log('User skipped profile completion')}
-                    onClose={() => setShowProfileModal(false)}
+                    onClose={() => {
+                        setShowProfileModal(false);
+                        if (pendingCheckout) {
+                            setPendingCheckout(false);
+                            setShowAddressModal(true);
+                        }
+                    }}
                 />
             )}
 
@@ -686,7 +781,7 @@ export default function App() {
             {user && <RefillNotification customerId={user.id} onReorder={(alert) => handleSend(`Reorder ${alert.brand_name}`)} />}
             <MedicineSearch isOpen={showSearch} onClose={() => setShowSearch(false)} onAddToCart={handleSearchAdd} sessionId={sessionId} />
             <CartDetailModal isOpen={showCartDetail} onClose={() => setShowCartDetail(false)} cart={cart} sessionId={sessionId} onCartUpdate={handleCartUpdate} onCheckout={() => { setShowCartDetail(false); handleCheckoutFlow(); }} />
-            <AddressModal isOpen={showAddressModal} onClose={() => setShowAddressModal(false)} onConfirm={handleAddressConfirm} cart={cart} />
+            <AddressModal isOpen={showAddressModal} onClose={() => setShowAddressModal(false)} onConfirm={handleAddressConfirm} cart={cart} user={user} />
             <CheckoutAnimation isOpen={showCheckoutAnim} order={checkoutOrder} onClose={() => setShowCheckoutAnim(false)} />
             <FlyToCartLayer items={flyingItems} cartRef={cartRef} />
         </div>
