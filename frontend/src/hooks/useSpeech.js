@@ -4,11 +4,10 @@
  */
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 
-const PRIORITY_LANGS = ['en-US', 'de-DE', 'ar-SA', 'hi-IN'];
+const PRIORITY_LANGS = ['en-IN', 'de-DE', 'ar-SA', 'hi-IN'];
 const BONUS_LANGS = ['ta-IN', 'te-IN', 'bn-IN', 'gu-IN', 'kn-IN', 'ml-IN', 'pa-IN', 'or-IN'];
 
-// Hindi/Hinglish → we respond in English, so TTS should use en-US
-const HINDI_TTS_OVERRIDE = 'en-US';
+
 
 // Precompiled regex patterns for faster script detection
 const SCRIPT_PATTERNS = [
@@ -21,12 +20,13 @@ const SCRIPT_PATTERNS = [
     { regex: /[\u0D00-\u0D7F]/, lang: 'ml-IN', script: 'Malayalam' },   // Malayalam
     { regex: /[\u0A00-\u0A7F]/, lang: 'pa-IN', script: 'Gurmukhi' },    // Punjabi
     { regex: /[\u0B00-\u0B7F]/, lang: 'or-IN', script: 'Odia' },        // Odia
-    { regex: /[\u0600-\u06FF]/, lang: 'ar-SA', script: 'Arabic' },      // Arabic/Urdu
+    { regex: /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/, lang: 'ar-SA', script: 'Arabic' }, // Arabic + extended/presentation blocks
 ];
 
-const LATIN_RESULT = { lang: 'en-US', script: 'Latin', direction: 'ltr' };
+const LATIN_RESULT = { lang: 'en-IN', script: 'Latin', direction: 'ltr' };
 
-const GERMAN_HINTS = /\b(und|ich|nicht|bitte|danke|für|mit|der|die|das|ein|eine|habe|brauche|medizin|tabletten|bestellen)\b/i;
+const GERMAN_HINTS = /\b(und|ich|nicht|bitte|danke|für|mit|der|die|das|ein|eine|habe|haben|brauche|möchte|medizin|tabletten|bestellen|warenkorb|kasse|ja|nein)\b/i;
+const ARABIC_LATIN_HINTS = /\b(salam|marhaba|shukran|yalla|tamam|aywa)\b/i;
 const HINGLISH_HINTS = /\b(mujhe|chahiye|karo|dena|wala|haan|nahi|kitna|dawai|tablet|pehla|dusra|aur|bhi|hai|ke liye|manga|ruko|band)\b/i;
 const ENGLISH_HINTS = /\b(the|and|please|need|add|medicine|medicines|cart|order|have|want|for|to|my)\b/i;
 
@@ -67,17 +67,17 @@ function pickInitialLanguage() {
 // Ultra-fast script detection - checks first 50 chars only for speed
 function detectScript(text) {
     if (!text || text.length === 0) return LATIN_RESULT;
-    
+
     // Only check first 50 characters for speed (script is usually consistent)
     const sample = text.length > 50 ? text.slice(0, 50) : text;
-    
+
     for (let i = 0; i < SCRIPT_PATTERNS.length; i++) {
         if (SCRIPT_PATTERNS[i].regex.test(sample)) {
             const { lang, script } = SCRIPT_PATTERNS[i];
             return { lang, script, direction: script === 'Arabic' ? 'rtl' : 'ltr' };
         }
     }
-    
+
     return LATIN_RESULT;
 }
 
@@ -94,13 +94,18 @@ function detectLanguageFromText(text, fallbackLang) {
         return { lang: 'de-DE', script: 'Latin', direction: 'ltr' };
     }
 
+    // Arabic spoken/transliterated into Latin script by some STT engines
+    if (ARABIC_LATIN_HINTS.test(sample)) {
+        return { lang: 'ar-SA', script: 'Latin', direction: 'rtl' };
+    }
+
     // Hinglish (Latin-script Hindi) → detected as hi-IN but TTS uses English
     if (HINGLISH_HINTS.test(sample)) {
         return { lang: 'hi-IN', script: 'Latin', direction: 'ltr' };
     }
 
     if (ENGLISH_HINTS.test(sample)) {
-        return { lang: 'en-US', script: 'Latin', direction: 'ltr' };
+        return { lang: 'en-IN', script: 'Latin', direction: 'ltr' };
     }
 
     return { lang: fallbackLang || LATIN_RESULT.lang, script: 'Latin', direction: 'ltr' };
@@ -118,6 +123,7 @@ export function useSpeech() {
     const [scriptInfo, setScriptInfo] = useState({ ...LATIN_RESULT, lang: initialLanguage });
     const [voices, setVoices] = useState([]);
     const [selectedVoice, setSelectedVoice] = useState(null);
+    const [manualLanguage, setManualLanguage] = useState(null);
 
     const recognitionRef = useRef(null);
     const synthRef = useRef(null);
@@ -208,6 +214,23 @@ export function useSpeech() {
         setSelectedVoice(voice);
     }, []);
 
+    const setPreferredLanguage = useCallback((langCode) => {
+        const normalized = normalizeLanguageTag(langCode) || null;
+        const langToUse = normalized || initialLanguage;
+        const direction = (langToUse || '').toLowerCase().startsWith('ar') ? 'rtl' : 'ltr';
+
+        setManualLanguage(normalized);
+        setDetectedLanguage(langToUse);
+        const info = { lang: langToUse, script: 'Latin', direction };
+        setScriptInfo(info);
+        lastDetectionRef.current = info;
+
+        // Update recognition immediately if active
+        if (recognitionRef.current) {
+            recognitionRef.current.lang = langToUse;
+        }
+    }, [initialLanguage]);
+
     // Initialize speech recognition with auto language detection
     useEffect(() => {
         if (typeof window === 'undefined') return;
@@ -224,14 +247,14 @@ export function useSpeech() {
         recognition.continuous = false;
         recognition.interimResults = true;
         recognition.maxAlternatives = 1;
-        
+
         // Dynamic default based on browser + priority languages (EN, DE, AR)
-        recognition.lang = initialLanguage;
+        recognition.lang = manualLanguage || initialLanguage;
 
         recognition.onstart = () => {
             setIsListening(true);
             setError(null);
-            recognition.lang = detectedLanguage || initialLanguage;
+            recognition.lang = manualLanguage || detectedLanguage || initialLanguage;
         };
 
         recognition.onresult = (event) => {
@@ -249,11 +272,24 @@ export function useSpeech() {
 
             const currentText = finalTranscript || interimTranscript;
             setTranscript(currentText);
-            
-            // Dynamic language + script detection with stability
-            const detected = detectLanguageFromText(currentText, recognition.lang || detectedLanguage || initialLanguage);
 
-            // Update only when meaningful changes happen
+            // Dynamic language + script detection with stability
+            const detected = detectLanguageFromText(currentText, recognition.lang || manualLanguage || detectedLanguage || initialLanguage);
+
+            // If user forced a language, keep that but still update script/direction for rendering
+            if (manualLanguage) {
+                const forced = {
+                    ...detected,
+                    lang: manualLanguage,
+                    direction: manualLanguage.toLowerCase().startsWith('ar') ? 'rtl' : detected.direction,
+                };
+                lastDetectionRef.current = forced;
+                setScriptInfo(forced);
+                setDetectedLanguage(manualLanguage);
+                return;
+            }
+
+            // Update only when meaningful changes happen (auto mode)
             if (
                 detected.script !== lastDetectionRef.current.script ||
                 detected.lang !== lastDetectionRef.current.lang ||
@@ -290,7 +326,7 @@ export function useSpeech() {
             recognition.abort();
             stopAudioAnalysis();
         };
-    }, [detectedLanguage, initialLanguage, stopAudioAnalysis]);
+    }, [detectedLanguage, initialLanguage, stopAudioAnalysis, manualLanguage]);
 
     // Start listening with audio analysis
     const startListening = useCallback(() => {
@@ -298,10 +334,11 @@ export function useSpeech() {
 
         setTranscript('');
         setError(null);
-        setScriptInfo(prev => ({ ...prev, lang: detectedLanguage || initialLanguage }));
+        const langToUse = manualLanguage || detectedLanguage || initialLanguage;
+        setScriptInfo(prev => ({ ...prev, lang: langToUse, direction: langToUse.toLowerCase().startsWith('ar') ? 'rtl' : 'ltr' }));
 
-        if (recognitionRef.current?.lang !== detectedLanguage) {
-            recognitionRef.current.lang = detectedLanguage || initialLanguage;
+        if (recognitionRef.current?.lang !== langToUse) {
+            recognitionRef.current.lang = langToUse;
         }
 
         // Start audio analysis for visual feedback
@@ -314,7 +351,7 @@ export function useSpeech() {
                 setError(err.message);
             }
         }
-    }, [detectedLanguage, initialLanguage, startAudioAnalysis]);
+    }, [detectedLanguage, initialLanguage, manualLanguage, startAudioAnalysis]);
 
     // Stop listening
     const stopListening = useCallback(() => {
@@ -344,18 +381,35 @@ export function useSpeech() {
 
         synthRef.current.cancel();
 
+        // Detect language from text content as a fallback
+        const textLangDetection = detectScript(text);
+        const textLang = textLangDetection.script !== 'Latin' ? textLangDetection.lang : null;
+
         const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = options.lang || detectedLanguage || initialLanguage;
-        utterance.rate = options.rate || 0.92;
+        // Priority: explicit option > detected from text > STT detected > initial
+        const requestedLang = options.lang || textLang || detectedLanguage || initialLanguage;
+        utterance.lang = requestedLang;
+        utterance.rate = options.rate || 1.1;
         utterance.pitch = options.pitch || 1.0;
         utterance.volume = options.volume || 1.0;
 
         const availableVoices = synthRef.current.getVoices();
-        const exactVoice = availableVoices.find(v => v.lang.toLowerCase() === utterance.lang.toLowerCase());
-        const prefixVoice = availableVoices.find(v => v.lang.toLowerCase().startsWith(`${utterance.lang.split('-')[0].toLowerCase()}-`));
-        const englishVoice = availableVoices.find(v => v.lang.toLowerCase().startsWith('en-'));
+        const requestedBase = requestedLang.split('-')[0].toLowerCase();
 
-        utterance.voice = selectedVoice || exactVoice || prefixVoice || englishVoice || null;
+        // If user manually selected a voice AND it matches the requested language, use it
+        const selectedMatchesLang = selectedVoice &&
+            selectedVoice.lang.toLowerCase().startsWith(`${requestedBase}-`);
+
+        // Find best voice for the requested language
+        const exactVoice = availableVoices.find(v => v.lang.toLowerCase() === requestedLang.toLowerCase());
+        const prefixVoice = availableVoices.find(v => v.lang.toLowerCase().startsWith(`${requestedBase}-`));
+        const englishVoice = availableVoices.find(v =>
+            v.lang.toLowerCase() === 'en-in' || v.lang.toLowerCase() === 'en_in'
+        ) || availableVoices.find(v => v.lang.toLowerCase().startsWith('en-'));
+
+        // Use selected voice ONLY if it matches requested language; otherwise pick best match
+        utterance.voice = (selectedMatchesLang ? selectedVoice : null)
+            || exactVoice || prefixVoice || englishVoice || null;
 
         utterance.onstart = () => setIsSpeaking(true);
         utterance.onend = () => {
@@ -386,10 +440,12 @@ export function useSpeech() {
         // Auto-detected language info
         detectedLanguage,
         scriptInfo,
+        manualLanguage,
         // Voice management
         voices,
         selectedVoice,
         setVoice,
+        setPreferredLanguage,
         // Actions
         startListening,
         stopListening,

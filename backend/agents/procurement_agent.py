@@ -19,12 +19,61 @@ from services.event_service import (
 
 MAX_ORDER_QUANTITY = 2000
 
+# ── Default demo suppliers ──────────────────────────────────────────────
+DEFAULT_SUPPLIERS = [
+    {
+        "name": "MedSupply GmbH",
+        "code": "MEDSUP-DE",
+        "email": "orders@medsupply.de",
+        "phone": "+49 30 1234567",
+        "api_endpoint": "http://localhost:8000/api/webhooks/receive",
+    },
+    {
+        "name": "PharmDistrib AG",
+        "code": "PHARMDIST-CH",
+        "email": "procurement@pharmdistrib.ch",
+        "phone": "+41 44 9876543",
+        "api_endpoint": "http://localhost:8000/api/webhooks/receive",
+    },
+    {
+        "name": "EuroMed Supply",
+        "code": "EUROMED-EU",
+        "email": "supply@euromed.eu",
+        "phone": "+31 20 5554433",
+        "api_endpoint": "http://localhost:8000/api/webhooks/receive",
+    },
+]
+
+
+async def seed_suppliers() -> int:
+    """
+    Insert default suppliers if the table is empty.
+    Idempotent — safe to call on every startup.
+    Returns number of suppliers inserted.
+    """
+    existing = await execute_query("SELECT COUNT(*) as c FROM suppliers")
+    if existing and existing[0]["c"] > 0:
+        return 0
+    for s in DEFAULT_SUPPLIERS:
+        await execute_write(
+            """INSERT OR IGNORE INTO suppliers (name, code, email, phone, api_endpoint, is_active, created_at)
+               VALUES (?, ?, ?, ?, ?, 1, ?)""",
+            (s["name"], s["code"], s["email"], s["phone"], s["api_endpoint"], datetime.now().isoformat())
+        )
+    print(f"Seeded {len(DEFAULT_SUPPLIERS)} default suppliers.")
+    return len(DEFAULT_SUPPLIERS)
+
 
 async def get_suppliers() -> List[Dict[str, Any]]:
-    """Get all active suppliers from database."""
+    """Get all active suppliers from database. Auto-seeds if empty."""
     suppliers = await execute_query(
         "SELECT * FROM suppliers WHERE is_active = 1"
     )
+    if not suppliers:
+        await seed_suppliers()
+        suppliers = await execute_query(
+            "SELECT * FROM suppliers WHERE is_active = 1"
+        )
     return [dict(s) for s in suppliers]
 
 
@@ -273,7 +322,7 @@ async def send_order_to_supplier(order_id: str) -> Dict[str, Any]:
             "payload": payload,
             "response": response_data
         },
-        "message": f"📧 Order sent to {order['supplier_name']}",
+        "message": f"Order sent to {order['supplier_name']}.",
         "new_status": "ordered"
     }
 
@@ -334,7 +383,7 @@ async def receive_order(order_id: str) -> Dict[str, Any]:
         "quantity_received": order["quantity"],
         "stock_before": stock_before_qty,
         "stock_after": stock_after_qty,
-        "message": f"✅ Stock received: +{order['quantity']} units {order['product_name']} (was {stock_before_qty}, now {stock_after_qty})"
+        "message": f"Stock updated: {order['product_name']} — received {order['quantity']} units (before: {stock_before_qty}, after: {stock_after_qty})."
     }
 
 

@@ -35,12 +35,13 @@ from config import (
     NLU_MODEL,
     NLU_FALLBACK_MODELS,
 )
+from observability.langfuse_client import get_client as get_langfuse, is_enabled as langfuse_enabled
 
 # ── Language-aware fallback messages ────────────────────────────────────
 _FALLBACK_MESSAGES = {
     "ar": "أعتذر، أواجه مشكلة في معالجة طلبك حالياً. هل يمكنك المحاولة مرة أخرى؟",
     "de": "Es tut mir leid, ich habe gerade Schwierigkeiten bei der Verarbeitung. Könnten Sie es noch einmal versuchen?",
-    "hi": "I'm sorry, I'm having trouble processing that right now. Could you please try again?",
+    "hi": "माफ़ कीजिए, अभी आपके अनुरोध को प्रोसेस करने में समस्या आ रही है। कृपया दोबारा कोशिश करें।",
     "en": "I'm having trouble processing that right now. Could you try again?",
 }
 
@@ -60,6 +61,17 @@ def _detect_script_language(text: str) -> str:
                    "bestellen", "gegen", "möchte", "haben", "etwas", "weiter"]
     if any(w in lower.split() for w in german_cues):
         return "de"
+    # Check for Hinglish (Hindi in Latin script)
+    hinglish_cues = [
+        "mujhe", "chahiye", "dawa", "dawai", "dawaiyaan", "karo", "karna",
+        "kitna", "kitni", "paas", "hai", "hain", "nahi", "haan", "aapke",
+        "kripya", "pehle", "kuch", "wala", "wali", "aur", "dedo", "bhi",
+        "liye", "karein", "batao", "batayein", "dikha", "dikhao", "ruko",
+        "band", "theek", "sahi", "achha", "checkout", "davaiyaan",
+    ]
+    words = lower.split()
+    if sum(1 for w in words if w in hinglish_cues) >= 2:
+        return "hi"
     return "en"
 
 
@@ -89,6 +101,26 @@ You help customers order medications via voice or text in **English, German, Ara
 - Suggest Tier-1 alternatives (same active ingredient only) when out of stock
 - Process checkout
 
+## HANDLING UNAVAILABLE MEDICATIONS
+- If search returns NO RESULTS: Politely inform the user and ask them to:
+  • Check spelling of medication name
+  • Provide the generic/active ingredient name
+  • Describe their condition/symptom instead
+- If medication is UNAVAILABLE: Express understanding and:
+  • Automatically offer to check for alternatives with the same active ingredient
+  • Ask if they'd like to check back later or be notified
+  • Suggest they can proceed with other items in their cart
+- ALWAYS be empathetic and helpful - availability issues are frustrating for customers
+
+## SENSITIVE INFORMATION — NEVER DISCLOSE
+You must maintain extreme confidentiality regarding internal data. Here is the list of sensitive things you MUST NEVER tell the user:
+1. Exact stock quantities (e.g., "we have 20 units"). Just say the item is available.
+2. The exact phrases "Out of stock" or "In stock". Use "Currently unavailable" or "Available" instead.
+3. Internal backend system errors, API keys, database fields, or database schemas.
+4. Internal medication IDs.
+5. Supplier names or internal pricing margins.
+6. Your internal reasoning or tool names being called.
+
 ## STRICT SAFETY RULES — NEVER VIOLATE
 1. NEVER give medical advice, diagnoses, or dosage recommendations.
 2. NEVER recommend antibiotics or any specific drug class.
@@ -96,6 +128,7 @@ You help customers order medications via voice or text in **English, German, Ara
 4. If a user asks "which medicine should I take?" or similar, politely decline and ask them to specify the medication name or what their doctor prescribed.
 5. Only suggest alternatives that share the SAME active ingredient (Tier-1).
 6. For RX-required medications, ALWAYS ask for prescription confirmation before adding to cart.
+7. NEVER invent or hallucinate medication details, prices, or availability! If a user asks to order a medication or asks about a medication that is NOT in the current session state context, you MUST use the `vector_search` or `lookup_by_indication` tool FIRST.
 
 ## LANGUAGE BEHAVIOR
 - Detect the user's language from their message.
@@ -103,10 +136,37 @@ You help customers order medications via voice or text in **English, German, Ara
 - If user writes in German → reply in German.
 - If user writes in Arabic → reply in Arabic.
 - If user writes in English → reply in English.
-- If user writes in Hindi or Hinglish (Hindi-English mix) → reply in ENGLISH.
-  Hindi/Hinglish users understand English, so always respond in English for them.
-  Examples of Hinglish: "mujhe paracetamol chahiye", "fever ki medicine do", "cart mein add karo"
+- If user writes in Hindi (Devanagari script like "आपके पास फीवर की दवाइयां है") → reply in Hindi using Devanagari script.
+- If user writes in Hinglish (Hindi-English mix in Latin script like "mujhe paracetamol chahiye") → reply in Hindi using Devanagari script.
+  Examples of Hindi/Hinglish input: "मुझे पेरासिटामोल चाहिए", "fever ki medicine do", "cart mein add karo"
+- Keep medication names in their original form (e.g., "Nurofen", "Paracetamol") — do NOT translate medicine names.
 - Keep responses concise and natural for voice readability.
+- **CRITICAL**: Your `message` and `tts_message` must be FULLY in the user's language.
+  DO NOT mix English words like "Stock", "Price", "in stock", "Available" into Hindi/Arabic/German responses.
+  Use proper translations: "उपलब्ध" not "available", "कीमत" not "price", "स्टॉक" not "stock".
+
+## CONVERSATION FLOW — ALWAYS LEAD THE CONVERSATION
+You are a friendly, patient conversational assistant. You must ALWAYS drive the conversation forward.
+- Be always patient and polite. If the user repeats a question or asks for options again, gracefully summarize the options instead of getting defensive (NEVER say "I already told you" or "मैंने पहले ही बताया था").
+- After showing search results → ask user to pick one: "कौनसी दवा चुनेंगे?" / "Which one would you like?"
+- After user selects a product → ask quantity: "कितनी यूनिट चाहिए?" / "How many units?"
+- After confirming quantity → add to cart or ask about prescription if RX required
+- After adding to cart → ask if they need anything else or want to checkout
+- **NEVER** just show product info (name, price, availability) and stop. ALWAYS end with a question or next step.
+- **NEVER** end your response with availability information alone.
+- Every response MUST end with a clear question or call-to-action for the user.
+
+## USER-FACING OUTPUT RULES
+- Do NOT show internal data like stock quantities, medication IDs, or database fields.
+- Show only: medication name, dosage/package size, price, and availability status (available/unavailable).
+- Format prices with € symbol.
+- Keep `message` concise but detailed enough for the screen.
+- **CRITICAL for `message` vs `tts_message` (Voice Output)**: 
+  - They should NOT be completely different messages. The `tts_message` MUST be a spoken version of `message` with the exact same core meaning and tone.
+  - The `tts_message` MUST BE EXTREMELY SHORT and natural to say aloud.
+  - If `message` contains a long list of medications, the `tts_message` should summarize it naturally instead of reading the whole list, but otherwise they must align perfectly.
+  - NEVER put exact prices, bullet points, or long German medicine names in Hindi `tts_message` as it breaks the voice engine.
+  - E.g., if showing a list, the `tts_message` should just be: "मुझे ये दवाइयां मिली हैं। कृपया स्क्रीन पर देखकर चुनें।" (I found these medicines. Please select from the screen).
 
 ## HOW TO RESPOND
 Return ONLY a JSON object with these fields:
@@ -137,7 +197,10 @@ Return ONLY a JSON object with these fields:
 - `ask_quantity` — ask how many units. Set `medication`.
 - `ask_dose` — ask for prescribed dose. Set `medication` and `quantity`.
 - `respond` — just reply with a message (greetings, clarifications, etc.).
-- `checkout` — process checkout.
+- `checkout` — initiate checkout (when user first says "checkout" or similar).
+- `confirm_checkout` — **USE THIS when the user confirms an order after being shown delivery details or order summary.**
+  This is the FINAL step that places the order. Use when user says "yes", "confirm", "कंफर्म", "ja", "تأكيد", "haan" etc. after seeing their order summary with delivery address.
+  We only support Cash on Delivery (COD) — no online payment needed.
 - `end` — end/cancel the session.
 
 ## CONTEXT UNDERSTANDING — USE THE CONVERSATION HISTORY
@@ -146,10 +209,23 @@ You receive the full conversation history. Use it to understand what the user me
 - A bare number ("2", "three", "drei", "٣") after asking for quantity → that's the quantity.
 - "the first one", "number 2", "das zweite" after showing a list → user selected that item.
 - "as prescribed", "wie verordnet", "حسب الوصفة" for dose → use "As Prescribed".
-- "checkout", "done", "bestellen", "fertig", "اطلب", "order karo" → process checkout.
+- "checkout", "done", "bestellen", "fertig", "اطلب", "order karo" → use action `checkout`.
+- After showing order summary/delivery details, user says "yes", "confirm", "कंफर्म", "haan", "ja", "bestätigen", "تأكيد", "ok" → use action `confirm_checkout` to finalize the order.
+  IMPORTANT: Do NOT keep asking for confirmation in a loop. Once delivery details have been shown and the user confirms, use `confirm_checkout` immediately.
 - "cancel", "stop", "abbrechen", "إلغاء", "band karo", "ruko" → end session.
 - Hindi/Hinglish: "haan" = yes, "nahi" = no, "aur do" = give more, "kitna" = how much, "ye wala" = this one, "pehla wala" = the first one.
 - If the user says something you don't understand → ask for clarification politely.
+
+## CHECKOUT FLOW
+1. User says "checkout" → return `action: "checkout"`. The system will ask for login/address.
+2. System sends "Checkout. Deliver to: <address>" → return `action: "checkout"` again. The system will show order summary.
+3. User confirms ("confirm", "कंफर्म", "yes", "haan", "ja") → return `action: "confirm_checkout"`. This finalizes the order.
+   Payment is always Cash on Delivery (COD). Do NOT ask about payment method.
+   NEVER loop back to "Let me start checkout" after the user has already confirmed.
+## EXAMPLE RESPONSES FOR UNAVAILABLE ITEMS:
+- NOT FOUND: "I couldn't find [medication name] in our inventory. Could you double-check the spelling, or would you like to describe what you need it for?"
+- UNAVAILABLE (no alternatives): "I'm sorry, [medication name] is currently unavailable. Would you like me to check when it will be available again?"
+- UNAVAILABLE (with alternatives): "Unfortunately [medication name] is currently unavailable. However, I found [alternative name] which has the same active ingredient. Would you like to see this option?"
 
 When the user confirms after candidates were shown, look at the `medication` field in the
 session state (pending_add_confirm, pending_rx_check) to know WHICH medication to act on.
@@ -165,6 +241,19 @@ Use the candidate IDs from the session state — do NOT invent IDs.
 - NEVER hallucinate medication IDs — only use IDs from the session state.
 
 Return ONLY the JSON object. No markdown fences, no explanation outside JSON.
+
+## EXAMPLE GOOD vs BAD RESPONSES (Hindi)
+BAD (just dumps info, stops): 
+{"message": "Nurofen 200 mg — Available — Price: €10.98", "tts_message": "Nurofen 200 mg — Available — Price: €10.98"}
+
+GOOD (leads forward, very short TTS): 
+{"message": "मैं आपकी मदद कर सकता हूँ। बुखार के लिए ये दवाएं उपलब्ध हैं:\n1. Nurofen 200 mg (12 tablets) — €10.98\n\nकौन सी दवा चुनें?", "tts_message": "बुखार के लिए दवाएं उपलब्ध हैं। कौन सी दवा कार्ट में जोड़ूं?"}
+
+BAD (English in Hindi mode, long TTS): 
+{"message": "Nurofen is available.", "tts_message": "I found 1. Nurofen 200 mg Schmelztabletten Lemon 12 st for 10.98 euros."}
+
+GOOD (proper Hindi, no hard-to-read data in TTS): 
+{"message": "Nurofen (12 tablets) €10.98 पर उपलब्ध है। क्या कार्ट में जोड़ूं?", "tts_message": "दवा उपलब्ध है। क्या कार्ट में जोड़ूं?"}
 """
 
 
@@ -205,6 +294,7 @@ def _parse_llm_content(content: str, model_name: str) -> Dict[str, Any] | None:
 async def _call_groq(
     messages: List[Dict[str, str]],
     timeout: float = 10.0,
+    trace_id: str | None = None,
 ) -> Dict[str, Any] | None:
     """
     Try Groq API (primary provider — fast, generous free tier).
@@ -214,9 +304,25 @@ async def _call_groq(
         return None
 
     groq_models = [GROQ_PRIMARY_MODEL, GROQ_FALLBACK_MODEL]
+    langfuse = get_langfuse() if langfuse_enabled() else None
 
     for m in groq_models:
+        generation = None
+        start_time = time.time()
         try:
+            # Start Langfuse generation span
+            if langfuse and trace_id:
+                try:
+                    generation = langfuse.start_generation(
+                        trace_id=trace_id,
+                        name="groq_llm_call",
+                        model=m,
+                        input=messages,
+                        metadata={"provider": "groq", "temperature": 0.3, "max_tokens": 600}
+                    )
+                except Exception as e:
+                    print(f"[Langfuse] Failed to create generation span: {e}")
+
             async with httpx.AsyncClient(timeout=timeout) as client:
                 resp = await client.post(
                     f"{GROQ_BASE_URL}/chat/completions",
@@ -234,6 +340,10 @@ async def _call_groq(
 
             if resp.status_code == 429:
                 print(f"[Groq] 429 rate-limited on {m}, trying next...")
+                if generation:
+                    try:
+                        generation.end(level="WARNING", status_message="Rate limited")
+                    except: pass
                 continue
 
             resp.raise_for_status()
@@ -242,6 +352,10 @@ async def _call_groq(
             if "error" in data:
                 err_msg = data["error"].get("message", str(data["error"])) if isinstance(data["error"], dict) else str(data["error"])
                 print(f"[Groq] API error from {m}: {err_msg}")
+                if generation:
+                    try:
+                        generation.end(level="ERROR", status_message=err_msg)
+                    except: pass
                 continue
 
             content = (
@@ -249,7 +363,23 @@ async def _call_groq(
                 .get("message", {})
                 .get("content", "")
             )
+            usage = data.get("usage", {})
 
+            # Log successful generation to Langfuse
+            if generation:
+                try:
+                    generation.end(
+                        output=content,
+                        usage={
+                            "input": usage.get("prompt_tokens", 0),
+                            "output": usage.get("completion_tokens", 0),
+                            "total": usage.get("total_tokens", 0),
+                        },
+                        metadata={"latency_ms": int((time.time() - start_time) * 1000)}
+                    )
+                except Exception as e:
+                    print(f"[Langfuse] Failed to end generation: {e}")
+            
             parsed = _parse_llm_content(content, f"groq/{m}")
             if parsed:
                 return parsed
@@ -267,6 +397,7 @@ async def _call_groq(
 async def _call_openrouter(
     messages: List[Dict[str, str]],
     timeout: float = 12.0,
+    trace_id: str | None = None,
 ) -> Dict[str, Any] | None:
     """
     Try OpenRouter API (secondary fallback).
@@ -276,9 +407,25 @@ async def _call_openrouter(
         return None
 
     models_to_try = [NLU_MODEL] + NLU_FALLBACK_MODELS
+    langfuse = get_langfuse() if langfuse_enabled() else None
 
     for m in models_to_try:
+        generation = None
+        start_time = time.time()
         try:
+            # Start Langfuse generation span
+            if langfuse and trace_id:
+                try:
+                    generation = langfuse.start_generation(
+                        trace_id=trace_id,
+                        name="openrouter_llm_call",
+                        model=m,
+                        input=messages,
+                        metadata={"provider": "openrouter", "temperature": 0.3, "max_tokens": 600}
+                    )
+                except Exception as e:
+                    print(f"[Langfuse] Failed to create generation span: {e}")
+
             async with httpx.AsyncClient(timeout=timeout) as client:
                 resp = await client.post(
                     f"{OPENROUTER_BASE_URL}/chat/completions",
@@ -296,6 +443,10 @@ async def _call_openrouter(
 
             if resp.status_code == 429:
                 print(f"[OpenRouter] 429 on {m}, trying next...")
+                if generation:
+                    try:
+                        generation.end(level="WARNING", status_message="Rate limited")
+                    except: pass
                 continue
 
             resp.raise_for_status()
@@ -304,6 +455,10 @@ async def _call_openrouter(
             if "error" in data:
                 err_msg = data["error"].get("message", str(data["error"])) if isinstance(data["error"], dict) else str(data["error"])
                 print(f"[OpenRouter] API error from {m}: {err_msg}")
+                if generation:
+                    try:
+                        generation.end(level="ERROR", status_message=err_msg)
+                    except: pass
                 continue
 
             content = (
@@ -311,6 +466,22 @@ async def _call_openrouter(
                 .get("message", {})
                 .get("content", "")
             )
+            usage = data.get("usage", {})
+
+            # Log successful generation to Langfuse
+            if generation:
+                try:
+                    generation.end(
+                        output=content,
+                        usage={
+                            "input": usage.get("prompt_tokens", 0),
+                            "output": usage.get("completion_tokens", 0),
+                            "total": usage.get("total_tokens", 0),
+                        },
+                        metadata={"latency_ms": int((time.time() - start_time) * 1000)}
+                    )
+                except Exception as e:
+                    print(f"[Langfuse] Failed to end generation: {e}")
 
             parsed = _parse_llm_content(content, m)
             if parsed:
@@ -318,8 +489,16 @@ async def _call_openrouter(
 
         except (httpx.TimeoutException, httpx.HTTPStatusError) as e:
             print(f"[OpenRouter] {type(e).__name__} on {m}: {e}")
+            if generation:
+                try:
+                    generation.end(level="ERROR", status_message=str(e))
+                except: pass
             continue
         except Exception as e:
+            if generation:
+                try:
+                    generation.end(level="ERROR", status_message=str(e))
+                except: pass
             print(f"[OpenRouter] Unexpected error on {m}: {type(e).__name__}: {e}")
             continue
 
@@ -329,6 +508,7 @@ async def _call_openrouter(
 async def _call_llm(
     messages: List[Dict[str, str]],
     user_input: str = "",
+    trace_id: str | None = None,
 ) -> Dict[str, Any]:
     """
     Dual-provider LLM call.
@@ -339,13 +519,13 @@ async def _call_llm(
       3. Language-aware static fallback
     """
     # 1. Try Groq first (fast + reliable)
-    result = await _call_groq(messages)
+    result = await _call_groq(messages, trace_id=trace_id)
     if result:
         return result
 
     # 2. Fall back to OpenRouter
     print("[LLM] Groq unavailable, falling back to OpenRouter...")
-    result = await _call_openrouter(messages)
+    result = await _call_openrouter(messages, trace_id=trace_id)
     if result:
         return result
 
@@ -428,6 +608,12 @@ def _build_state_context(state: Dict[str, Any]) -> str:
         items = cart["items"]
         parts.append(f"Cart has {len(items)} item(s)")
 
+    # Checkout state
+    if state.get("pending_checkout_confirm"):
+        parts.append("CHECKOUT IS PENDING — user needs to confirm. If user says yes/confirm/कंफर्म/haan/ja, use action 'confirm_checkout'.")
+    if state.get("pending_checkout_address"):
+        parts.append(f"Delivery address on file: {state['pending_checkout_address']}")
+
     # User insights (refill patterns)
     insights = state.get("user_insights")
     if insights and insights.get("patterns"):
@@ -461,7 +647,8 @@ async def handle(
     start = time.time()
 
     messages = _build_messages(user_input, state)
-    result = await _call_llm(messages, user_input=user_input)
+    trace_id = state.get("trace_id")
+    result = await _call_llm(messages, user_input=user_input, trace_id=trace_id)
 
     # Ensure required fields exist
     result.setdefault("action", "respond")

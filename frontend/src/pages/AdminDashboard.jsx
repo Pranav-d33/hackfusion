@@ -39,7 +39,9 @@ function suggestedReorderForMed(med) {
 function AdminRing({ pct, size = 56, strokeWidth = 5, color = '#14B8A6', children }) {
   const r = (size - strokeWidth) / 2;
   const circ = 2 * Math.PI * r;
-  const offset = circ - (Math.min(100, Math.max(0, pct)) / 100) * circ;
+  // Safeguard against NaN/invalid values
+  const safePct = isNaN(pct) || pct == null ? 0 : Math.min(100, Math.max(0, pct));
+  const offset = circ - (safePct / 100) * circ;
   return (
     <div className="relative flex-shrink-0" style={{ width: size, height: size }}>
       <svg width={size} height={size} className="-rotate-90">
@@ -77,7 +79,14 @@ function StatCard({ icon, label, value, sub, color = 'teal', ringPct, ringMax })
     purple: { bg: 'bg-gradient-to-br from-purple-50 to-white', border: 'border-purple-100', text: 'text-purple-600', ring: '#8B5CF6', iconBg: 'bg-purple-100' },
   };
   const c = colorMap[color] || colorMap.teal;
-  const pct = ringPct != null ? ringPct : (ringMax ? Math.min(100, (Number(value) / ringMax) * 100) : null);
+  // Calculate percentage with safeguards against NaN
+  let pct = null;
+  if (ringPct != null) {
+    pct = isNaN(ringPct) ? 0 : ringPct;
+  } else if (ringMax) {
+    const numValue = Number(value);
+    pct = isNaN(numValue) || ringMax === 0 ? 0 : Math.min(100, (numValue / ringMax) * 100);
+  }
 
   return (
     <div className={`rounded-2xl border ${c.border} ${c.bg} p-4 transition-all hover:shadow-md hover:-translate-y-0.5`}>
@@ -96,6 +105,28 @@ function StatCard({ icon, label, value, sub, color = 'teal', ringPct, ringMax })
           {sub && <div className="text-[10px] text-gray-400 mt-0.5 truncate">{sub}</div>}
         </div>
       </div>
+    </div>
+  );
+}
+
+/* ─── Collapsible Section Wrapper (defined outside AdminDashboard to prevent scroll-reset on re-renders) ─── */
+function Section({ id, title, icon, badge, children, actions, isExpanded, onToggle }) {
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden transition-all hover:shadow-md">
+      <div className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-gray-50/50 transition-colors">
+        <button onClick={() => onToggle(id)} className="flex items-center gap-2.5 flex-1">
+          <span className="text-teal-600">{icon}</span>
+          <span className="font-bold text-sm text-gray-800">{title}</span>
+          {badge != null && <span className="px-2 py-0.5 bg-teal-100 text-teal-700 text-[10px] font-bold rounded-full">{badge}</span>}
+        </button>
+        <div className="flex items-center gap-2">
+          {actions && <div className="mr-2">{actions}</div>}
+          <button onClick={() => onToggle(id)} className="p-1">
+            {isExpanded ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+          </button>
+        </div>
+      </div>
+      {isExpanded && <div className="border-t border-gray-100">{children}</div>}
     </div>
   );
 }
@@ -120,7 +151,9 @@ export default function AdminDashboard({ onSwitchToUser, user }) {
   const [executionLogs, setExecutionLogs] = useState([]);
   const [safetyDecisions, setSafetyDecisions] = useState([]);
   const [workflowTraces, setWorkflowTraces] = useState([]);
+  const [traces, setTraces] = useState([]);
   const [ragMetrics, setRagMetrics] = useState(null);
+  const [isEvaluating, setIsEvaluating] = useState(false);
   const [showAddMedModal, setShowAddMedModal] = useState(false);
   const [newMed, setNewMed] = useState({ brand_name: '', generic_name: '', dosage: '', stock_quantity: 0, rx_required: false, active_ingredient: '', form: 'tablet', unit_type: 'tablet' });
   const [showPatientDataModal, setShowPatientDataModal] = useState(false);
@@ -139,9 +172,19 @@ export default function AdminDashboard({ onSwitchToUser, user }) {
   const fetchWebhookLogs = async () => { try { const r = await fetch(`${API_BASE}/webhooks/logs?limit=10`); const d = await r.json(); setWebhookLogs(d.logs || []); } catch (e) { console.error(e); } };
   const fetchObservabilityData = async () => {
     try {
-      const [s, l, sf, w] = await Promise.all([fetch(`${API_BASE}/observability/status`), fetch(`${API_BASE}/observability/execution-logs?limit=30`), fetch(`${API_BASE}/observability/safety-decisions?limit=20`), fetch(`${API_BASE}/observability/workflow-traces?limit=20`)]);
-      const [status, logs, safety, workflows] = await Promise.all([s.json(), l.json(), sf.json(), w.json()]);
-      setObservabilityStatus(status); setExecutionLogs(logs.logs || []); setSafetyDecisions(safety.decisions || []); setWorkflowTraces(workflows.traces || []);
+      const [s, l, sf, w, t] = await Promise.all([
+        fetch(`${API_BASE}/observability/status`),
+        fetch(`${API_BASE}/observability/execution-logs?limit=30`),
+        fetch(`${API_BASE}/observability/safety-decisions?limit=20`),
+        fetch(`${API_BASE}/observability/workflow-traces?limit=20`),
+        fetch(`${API_BASE}/observability/traces?limit=20`),
+      ]);
+      const [status, logs, safety, workflows, traceList] = await Promise.all([s.json(), l.json(), sf.json(), w.json(), t.json()]);
+      setObservabilityStatus(status);
+      setExecutionLogs(logs.logs || []);
+      setSafetyDecisions(safety.decisions || []);
+      setWorkflowTraces(workflows.traces || []);
+      setTraces(traceList.traces || []);
     } catch (e) { console.error(e); }
   };
   const fetchRagMetrics = async () => { try { const r = await fetch(`${API_BASE}/observability/rag-metrics`); const d = await r.json(); setRagMetrics(d); } catch (e) { console.error(e); } };
@@ -153,12 +196,48 @@ export default function AdminDashboard({ onSwitchToUser, user }) {
     try { await Promise.all([fetchMedications(), fetchLowStockPredictions(), fetchProcurementQueue(), fetchRefillAlerts(), fetchEvents(), fetchWebhookLogs()]); if (activeTab === 'intelligence') await Promise.all([fetchObservabilityData(), fetchRagMetrics()]); } finally { setLoading(false); }
   }, [activeTab]);
 
-  useEffect(() => { refreshAllData(); const i = setInterval(() => { fetchEvents(); fetchWebhookLogs(); if (activeTab === 'intelligence') { fetchObservabilityData(); fetchRagMetrics(); } }, 3000); return () => clearInterval(i); }, [activeTab]);
+  useEffect(() => {
+    refreshAllData();
+    const i = setInterval(() => {
+      fetchEvents();
+      fetchWebhookLogs();
+      fetchMedications();
+      if (activeTab === 'supply') { fetchLowStockPredictions(); fetchProcurementQueue(); }
+      if (activeTab === 'intelligence') { fetchObservabilityData(); fetchRagMetrics(); }
+    }, 5000);
+    return () => clearInterval(i);
+  }, [activeTab]);
 
-  const generateProcurementOrders = async () => { setLoading(true); try { const r = await fetch(`${API_BASE}/procurement/generate?urgency=attention`, { method: 'POST' }); const d = await r.json(); setScopedMessage({ type: 'success', text: d.message, tab: 'supply' }); fetchProcurementQueue(); fetchEvents(); } catch { setScopedMessage({ type: 'error', text: 'Failed to generate orders', tab: 'supply' }); } setLoading(false); };
-  const sendOrderToSupplier = async (orderId) => { try { const r = await fetch(`${API_BASE}/procurement/${orderId}/send`, { method: 'POST' }); const d = await r.json(); setScopedMessage({ type: 'success', text: d.message, tab: 'supply' }); fetchProcurementQueue(); fetchEvents(); fetchWebhookLogs(); } catch { setScopedMessage({ type: 'error', text: 'Failed to send order', tab: 'supply' }); } };
-  const markOrderReceived = async (orderId) => { try { const r = await fetch(`${API_BASE}/procurement/${orderId}/receive`, { method: 'POST' }); const d = await r.json(); if (d.success) { setScopedMessage({ type: 'success', text: `${d.message} - Stock updated`, tab: 'supply' }); refreshAllData(); } else { setScopedMessage({ type: 'error', text: d.error, tab: 'supply' }); } } catch { setScopedMessage({ type: 'error', text: 'Failed to mark received', tab: 'supply' }); } };
-  const handleRunEval = async () => { setLoading(true); try { const r = await fetch(`${API_BASE}/observability/run-eval`, { method: 'POST' }); const d = await r.json(); setScopedMessage({ type: 'success', text: d.message, tab: 'intelligence' }); let c = 0; const i = setInterval(() => { fetchRagMetrics(); c++; if (c > 5) clearInterval(i); }, 2000); } catch { setScopedMessage({ type: 'error', text: 'Failed to trigger evaluation', tab: 'intelligence' }); } setLoading(false); };
+  const generateProcurementOrders = async () => { setLoading(true); try { const r = await fetch(`${API_BASE}/procurement/generate?urgency=attention`, { method: 'POST' }); const d = await r.json(); setScopedMessage({ type: 'success', text: d.message || 'Procurement orders generated.' }); await Promise.all([fetchProcurementQueue(), fetchEvents()]); } catch { setScopedMessage({ type: 'error', text: 'Failed to generate orders' }); } finally { setLoading(false); } };
+  const sendOrderToSupplier = async (orderId) => { try { const r = await fetch(`${API_BASE}/procurement/${orderId}/send`, { method: 'POST' }); const d = await r.json(); if (d.error) throw new Error(d.error); setScopedMessage({ type: 'success', text: `Order sent to supplier. Status updated to ordered.` }); await Promise.all([fetchProcurementQueue(), fetchEvents(), fetchWebhookLogs()]); } catch (e) { setScopedMessage({ type: 'error', text: e.message || 'Failed to send order' }); } };
+  const markOrderReceived = async (orderId) => { try { const r = await fetch(`${API_BASE}/procurement/${orderId}/receive`, { method: 'POST' }); const d = await r.json(); if (d.success) { setScopedMessage({ type: 'success', text: `Stock updated: +${d.quantity_received ?? ''} units received. Inventory refreshed.` }); await refreshAllData(); } else { setScopedMessage({ type: 'error', text: d.error || 'Failed to mark received' }); } } catch { setScopedMessage({ type: 'error', text: 'Failed to mark received' }); } };
+  const handleRunEval = async () => {
+    setIsEvaluating(true);
+    try {
+      const r = await fetch(`${API_BASE}/observability/run-eval`, { method: 'POST' });
+      const d = await r.json();
+      if (d.status === 'complete' && d.metrics) {
+        // Evaluation returned results directly — update UI immediately
+        setRagMetrics(prev => ({
+          ...prev,
+          latest: d.metrics,
+          history: [d.metrics, ...(prev?.history || [])].slice(0, 10),
+          count: (prev?.count || 0) + 1
+        }));
+        setScopedMessage({ type: 'success', text: d.message, tab: 'intelligence' });
+      } else if (d.status === 'error') {
+        setScopedMessage({ type: 'error', text: d.message || 'Evaluation failed', tab: 'intelligence' });
+      } else {
+        setScopedMessage({ type: 'success', text: d.message || 'Evaluation started', tab: 'intelligence' });
+        // Fallback: poll for results
+        await fetchRagMetrics();
+      }
+    } catch {
+      setScopedMessage({ type: 'error', text: 'Failed to trigger evaluation', tab: 'intelligence' });
+    } finally {
+      setIsEvaluating(false);
+    }
+  };
   const submitFeedback = async (traceId, rating) => { try { await fetch(`${API_BASE}/observability/feedback`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ trace_id: traceId, rating }) }); setScopedMessage({ type: 'success', text: 'Feedback recorded', tab: 'intelligence' }); } catch { setScopedMessage({ type: 'error', text: 'Failed to submit feedback', tab: 'intelligence' }); } };
   const handleCreateMedication = async (e) => {
     e.preventDefault();
@@ -187,34 +266,19 @@ export default function AdminDashboard({ onSwitchToUser, user }) {
     { id: 'intelligence', label: 'Intelligence', icon: <Brain size={18} /> },
   ];
 
-  /* ─── Collapsible Section Wrapper ─── */
-  const Section = ({ id, title, icon, badge, children, actions }) => (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden transition-all hover:shadow-md">
-      <button onClick={() => toggleSection(id)} className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-gray-50/50 transition-colors">
-        <div className="flex items-center gap-2.5">
-          <span className="text-teal-600">{icon}</span>
-          <span className="font-bold text-sm text-gray-800">{title}</span>
-          {badge != null && <span className="px-2 py-0.5 bg-teal-100 text-teal-700 text-[10px] font-bold rounded-full">{badge}</span>}
-        </div>
-        <div className="flex items-center gap-2">
-          {actions && <div onClick={e => e.stopPropagation()}>{actions}</div>}
-          {expandedSections[id] ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
-        </div>
-      </button>
-      {expandedSections[id] && <div className="border-t border-gray-100">{children}</div>}
-    </div>
-  );
+
 
   return (
     <div className="flex h-screen bg-gray-50 font-sans">
       {/* ═══ Slim Sidebar ═══ */}
       <aside className="w-56 bg-white border-r border-gray-100 flex flex-col shadow-sm">
-        <div className="p-4 flex items-center gap-2.5 border-b border-gray-100">
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-teal-500 to-teal-700 flex items-center justify-center text-white font-bold text-lg shadow-md shadow-teal-200">M</div>
-          <div>
-            <div className="text-sm font-bold text-gray-800 leading-none">Mediloon</div>
-            <div className="text-[9px] font-semibold text-teal-500 uppercase tracking-widest">Admin Panel</div>
-          </div>
+        <div className="p-4 flex items-center justify-center border-b border-gray-100">
+          <img
+            src="/admin_logo.png"
+            alt="Mediloon Admin"
+            className="w-48 h-48 object-contain pointer-events-none transform scale-110"
+            onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/mediloon-logo.webp'; }}
+          />
         </div>
 
         <nav className="flex-1 p-3 space-y-1">
@@ -317,7 +381,7 @@ export default function AdminDashboard({ onSwitchToUser, user }) {
               {/* Two-column: Events + Forecast */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {/* Live Events */}
-                <Section id="events" title="Live Events" icon={<Zap size={16} />} badge={events.length}>
+                <Section id="events" title="Live Events" icon={<Zap size={16} />} badge={events.length} isExpanded={expandedSections.events} onToggle={toggleSection}>
                   <div className="max-h-[400px] overflow-y-auto divide-y divide-gray-50">
                     {events.length === 0 ? <div className="py-10 text-center text-gray-400 text-sm">No events yet</div> : events.slice(0, 15).map((ev, i) => (
                       <div key={i} className="flex gap-3 px-5 py-2.5 hover:bg-gray-50/50 transition-colors text-sm">
@@ -335,7 +399,7 @@ export default function AdminDashboard({ onSwitchToUser, user }) {
                 </Section>
 
                 {/* Stock Forecast Preview */}
-                <Section id="forecast" title="Stock Forecasts" icon={<TrendingUp size={16} />} badge={lowStockPredictions.length}>
+                <Section id="forecast" title="Stock Forecasts" icon={<TrendingUp size={16} />} badge={lowStockPredictions.length} isExpanded={expandedSections.forecast} onToggle={toggleSection}>
                   <div className="max-h-[400px] overflow-y-auto p-3 space-y-2">
                     {lowStockPredictions.length === 0 ? (
                       <div className="py-8 text-center"><CheckCircle size={28} className="mx-auto text-green-400 mb-2" /><p className="text-sm font-semibold text-gray-600">All stocks healthy</p></div>
@@ -363,7 +427,7 @@ export default function AdminDashboard({ onSwitchToUser, user }) {
               </div>
 
               {/* Webhook Logs */}
-              <Section id="webhook" title="Webhook Traffic" icon={<MessageSquare size={16} />} badge={webhookLogs.length}>
+              <Section id="webhook" title="Webhook Traffic" icon={<MessageSquare size={16} />} badge={webhookLogs.length} isExpanded={expandedSections.webhook} onToggle={toggleSection}>
                 <div className="max-h-[300px] overflow-y-auto">
                   {webhookLogs.length === 0 ? <div className="py-8 text-center text-gray-400 text-sm">No logs</div> : (
                     <table className="w-full text-xs">
@@ -395,7 +459,8 @@ export default function AdminDashboard({ onSwitchToUser, user }) {
 
               {/* Inventory */}
               <Section id="inventory" title="Inventory" icon={<Package size={16} />} badge={medications.length}
-                actions={<button onClick={() => setShowAddMedModal(true)} className="px-3 py-1.5 bg-teal-600 text-white rounded-lg text-[11px] font-semibold hover:bg-teal-700 transition-colors flex items-center gap-1"><Plus size={12} /> Add</button>}>
+                isExpanded={expandedSections.inventory} onToggle={toggleSection}
+                actions={<div role="button" tabIndex={0} onClick={() => setShowAddMedModal(true)} onKeyDown={e => e.key === 'Enter' && setShowAddMedModal(true)} className="px-3 py-1.5 bg-teal-600 text-white rounded-lg text-[11px] font-semibold hover:bg-teal-700 transition-colors flex items-center gap-1 cursor-pointer select-none"><Plus size={12} /> Add</div>}>
                 <div className="max-h-[400px] overflow-auto">
                   <table className="w-full text-xs text-left">
                     <thead className="bg-gray-50 text-gray-500 uppercase font-semibold sticky top-0"><tr><th className="px-4 py-2.5">Medication</th><th className="px-4 py-2.5">Package</th><th className="px-4 py-2.5 text-center">Stock</th><th className="px-4 py-2.5 text-center">Threshold</th><th className="px-4 py-2.5 text-center">RX</th></tr></thead>
@@ -408,7 +473,7 @@ export default function AdminDashboard({ onSwitchToUser, user }) {
                           <td className="px-4 py-2.5 text-gray-500"><span className="px-1.5 py-0.5 bg-gray-100 rounded text-[10px]">{med.package_size || '-'}</span></td>
                           <td className="px-4 py-2.5 text-center">
                             <div className="inline-flex items-center gap-1.5">
-                              <input type="number" className={`w-16 px-2 py-1 rounded-lg border text-center text-xs ${med.stock_quantity <= 10 ? 'border-red-300 text-red-600' : 'border-gray-200 text-gray-700'}`} defaultValue={med.stock_quantity} onBlur={e => handleUpdateStock(med.id, e.target.value)} />
+                              <input key={`stock-${med.id}-${med.stock_quantity}`} type="number" className={`w-16 px-2 py-1 rounded-lg border text-center text-xs ${med.stock_quantity <= 10 ? 'border-red-300 text-red-600' : 'border-gray-200 text-gray-700'}`} defaultValue={med.stock_quantity} onBlur={e => handleUpdateStock(med.id, e.target.value)} />
                               {med.stock_quantity <= 10 && <span className="text-red-500 text-[9px] font-bold animate-pulse">LOW</span>}
                             </div>
                           </td>
@@ -423,7 +488,8 @@ export default function AdminDashboard({ onSwitchToUser, user }) {
 
               {/* Procurement */}
               <Section id="procurement" title="Procurement Orders" icon={<Truck size={16} />} badge={procurementQueue.length}
-                actions={<button onClick={generateProcurementOrders} disabled={loading} className="px-3 py-1.5 bg-gray-900 text-white rounded-lg text-[11px] font-semibold hover:bg-gray-800 transition-colors flex items-center gap-1">{loading ? <Loader2 className="animate-spin" size={12} /> : <Zap size={12} />} Auto-Generate</button>}>
+                isExpanded={expandedSections.procurement} onToggle={toggleSection}
+                actions={<div role="button" tabIndex={0} onClick={() => !loading && generateProcurementOrders()} onKeyDown={e => e.key === 'Enter' && !loading && generateProcurementOrders()} className={`px-3 py-1.5 bg-gray-900 text-white rounded-lg text-[11px] font-semibold hover:bg-gray-800 transition-colors flex items-center gap-1 cursor-pointer select-none ${loading ? 'opacity-50 pointer-events-none' : ''}`}>{loading ? <Loader2 className="animate-spin" size={12} /> : <Zap size={12} />} Auto-Generate</div>}>
                 <div className="max-h-[350px] overflow-auto">
                   {procurementQueue.length === 0 ? <div className="py-8 text-center text-gray-400 text-sm">No active orders</div> : (
                     <table className="w-full text-xs text-left">
@@ -447,7 +513,8 @@ export default function AdminDashboard({ onSwitchToUser, user }) {
 
               {/* Customer Refills */}
               <Section id="refills" title="Customer Refills" icon={<RefreshCw size={16} />} badge={refillAlerts.length}
-                actions={<button onClick={() => { setShowPatientDataModal(true); fetchPatientData(); }} className="px-3 py-1.5 bg-teal-50 text-teal-700 rounded-lg text-[11px] font-semibold hover:bg-teal-100 transition-colors flex items-center gap-1 border border-teal-200"><Users size={12} /> Patients</button>}>
+                isExpanded={expandedSections.refills} onToggle={toggleSection}
+                actions={<div role="button" tabIndex={0} onClick={() => { setShowPatientDataModal(true); fetchPatientData(); }} onKeyDown={e => { if (e.key === 'Enter') { setShowPatientDataModal(true); fetchPatientData(); } }} className="px-3 py-1.5 bg-teal-50 text-teal-700 rounded-lg text-[11px] font-semibold hover:bg-teal-100 transition-colors flex items-center gap-1 border border-teal-200 cursor-pointer select-none"><Users size={12} /> Patients</div>}>
                 <div className="max-h-[350px] overflow-y-auto p-3">
                   {refillAlerts.length === 0 ? <div className="py-8 text-center text-gray-400 text-sm">No refills due</div> : (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -479,10 +546,13 @@ export default function AdminDashboard({ onSwitchToUser, user }) {
               {/* Status + RAG Row */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
                 <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
-                  <div className="text-xs font-semibold text-gray-500 uppercase mb-3">System Status</div>
-                  <div className="flex items-center gap-2.5">
-                    <div className={`w-3 h-3 rounded-full ${observabilityStatus?.langfuse_enabled ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.4)]' : 'bg-gray-300'}`} />
-                    <span className="text-sm font-medium text-gray-700">{observabilityStatus?.langfuse_enabled ? 'Langfuse Connected' : 'Disconnected'}</span>
+                  <div className="text-xs font-semibold text-gray-500 uppercase mb-3">Observability</div>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2.5">
+                      <div className={`w-3 h-3 rounded-full ${observabilityStatus?.langfuse_enabled ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.4)]' : 'bg-gray-300'}`} />
+                      <span className="text-sm font-medium text-gray-700">{observabilityStatus?.langfuse_enabled ? 'Langfuse Active' : 'Local Only'}</span>
+                    </div>
+                    <div className="text-xs text-gray-400">{traces.length} CoT traces • {executionLogs.length} events • {safetyDecisions.length} safety logs</div>
                   </div>
                 </div>
 
@@ -490,9 +560,26 @@ export default function AdminDashboard({ onSwitchToUser, user }) {
                 <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 lg:col-span-2">
                   <div className="flex justify-between items-center mb-3">
                     <div className="flex items-center gap-2"><Brain size={16} className="text-purple-600" /><span className="text-xs font-semibold text-gray-500 uppercase">RAG Quality</span></div>
-                    <button onClick={handleRunEval} disabled={loading} className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-[11px] font-semibold hover:bg-indigo-700 transition-colors flex items-center gap-1 shadow-sm">{loading ? <Loader2 className="animate-spin" size={12} /> : <Zap size={12} />} Evaluate</button>
+                    <div className="flex items-center gap-2">
+                      <button onClick={handleRunEval} disabled={loading || isEvaluating} className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-[11px] font-semibold hover:bg-indigo-700 transition-colors flex items-center gap-1 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">{isEvaluating ? <><Loader2 className="animate-spin" size={12} /> Evaluating...</> : <><Zap size={12} /> Evaluate</>}</button>
+                      <span className="text-[10px] text-gray-400 italic">ReAct eval coming soon</span>
+                    </div>
                   </div>
-                  {ragMetrics?.latest ? (
+                  {isEvaluating ? (
+                    <div className="text-center py-8 space-y-3">
+                      <Loader2 className="animate-spin mx-auto text-indigo-600" size={40} />
+                      <div className="space-y-1">
+                        <div className="text-sm font-semibold text-gray-700">Evaluating RAG Quality...</div>
+                        <div className="text-xs text-gray-500">Running 3 metrics on samples (~15-30 seconds)</div>
+                        <div className="text-xs text-gray-400">Check backend terminal for progress</div>
+                      </div>
+                      <div className="flex justify-center gap-2 pt-2">
+                        <div className="px-2 py-1 bg-purple-50 text-purple-700 rounded text-[10px] font-medium">Faithfulness</div>
+                        <div className="px-2 py-1 bg-blue-50 text-blue-700 rounded text-[10px] font-medium">Precision</div>
+                        <div className="px-2 py-1 bg-green-50 text-green-700 rounded text-[10px] font-medium">Relevancy</div>
+                      </div>
+                    </div>
+                  ) : ragMetrics?.latest ? (
                     <div className="grid grid-cols-3 gap-4">
                       {[{ name: 'Faithfulness', score: ragMetrics.latest.faithfulness_score, ring: '#22C55E' }, { name: 'Precision', score: ragMetrics.latest.context_precision_score, ring: '#3B82F6' }, { name: 'Relevancy', score: ragMetrics.latest.answer_relevancy_score, ring: '#8B5CF6' }].map(m => (
                         <div key={m.name} className="flex flex-col items-center text-center">
@@ -503,13 +590,27 @@ export default function AdminDashboard({ onSwitchToUser, user }) {
                         </div>
                       ))}
                     </div>
-                  ) : <div className="text-center py-4 bg-gray-50 rounded-xl text-xs text-gray-400">No evaluation data. Run a quality check.</div>}
+                  ) : <div className="text-center py-4 bg-gray-50 rounded-xl text-xs text-gray-400">No metrics yet. Chat with the assistant first, then run evaluation. Need {ragMetrics?.history?.length || 0} samples.</div>}
                 </div>
               </div>
 
-              {/* Execution Logs */}
-              <Section id="logs" title="Agent Execution Logs" icon={<Activity size={16} />} badge={executionLogs.length}>
+              {/* Chain of Thought (CoT) */}
+              <Section id="logs" title="Chain of Thought (CoT)" icon={<Activity size={16} />} badge={traces.length || executionLogs.length} isExpanded={expandedSections.logs} onToggle={toggleSection}>
                 <div className="max-h-[500px] overflow-y-auto divide-y divide-gray-50">
+                  {traces.map((trace, i) => (
+                    <div key={`trace-${i}`} className="px-5 py-3 hover:bg-gray-50/50 transition-colors">
+                      <div className="flex justify-between items-start mb-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-mono text-gray-400">{new Date(trace.created_at || trace.timestamp || Date.now()).toLocaleTimeString()}</span>
+                          <span className="px-1.5 py-0.5 bg-purple-50 text-purple-700 font-bold text-[9px] uppercase rounded">TRACE</span>
+                          {trace.latency_ms != null && <span className="text-[10px] text-gray-400">{trace.latency_ms} ms</span>}
+                        </div>
+                        {trace.public_url && <a href={trace.public_url} target="_blank" rel="noreferrer" className="text-[10px] text-indigo-600 hover:underline">Open</a>}
+                      </div>
+                      <p className="text-xs text-gray-700 font-semibold truncate">{trace.name || 'Agent Turn'}</p>
+                      <p className="text-[11px] text-gray-500 truncate">{trace.input_text || trace.metadata_json || ''}</p>
+                    </div>
+                  ))}
                   {executionLogs.map((log, i) => (
                     <div key={i} className="px-5 py-3 hover:bg-gray-50/50 transition-colors">
                       <div className="flex justify-between items-start mb-1">

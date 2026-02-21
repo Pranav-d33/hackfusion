@@ -1,0 +1,80 @@
+[
+  {
+    "faithfulness_score": 0.5,
+    "context_precision_score": 0.56,
+    "answer_relevancy_score": 0.16,
+    "hallucination_rate": 0.5,
+    "samples_count": 8,
+    "evaluation_time_seconds": 14.1,
+    "timestamp": "2026-02-20T19:43:39.423433"
+  },
+  {
+    "faithfulness_score": 0.0,
+    "context_precision_score": 0.0,
+    "answer_relevancy_score": 0.0,
+    "hallucination_rate": 1.0,
+    "samples_count": 2,
+    "evaluation_time_seconds": 20.5,
+    "timestamp": "2026-02-20T01:53:10.600450"
+  },
+  {
+    "faithfulness_score": 0.0,
+    "context_precision_score": 0.0,
+    "answer_relevancy_score": 0.0,
+    "hallucination_rate": 1.0,
+    "samples_count": 2,
+    "evaluation_time_seconds": 8.7,
+    "timestamp": "2026-02-20T01:51:29.104897"
+  },
+  {
+    "faithfulness_score": 0.0,
+    "context_precision_score": 0.0,
+    "answer_relevancy_score": 0.0,
+    "hallucination_rate": 1.0,
+    "samples_count": 2,
+    "evaluation_time_seconds": 8.9,
+    "timestamp": "2026-02-20T01:50:49.997692"
+  },
+  {
+    "faithfulness_score": 0.0,
+    "context_precision_score": 0.0,
+    "answer_relevancy_score": 0.0,
+    "hallucination_rate": 1.0,
+    "samples_count": 2,
+    "evaluation_time_seconds": 8.7,
+    "timestamp": "2026-02-20T01:49:51.226083"
+  },
+  {
+    "faithfulness_score": 0.0,
+    "context_precision_score": 0.0,
+    "answer_relevancy_score": 0.0,
+    "hallucination_rate": 1.0,
+    "samples_count": 2,
+    "evaluation_time_seconds": 16.2,
+    "timestamp": "2026-02-20T01:47:29.270474"
+  },
+  {
+    "faithfulness_score": 0.0,
+    "context_precision_score": 0.0,
+    "answer_relevancy_score": 0.0,
+    "hallucination_rate": 1.0,
+    "samples_count": 2,
+    "timestamp": "2026-02-20T01:37:42.043832"
+  },
+  {
+    "faithfulness_score": 0.0,
+    "context_precision_score": 0.0,
+    "answer_relevancy_score": 0.0,
+    "hallucination_rate": 1.0,
+    "samples_count": 2,
+    "timestamp": "2026-02-20T01:37:41.551077"
+  },
+  {
+    "faithfulness_score": 0.0,
+    "context_precision_score": 0.0,
+    "answer_relevancy_score": 0.0,
+    "hallucination_rate": 1.0,
+    "samples_count": 2,
+    "timestamp": "2026-02-20T01:25:21.448491"
+  }
+]

@@ -17,7 +17,7 @@ export function useRefillPredictions(customerId) {
   const [error, setError] = useState(null);
 
   const fetchAll = useCallback(async () => {
-    if (!customerId) { setLoading(false); return; }
+    if (!customerId) return;
     setLoading(true);
     setError(null);
     try {

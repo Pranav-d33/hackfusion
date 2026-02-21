@@ -21,13 +21,23 @@ import PastOrdersModal from './components/PastOrdersModal';
 import UpdatesModal from './components/UpdatesModal';
 import { useSpeech } from './hooks/useSpeech';
 import { useRefillPredictions } from './hooks/useRefillPredictions';
+import { useLanguage } from './i18n/LanguageContext';
+import LanguageSelector from './components/LanguageSelector';
 
 const API_BASE = '/api';
+const LANGUAGE_OPTIONS = [
+    { code: null, label: 'Auto (Browser)', sub: 'Detect from your device locale' },
+    { code: 'en-US', label: 'English', sub: 'US/International' },
+    { code: 'de-DE', label: 'Deutsch', sub: 'Germany' },
+    { code: 'ar-SA', label: 'العربية', sub: 'العربية (Saudi)' },
+    { code: 'hi-IN', label: 'हिन्दी', sub: 'India' },
+];
 
 /* ──────────────────────────────────────────
    Feature Highlight Cards (shown above chat)
    ────────────────────────────────────────── */
 function FeatureCards() {
+    const { t } = useLanguage();
     const features = [
         {
             icon: (
@@ -35,8 +45,8 @@ function FeatureCards() {
                     <path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
                 </svg>
             ),
-            title: 'Voice Ordering',
-            desc: 'Just speak naturally — our AI understands medicines in any language',
+            title: t('voiceOrdering'),
+            desc: t('voiceOrderingDesc'),
             color: 'mediloon',
         },
         {
@@ -45,8 +55,8 @@ function FeatureCards() {
                     <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
             ),
-            title: 'Smart Refills',
-            desc: 'AI predicts when you\'ll run out and reminds you to reorder',
+            title: t('smartRefills'),
+            desc: t('smartRefillsDesc'),
             color: 'violet',
         },
         {
@@ -55,8 +65,8 @@ function FeatureCards() {
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
             ),
-            title: 'Prescription OCR',
-            desc: 'Snap a photo of your prescription and we\'ll handle the rest',
+            title: t('prescriptionOCR'),
+            desc: t('prescriptionOCRDesc'),
             color: 'sapphire',
         },
     ];
@@ -108,10 +118,13 @@ function FeatureCards() {
    Main App Component
    ────────────────────────────────────── */
 export default function App() {
+    // --- Language ---
+    const { t, lang, bcp47, dir, setLang } = useLanguage();
+
     // --- State ---
     const [messages, setMessages] = useState([{
         id: 0,
-        text: "Hi! I'm Mediloon AI. Need a medicine or have a prescription? Just ask!",
+        text: t('welcomeMessage'),
         isUser: false
     }]);
     const [candidates, setCandidates] = useState([]);
@@ -122,7 +135,6 @@ export default function App() {
     const [traceId, setTraceId] = useState(null);
     const [sessionId, setSessionId] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
-    const [selectedMedId, setSelectedMedId] = useState(null);
     const [user, setUser] = useState(null);
     const [sessionToken, setSessionToken] = useState(null);
     const [showLogin, setShowLogin] = useState(false);
@@ -141,6 +153,10 @@ export default function App() {
     const [showCheckoutAnim, setShowCheckoutAnim] = useState(false);
     const [pendingCheckout, setPendingCheckout] = useState(false);
     const [showLoginForCheckout, setShowLoginForCheckout] = useState(false);
+    const [orderUpdates, setOrderUpdates] = useState([]);
+
+    // Selection State
+    const [selectedMedId, setSelectedMedId] = useState(null);
 
     // Animation State
     const [flyingItems, setFlyingItems] = useState([]);
@@ -152,6 +168,8 @@ export default function App() {
         isSpeaking,
         transcript,
         audioLevel,
+        detectedLanguage,
+        manualLanguage,
         startListening,
         stopListening,
         speak,
@@ -160,9 +178,13 @@ export default function App() {
         scriptInfo,
         voices,
         selectedVoice,
-        setVoice
+        setVoice,
+        setPreferredLanguage,
     } = useSpeech();
     const messagesEndRef = useRef(null);
+
+    // Refill predictions hook (used across UI + updates)
+    const { timeline: refillTimeline, consumption: refillConsumption, recentOrders, stats: refillStats, alerts: refillAlerts, loading: refillLoading, refresh: refreshRefills } = useRefillPredictions(user?.id);
 
     // --- Effects ---
     useEffect(() => {
@@ -237,6 +259,35 @@ export default function App() {
         }
     };
 
+    // Sync speech language with UI language
+    useEffect(() => {
+        setPreferredLanguage(bcp47);
+    }, [bcp47, setPreferredLanguage]);
+
+    // Update welcome message when language changes
+    useEffect(() => {
+        setMessages(prev => {
+            if (prev.length === 1 && prev[0].id === 0 && !prev[0].isUser) {
+                return [{ id: 0, text: t('welcomeMessage'), isUser: false }];
+            }
+            return prev;
+        });
+    }, [lang, t]);
+
+    const handleLanguageSelect = useCallback((langCode) => {
+        setPreferredLanguage(langCode);
+        // Also sync UI language
+        if (langCode) {
+            const base = langCode.split('-')[0].toLowerCase();
+            if (['en', 'de', 'ar', 'hi'].includes(base)) setLang(base);
+        }
+        // If currently listening, restart quickly to apply new model
+        if (isListening) {
+            stopListening();
+            setTimeout(() => startListening(), 120);
+        }
+    }, [isListening, setPreferredLanguage, startListening, stopListening, setLang]);
+
     // Checkout flow: enforce login first (defined before handleSend so it can be referenced)
     const handleCheckoutFlow = useCallback(() => {
         if (!user) {
@@ -265,7 +316,8 @@ export default function App() {
                     session_id: sessionId,
                     message: text,
                     source: liveMode ? 'voice' : 'text',
-                    language: scriptInfo?.lang || 'en-US',
+                    language: bcp47 || detectedLanguage || scriptInfo?.lang || 'en-IN',
+                    customer_id: user?.id,
                 }),
             });
             if (!response.ok) throw new Error('API Error');
@@ -280,8 +332,13 @@ export default function App() {
                 }]);
                 const msgToSpeak = data.tts_message || data.message;
                 if (liveMode && msgToSpeak) {
-                    const ttsLang = scriptInfo?.lang || 'en-US';
-                    speak(msgToSpeak, { rate: 0.92, lang: ttsLang, onEnd: () => setTimeout(() => startListening(), 300) });
+                    const ttsLangByResponse =
+                        data.language === 'de' ? 'de-DE'
+                            : data.language === 'ar' ? 'ar-SA'
+                                : data.language === 'hi' ? 'hi-IN'
+                                    : null;
+                    const ttsLang = ttsLangByResponse || detectedLanguage || scriptInfo?.lang || 'en-IN';
+                    speak(msgToSpeak, { rate: 1.1, lang: ttsLang, onEnd: () => setTimeout(() => startListening(), 300) });
                 }
             }
             // Update candidates — clear them on add/quantity/dose actions, otherwise set from response
@@ -300,18 +357,32 @@ export default function App() {
                 handleCheckoutFlow();
             } else if (data.action_taken === 'checkout' && data.order) {
                 setCheckoutOrder(data.order); setShowCheckoutAnim(true);
+                const etaDays = data.order.estimated_delivery ? Math.max(0, Math.round((new Date(data.order.estimated_delivery) - new Date()) / 86400000)) : null;
+                setOrderUpdates(prev => [{
+                    id: `order-${data.order.order_id}`,
+                    order_id: data.order.order_id,
+                    estimated_delivery: data.order.estimated_delivery,
+                    days_left: etaDays,
+                    address: data.order.delivery_address,
+                    total: data.order.total,
+                    items: data.order.items || [],
+                    created_at: new Date().toISOString(),
+                    status: 'Order placed',
+                }, ...prev]);
+                refreshRefills?.();
+                fetchOrderUpdates?.();
             }
         } catch (error) {
             console.error(error);
-            setMessages(prev => [...prev, { id: Date.now() + 1, text: "Sorry, I encountered an issue.", isUser: false }]);
+            setMessages(prev => [...prev, { id: Date.now() + 1, text: t('sorry'), isUser: false }]);
         } finally {
             setIsLoading(false);
         }
-    }, [sessionId, isLoading, liveMode, speak, startListening, scriptInfo, handleCheckoutFlow]);
+    }, [sessionId, isLoading, liveMode, speak, startListening, scriptInfo, detectedLanguage, handleCheckoutFlow, user?.id, refreshRefills]);
 
     const handleFileUpload = useCallback(async (file) => {
         if (!file || isLoading) return;
-        setMessages(prev => [...prev, { id: Date.now(), text: `Uploading ${file.name}...`, isUser: true }]);
+        setMessages(prev => [...prev, { id: Date.now(), text: `${t('uploading')} ${file.name}...`, isUser: true }]);
         setIsLoading(true);
         const formData = new FormData();
         formData.append('file', file);
@@ -321,7 +392,7 @@ export default function App() {
             handleSend(`Please analyze this prescription file: ${data.filepath}`);
         } catch (error) {
             console.error(error);
-            setMessages(prev => [...prev, { id: Date.now() + 1, text: "Upload failed.", isUser: false }]);
+            setMessages(prev => [...prev, { id: Date.now() + 1, text: t('uploadFailed'), isUser: false }]);
             setIsLoading(false);
         }
     }, [handleSend, isLoading]);
@@ -329,7 +400,7 @@ export default function App() {
     const handleLogout = () => {
         if (sessionToken) fetch(`${API_BASE}/auth/logout?session_token=${encodeURIComponent(sessionToken)}`, { method: 'POST' }).catch(() => { });
         localStorage.removeItem('session_token');
-        setUser(null); setSessionToken(null);
+        setUser(null); setSessionToken(null); setOrderUpdates([]);
     };
 
     // Direct add-to-cart via API (bypasses LLM for reliability)
@@ -371,12 +442,16 @@ export default function App() {
                 // Speak confirmation in voice mode
                 if (liveMode) {
                     const ttsMsg = `Added ${med.brand_name} to your cart. ${updatedCart.item_count} item${updatedCart.item_count !== 1 ? 's' : ''} total. Add more or say checkout.`;
-                    speak(ttsMsg, { rate: 0.92, onEnd: () => setTimeout(() => startListening(), 300) });
+                    const ttsLang = bcp47 || detectedLanguage || scriptInfo?.lang || 'en-IN';
+                    speak(ttsMsg, { rate: 1.1, lang: ttsLang, onEnd: () => setTimeout(() => startListening(), 300) });
                 }
             } else {
                 const failMsg = 'Failed to add item. Please try again.';
                 setMessages(prev => [...prev, { id: Date.now(), text: failMsg, isUser: false }]);
-                if (liveMode) speak(failMsg, { rate: 0.92, onEnd: () => setTimeout(() => startListening(), 300) });
+                if (liveMode) {
+                    const ttsLang = bcp47 || detectedLanguage || scriptInfo?.lang || 'en-IN';
+                    speak(failMsg, { rate: 1.1, lang: ttsLang, onEnd: () => setTimeout(() => startListening(), 300) });
+                }
             }
         } catch (err) {
             console.error('Direct add-to-cart failed:', err);
@@ -389,8 +464,43 @@ export default function App() {
     const handleAddressConfirm = useCallback((address) => { setShowAddressModal(false); handleSend(`Checkout. Deliver to: ${address}`); }, [handleSend]);
     const handleCartUpdate = useCallback((updatedCart) => { setCart(updatedCart); }, []);
 
-    // Refill predictions hook
-    const { timeline: refillTimeline, consumption: refillConsumption, recentOrders, stats: refillStats, alerts: refillAlerts, loading: refillLoading, refresh: refreshRefills } = useRefillPredictions(user?.id);
+    const fetchOrderUpdates = useCallback(async () => {
+        if (!user?.id) return;
+        try {
+            const res = await fetch(`${API_BASE}/events?limit=50&event_type=CUSTOMER_ORDER&customer_id=${user.id}`);
+            if (!res.ok) throw new Error('Failed to fetch order updates');
+            const data = await res.json();
+            const updates = (data.events || []).map(evt => {
+                const meta = evt.metadata || {};
+                const etaDays = meta.estimated_delivery ? Math.max(0, Math.round((new Date(meta.estimated_delivery) - new Date()) / 86400000)) : null;
+                return {
+                    id: `order-${meta.order_id || evt.id}`,
+                    order_id: meta.order_id || evt.id,
+                    estimated_delivery: meta.estimated_delivery,
+                    days_left: etaDays,
+                    address: meta.delivery_address,
+                    total: meta.total,
+                    items: meta.items || [],
+                    created_at: evt.created_at,
+                    status: evt.message,
+                };
+            });
+            setOrderUpdates(updates);
+        } catch (err) {
+            console.error('Failed to fetch order updates:', err);
+        }
+    }, [user?.id]);
+
+    useEffect(() => {
+        if (!user?.id) {
+            setOrderUpdates([]);
+            return;
+        }
+
+        fetchOrderUpdates();
+        const interval = setInterval(fetchOrderUpdates, 60 * 1000);
+        return () => clearInterval(interval);
+    }, [user?.id, fetchOrderUpdates]);
 
     // --- Render ---
     if (viewMode === 'admin') {
@@ -411,23 +521,22 @@ export default function App() {
                 <div className="bg-white/90 backdrop-blur-xl border-b border-surface-fog/50">
                     <div className="max-w-[95rem] mx-auto px-5 h-16 flex items-center justify-between">
                         {/* Logo */}
-                        <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-gradient-to-br from-mediloon-500 to-mediloon-700 rounded-2xl flex items-center justify-center shadow-lg shadow-mediloon-200 hover:shadow-glow-red transition-shadow duration-300">
-                                <span className="text-white font-brand font-black text-xl">M</span>
-                            </div>
-                            <div className="flex flex-col">
-                                <span className="font-brand font-extrabold text-xl text-ink-primary tracking-tight leading-none">Mediloon</span>
-                                <span className="text-[9px] font-brand font-semibold text-mediloon-500 uppercase tracking-[0.2em] leading-none mt-0.5">AI Pharmacy</span>
-                            </div>
-                        </div>
+                        <img
+                            src="/mediloon-logo.webp"
+                            alt="Mediloon Logo"
+                            className="w-40 h-40 object-contain ml-2 pointer-events-none"
+                        />
 
                         {/* Nav Actions */}
                         <div className="flex items-center gap-2">
+                            {/* Language Selector */}
+                            <LanguageSelector />
+
                             {/* Search */}
                             <button
                                 onClick={() => setShowSearch(true)}
                                 className="p-2.5 text-ink-muted hover:text-mediloon-600 hover:bg-mediloon-50 rounded-xl transition-all duration-200 active:scale-95"
-                                title="Search Medicines"
+                                title={t('searchMedicines')}
                             >
                                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                             </button>
@@ -436,7 +545,7 @@ export default function App() {
                             <button
                                 onClick={() => setShowVoiceSettings(true)}
                                 className="p-2.5 text-ink-muted hover:text-mediloon-600 hover:bg-mediloon-50 rounded-xl transition-all duration-200 active:scale-95"
-                                title="Voice Settings"
+                                title={t('voiceSettings')}
                             >
                                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
@@ -446,21 +555,21 @@ export default function App() {
 
                             {/* Admin Toggle */}
                             <div className="hidden md:flex bg-surface-cloud rounded-full p-1 border border-surface-fog">
-                                <button onClick={() => setViewMode('user')} className={`px-4 py-1.5 rounded-full text-xs font-brand font-semibold transition-all duration-200 ${viewMode === 'user' ? 'bg-white shadow-sm text-ink-primary' : 'text-ink-muted hover:text-ink-primary'}`}>User</button>
-                                <button onClick={() => setViewMode('admin')} className={`px-4 py-1.5 rounded-full text-xs font-brand font-semibold transition-all duration-200 ${viewMode === 'admin' ? 'bg-white shadow-sm text-ink-primary' : 'text-ink-muted hover:text-ink-primary'}`}>Admin</button>
+                                <button onClick={() => setViewMode('user')} className={`px-4 py-1.5 rounded-full text-xs font-brand font-semibold transition-all duration-200 ${viewMode === 'user' ? 'bg-white shadow-sm text-ink-primary' : 'text-ink-muted hover:text-ink-primary'}`}>{t('user')}</button>
+                                <button onClick={() => setViewMode('admin')} className={`px-4 py-1.5 rounded-full text-xs font-brand font-semibold transition-all duration-200 ${viewMode === 'admin' ? 'bg-white shadow-sm text-ink-primary' : 'text-ink-muted hover:text-ink-primary'}`}>{t('admin')}</button>
                             </div>
 
                             {/* Auth Section */}
                             {user ? (
                                 <div className="flex items-center gap-2 pl-3 ml-1 border-l border-surface-fog">
-                                    <button onClick={() => setShowProfileModal(true)} className="p-2 text-ink-muted hover:text-mediloon-600 hover:bg-mediloon-50 rounded-xl transition-all duration-200" title="Edit Profile">
+                                    <button onClick={() => setShowProfileModal(true)} className="p-2 text-ink-muted hover:text-mediloon-600 hover:bg-mediloon-50 rounded-xl transition-all duration-200" title={t('editProfile')}>
                                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
                                     </button>
                                     <span className="text-sm font-brand font-semibold text-ink-secondary hidden sm:block">{user.name.split(' ')[0]}</span>
-                                    <button onClick={handleLogout} className="text-xs font-brand font-semibold text-mediloon-500 hover:text-mediloon-700 hover:underline ml-1 transition-colors">Logout</button>
+                                    <button onClick={handleLogout} className="text-xs font-brand font-semibold text-mediloon-500 hover:text-mediloon-700 hover:underline ml-1 transition-colors">{t('logout')}</button>
                                 </div>
                             ) : (
-                                <button onClick={() => setShowLogin(true)} className="btn-primary ml-2 text-sm py-2 px-5">Sign In</button>
+                                <button onClick={() => setShowLogin(true)} className="btn-primary ml-2 text-sm py-2 px-5">{t('signIn')}</button>
                             )}
                         </div>
                     </div>
@@ -508,8 +617,8 @@ export default function App() {
                         <div className="w-9 h-9 bg-mediloon-100 rounded-xl flex items-center justify-center group-hover:bg-mediloon-200 transition-colors">
                             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                         </div>
-                        <span className="text-sm">Upload Prescription (OCR)</span>
-                        <span className="feature-badge-red text-[10px] ml-auto">NEW</span>
+                        <span className="text-sm">{t('uploadPrescription')}</span>
+                        <span className="feature-badge-red text-[10px] ml-auto">{t('new')}</span>
                     </button>
                     <input
                         type="file"
@@ -549,7 +658,7 @@ export default function App() {
                                     onClick={toggleLiveMode}
                                     disabled={isLoading}
                                     className={`relative flex-shrink-0 group transition-all duration-300 ${liveMode ? 'scale-110' : 'hover:scale-105'}`}
-                                    title="Enter Voice Mode"
+                                    title={t('enterVoiceMode')}
                                 >
                                     {/* Glow rings */}
                                     <div className={`absolute inset-0 rounded-2xl bg-mediloon-500/15 transition-all duration-500 ${liveMode ? 'scale-[1.8] animate-ping opacity-30' : 'scale-125 opacity-0 group-hover:opacity-40 group-hover:scale-[1.6]'}`} />
@@ -580,7 +689,7 @@ export default function App() {
                                     </div>
                                 </button>
                                 <div className="flex-1 min-w-0">
-                                    <TextInput onSend={handleSend} onUpload={handleFileUpload} disabled={isLoading} />
+                                    <TextInput onSend={handleSend} onUpload={handleFileUpload} disabled={isLoading} placeholder={t('typeMessage')} />
                                 </div>
                             </div>
                         </div>
@@ -596,6 +705,7 @@ export default function App() {
                         <div className="flex-shrink-0 animate-fade-in-up">
                             <PastOrdersModal
                                 orders={recentOrders}
+                                activeOrders={orderUpdates}
                                 loading={refillLoading}
                                 onReorder={(item) => handleSend(`Reorder ${item.brand_name}`)}
                             />
@@ -612,8 +722,8 @@ export default function App() {
                                 <svg className="w-5 h-5 text-mediloon-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                             </div>
                             <div className="text-left">
-                                <p className="text-sm font-brand font-bold text-ink-primary">Past Orders</p>
-                                <p className="text-[10px] text-ink-faint">Sign in to view order history</p>
+                                <p className="text-sm font-brand font-bold text-ink-primary">{t('myOrders')}</p>
+                                <p className="text-[10px] text-ink-faint">{t('signInToView')}</p>
                             </div>
                             <svg className="w-4 h-4 text-ink-faint ml-auto group-hover:text-mediloon-500 group-hover:translate-x-0.5 transition-all" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
                         </button>
@@ -640,13 +750,14 @@ export default function App() {
                                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-mediloon-400 opacity-75"></span>
                                         <span className="relative inline-flex rounded-full h-3 w-3 bg-mediloon-500"></span>
                                     </span>
-                                    Updates & Insights
+                                    {t('updatesInsights')}
                                 </h3>
                             </div>
                             <div className="bg-surface-snow rounded-2xl p-1">
                                 <UpdatesModal
                                     alerts={refillAlerts}
                                     timeline={refillTimeline}
+                                    orders={orderUpdates}
                                     loading={refillLoading}
                                     onInitiateOrder={(text) => handleSend(text)}
                                     inline={true}
@@ -656,11 +767,11 @@ export default function App() {
                                 <div className="mt-3 grid grid-cols-2 gap-2 text-center">
                                     <div className="bg-mediloon-50 rounded-xl p-2.5 border border-mediloon-100">
                                         <p className="text-xl font-brand font-extrabold text-mediloon-600">{refillStats.upcoming_refills}</p>
-                                        <p className="text-[10px] text-mediloon-700 font-brand font-semibold uppercase tracking-wider">Due Soon</p>
+                                        <p className="text-[10px] text-mediloon-700 font-brand font-semibold uppercase tracking-wider">{t('dueSoon')}</p>
                                     </div>
                                     <div className="bg-mediloon-50 rounded-xl p-2.5 border border-mediloon-100">
                                         <p className="text-xl font-brand font-extrabold text-mediloon-600">{refillStats.avg_adherence}%</p>
-                                        <p className="text-[10px] text-mediloon-700 font-brand font-semibold uppercase tracking-wider">Adherence</p>
+                                        <p className="text-[10px] text-mediloon-700 font-brand font-semibold uppercase tracking-wider">{t('adherence')}</p>
                                     </div>
                                 </div>
                             )}
@@ -686,6 +797,9 @@ export default function App() {
                 cart={cart}
                 scriptInfo={scriptInfo}
                 candidates={candidates}
+                languageOptions={LANGUAGE_OPTIONS}
+                activeLanguage={manualLanguage || detectedLanguage}
+                onSelectLanguage={handleLanguageSelect}
                 onSelectCandidate={(med) => {
                     setSelectedMedId(med.id);
                     handleDirectAddToCart(med);
@@ -762,17 +876,17 @@ export default function App() {
                             <svg className="w-7 h-7 text-white relative z-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
                         </div>
 
-                        <h2 className="text-2xl font-brand font-extrabold text-ink-primary mb-2">Voice Mode</h2>
+                        <h2 className="text-2xl font-brand font-extrabold text-ink-primary mb-2">{t('voiceMode')}</h2>
                         <p className="text-ink-muted font-body text-sm mb-6 leading-relaxed">
-                            Order medicines just by speaking. Tap the mic and talk naturally — like you're at the pharmacy counter.
+                            {t('voiceModeDesc')}
                         </p>
 
                         <button onClick={() => { setShowVoiceIntroPopup(false); toggleLiveMode(); }} className="btn-primary w-full mb-3 flex items-center justify-center gap-2">
                             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
-                            Start Speaking
+                            {t('startSpeaking')}
                         </button>
                         <button onClick={() => setShowVoiceIntroPopup(false)} className="text-ink-faint hover:text-ink-secondary text-sm font-brand font-medium transition-colors">
-                            Maybe later
+                            {t('maybeLater')}
                         </button>
                     </div>
                 </div>

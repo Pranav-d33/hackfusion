@@ -3,62 +3,73 @@ import os
 import json
 import asyncio
 import httpx
+import time
 from typing import List, Dict, Any, Optional
 
 # Import config which loads .env
-from config import OPENROUTER_API_KEY
+from config import GROQ_API_KEY, GROQ_PRIMARY_MODEL, GROQ_FALLBACK_MODEL
 from evaluation.store import save_metrics
 
-# Use free models to keep costs at zero
-EVAL_MODEL = "mistralai/mistral-7b-instruct:free"
-# Fallback model if the first one fails
-FALLBACK_MODEL = "google/gemma-2-9b-it:free"
-
-OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+# ── Use Groq for evaluation (fast, generous free tier, already configured) ──
+EVAL_MODEL = GROQ_FALLBACK_MODEL or "llama-3.1-8b-instant"  # 8B is fast + cheap for eval
+FALLBACK_MODEL = "llama-3.1-8b-instant"
+GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 class RagasEvaluator:
     """
     Lightweight RAG evaluator that mimics RAGAS metrics using direct LLM calls.
-    Designed for production safety and zero-dependency bloat.
+    Uses Groq API for fast, reliable evaluation (same provider as main agent).
     """
     
     def __init__(self):
-        if not OPENROUTER_API_KEY:
-            print("⚠️ OPENROUTER_API_KEY not found. Evaluation will fail.")
+        if not GROQ_API_KEY:
+            print("⚠️ GROQ_API_KEY not found. Evaluation will fail.")
             
-    async def _call_llm(self, prompt: str, model: str = EVAL_MODEL, retries: int = 2) -> str:
-        """Call OpenRouter LLM with retries."""
+    async def _call_llm(self, prompt: str, model: str = None, retries: int = 2) -> str:
+        """Call Groq LLM with retries."""
+        model = model or EVAL_MODEL
         headers = {
-            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+            "Authorization": f"Bearer {GROQ_API_KEY}",
             "Content-Type": "application/json",
-            "HTTP-Referer": "https://mediloon.ai", # Required by OpenRouter for free tier
-            "X-Title": "Mediloon Eval",
         }
         
         payload = {
             "model": model,
             "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0.0, # Deterministic for eval
-             "max_tokens": 500,
+            "temperature": 0.0,
+            "max_tokens": 500,
         }
         
         for attempt in range(retries + 1):
             try:
                 async with httpx.AsyncClient(timeout=30.0) as client:
-                    response = await client.post(OPENROUTER_URL, headers=headers, json=payload)
+                    response = await client.post(GROQ_URL, headers=headers, json=payload)
                     response.raise_for_status()
                     data = response.json()
                     content = data["choices"][0]["message"]["content"]
                     return content.strip()
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 429:
+                    wait_time = (attempt + 1) * 2  # 2s, 4s, 6s
+                    print(f"⚠️ Groq rate limited (attempt {attempt+1}/{retries+1}), waiting {wait_time}s...")
+                    await asyncio.sleep(wait_time)
+                    continue
+                else:
+                    print(f"⚠️ Groq eval call failed (attempt {attempt+1}/{retries+1}): {e}")
+                    if attempt == retries:
+                        if model != FALLBACK_MODEL:
+                            print(f"🔄 Switching to fallback model: {FALLBACK_MODEL}")
+                            return await self._call_llm(prompt, model=FALLBACK_MODEL, retries=0)
+                        return ""
+                    await asyncio.sleep(1 + attempt)
             except Exception as e:
-                print(f"⚠️ LLM call failed (attempt {attempt+1}/{retries+1}): {e}")
+                print(f"⚠️ Groq eval call failed (attempt {attempt+1}/{retries+1}): {e}")
                 if attempt == retries:
-                    # Try fallback model on last attempt
-                    if model == EVAL_MODEL:
+                    if model != FALLBACK_MODEL:
                         print(f"🔄 Switching to fallback model: {FALLBACK_MODEL}")
                         return await self._call_llm(prompt, model=FALLBACK_MODEL, retries=0)
                     return ""
-                await asyncio.sleep(2) # Backoff
+                await asyncio.sleep(1 + attempt)
         
         return ""
 
@@ -194,6 +205,7 @@ class RagasEvaluator:
         Run evaluation on a batch of samples.
         Each sample dict must have: 'question', 'answer', 'context' (list).
         """
+        start_time = time.time()
         print(f"🚀 Starting RAG evaluation on {len(samples)} samples...")
         
         results = {
@@ -203,9 +215,11 @@ class RagasEvaluator:
         }
         
         # Process concurrently with semaphore to respect rate limits
-        sem = asyncio.Semaphore(3) # Max 3 concurrent requests
+        # Reduced to 2 concurrent requests to avoid 429 errors on free tier
+        sem = asyncio.Semaphore(2)
+        completed = 0  # Track progress
         
-        async def evaluate_single(sample):
+        async def evaluate_single(sample, idx):
             async with sem:
                 q = sample.get("question", "")
                 a = sample.get("answer", "")
@@ -218,9 +232,13 @@ class RagasEvaluator:
                     self.evaluate_answer_relevancy(q, a)
                 )
                 
+                nonlocal completed
+                completed += 1
+                print(f"✓ Sample {completed}/{len(samples)} complete")
+                
                 return f_score, cp_score, ar_score
 
-        tasks = [evaluate_single(s) for s in samples]
+        tasks = [evaluate_single(s, i) for i, s in enumerate(samples)]
         scores = await asyncio.gather(*tasks)
         
         for f, cp, ar in scores:
@@ -231,16 +249,19 @@ class RagasEvaluator:
         # Calculate averages
         def avg(lst): return sum(lst) / len(lst) if lst else 0.0
         
+        elapsed = time.time() - start_time
+        
         final_metrics = {
             "faithfulness_score": round(avg(results["faithfulness"]), 2),
             "context_precision_score": round(avg(results["context_precision"]), 2),
             "answer_relevancy_score": round(avg(results["answer_relevancy"]), 2),
             "hallucination_rate": round(1.0 - avg(results["faithfulness"]), 2), # Inverse of faithfulness
-            "samples_count": len(samples)
+            "samples_count": len(samples),
+            "evaluation_time_seconds": round(elapsed, 1)
         }
         
         save_metrics(final_metrics)
-        print("✅ Evaluation complete. Metrics saved.")
+        print(f"✅ Evaluation complete in {round(elapsed, 1)}s ({round(elapsed/len(samples), 1)}s per sample). Metrics saved.")
         return final_metrics
 
 # Global instance

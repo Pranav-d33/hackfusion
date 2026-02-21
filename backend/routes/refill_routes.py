@@ -41,6 +41,78 @@ async def list_refill_alerts(days_ahead: int = 7) -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/predictions")
+async def list_low_stock_predictions(days_ahead: int = 14) -> Dict[str, Any]:
+    """
+    Get predictions for medications likely to run out of stock.
+    Uses consumption patterns to predict low-stock situations.
+    
+    Query params:
+        days_ahead: Number of days to look ahead (default: 14)
+    
+    Returns:
+        List of medications with low-stock predictions
+    """
+    try:
+        # Get all medications with recent order history
+        query = """
+        SELECT 
+            pc.id,
+            pc.product_name as brand_name,
+            '' as generic_name,
+            pc.package_size as dosage,
+            ii.stock_quantity,
+            COALESCE(SUM(CASE WHEN co.purchase_date > date('now', '-30 days') 
+                         THEN coi.quantity ELSE 0 END), 0) as recent_sales
+        FROM product_catalog pc
+        LEFT JOIN inventory_items ii ON ii.product_catalog_id = pc.id
+        LEFT JOIN customer_order_items coi ON coi.product_catalog_id = pc.id
+        LEFT JOIN customer_orders co ON co.id = coi.order_id
+        WHERE ii.stock_quantity IS NOT NULL
+        GROUP BY pc.id, pc.product_name, pc.package_size, ii.stock_quantity
+        HAVING ii.stock_quantity > 0
+        ORDER BY recent_sales DESC
+        """
+        results = await execute_query(query)
+        
+        predictions = []
+        for row in results:
+            stock = row.get('stock_quantity') or 0
+            recent_sales = row.get('recent_sales') or 0
+            brand_name = row.get('brand_name') or 'Unknown'
+            
+            # Calculate daily consumption rate
+            if recent_sales > 0:
+                daily_rate = recent_sales / 30.0
+                days_until_empty = stock / daily_rate if daily_rate > 0 else 999
+                
+                # Predict low stock if will run out within threshold
+                if 0 < days_until_empty <= days_ahead:
+                    predictions.append({
+                        "medication_id": row['id'],
+                        "brand_name": brand_name,
+                        "generic_name": row.get('generic_name') or '',
+                        "dosage": row.get('dosage') or '',
+                        "current_stock": stock,
+                        "daily_consumption": round(daily_rate, 2),
+                        "days_until_empty": round(days_until_empty, 1),
+                        "predicted_date": None,  # Can add datetime calculation if needed
+                        "severity": "high" if days_until_empty <= 3 else "medium" if days_until_empty <= 7 else "low"
+                    })
+        
+        # Sort by urgency (soonest to run out first)
+        predictions.sort(key=lambda x: x['days_until_empty'])
+        
+        return {
+            "predictions": predictions,
+            "count": len(predictions),
+            "days_ahead": days_ahead,
+        }
+    except Exception as e:
+        print(f"Error in predictions endpoint: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/customer/{customer_id}/alerts")
 async def customer_refill_alerts(customer_id: int, days_ahead: int = 14) -> Dict[str, Any]:
     """

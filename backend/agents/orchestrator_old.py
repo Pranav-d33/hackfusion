@@ -821,7 +821,10 @@ async def execute_tool_call(
         med = await get_medication_details(med_id)
         
         # Validate
-        validation = validate_add_to_cart(med, rx_confirmed=True)
+        # Respect session state for RX confirmation (do not assume True)
+        pending = state.get("pending_rx_check")
+        rx_confirmed = (not med.get("rx_required", False)) or bool(state.get("rx_verified")) or (pending and pending.get("id") == med.get("id"))
+        validation = validate_add_to_cart(med, rx_confirmed=rx_confirmed)
         
         if not validation.get("allowed"):
             if validation.get("suggest_alternatives"):

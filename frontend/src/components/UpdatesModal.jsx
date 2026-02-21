@@ -12,10 +12,11 @@ import {
   ChevronRight, BellRing, Maximize2, Minimize2,
 } from 'lucide-react';
 
-export default function UpdatesModal({ alerts, timeline, loading, onInitiateOrder }) {
+export default function UpdatesModal({ alerts, timeline, orders = [], loading, onInitiateOrder }) {
   const [isOpen, setIsOpen] = useState(false);
   const [zoomed, setZoomed] = useState(false);
   const [dismissedIds, setDismissedIds] = useState(new Set());
+  const [expandedOrderId, setExpandedOrderId] = useState(null);
 
   // Build update items from alerts + timeline depletions
   const updates = useMemo(() => {
@@ -64,6 +65,26 @@ export default function UpdatesModal({ alerts, timeline, loading, onInitiateOrde
         });
     }
 
+    // From orders (recently placed)
+    if (orders && orders.length > 0) {
+      orders.forEach(order => {
+        const updateId = `order-${order.order_id || order.id}`;
+        if (dismissedIds.has(updateId)) return;
+        const etaDays = order.days_left ?? (order.estimated_delivery ? Math.max(0, Math.round((new Date(order.estimated_delivery) - new Date()) / 86400000)) : null);
+        items.push({
+          id: updateId,
+          type: 'order',
+          urgency: 'soon',
+          title: order.order_id ? `Order #${order.order_id}` : 'Order placed',
+          dosage: null,
+          daysLeft: etaDays ?? 0,
+          message: order.status || (order.estimated_delivery ? `Delivery expected by ${order.estimated_delivery}` : 'Order placed'),
+          data: order,
+          timestamp: order.created_at ? new Date(order.created_at) : new Date(),
+        });
+      });
+    }
+
     // Sort: critical first, then by days remaining
     return items.sort((a, b) => {
       const urgencyOrder = { critical: 0, soon: 1, upcoming: 2 };
@@ -72,7 +93,7 @@ export default function UpdatesModal({ alerts, timeline, loading, onInitiateOrde
       if (ua !== ub) return ua - ub;
       return (a.daysLeft ?? 999) - (b.daysLeft ?? 999);
     });
-  }, [alerts, timeline, dismissedIds]);
+  }, [alerts, timeline, orders, dismissedIds]);
 
   const criticalCount = updates.filter(u => u.urgency === 'critical').length;
   const totalCount = updates.length;
@@ -123,6 +144,9 @@ export default function UpdatesModal({ alerts, timeline, loading, onInitiateOrde
       ) : (
         updates.map(update => {
           const style = urgencyStyles(update.urgency);
+          const isOrder = update.type === 'order';
+          const isExpanded = expandedOrderId === update.id;
+          const orderData = update.data || {};
           return (
             <div
               key={update.id}
@@ -146,20 +170,67 @@ export default function UpdatesModal({ alerts, timeline, loading, onInitiateOrde
                     {update.message}
                   </p>
 
+                  {isOrder && (
+                    <div className={`mt-2 ${isZoomedView ? 'space-y-2' : 'space-y-1.5'}`}>
+                      <div className="flex items-center flex-wrap gap-2 text-[11px] text-gray-600">
+                        {orderData.estimated_delivery && (
+                          <span className="px-2 py-1 rounded-lg bg-white border border-gray-100 font-semibold text-gray-700">ETA {orderData.estimated_delivery}</span>
+                        )}
+                        {orderData.total != null && (
+                          <span className="px-2 py-1 rounded-lg bg-white border border-gray-100 font-semibold text-gray-700">€{Number(orderData.total).toFixed(2)}</span>
+                        )}
+                        {orderData.address && (
+                          <span className="px-2 py-1 rounded-lg bg-white border border-gray-100 text-gray-600 truncate max-w-full">Deliver to: {orderData.address}</span>
+                        )}
+                      </div>
+                      {isExpanded && orderData.items && orderData.items.length > 0 && (
+                        <div className="text-[11px] text-gray-600 space-y-1 bg-white/70 border border-gray-100 rounded-lg p-2">
+                          <p className="font-semibold text-gray-700">Items</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {orderData.items.map((it, idx) => (
+                              <span key={idx} className="px-2 py-1 bg-gray-50 rounded-full text-[11px] text-gray-700 border border-gray-100">
+                                {(it.brand_name || 'Item')} x{it.quantity}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <div className={`flex items-center gap-2 ${isZoomedView ? 'mt-3' : 'mt-2'}`}>
-                    <button
-                      onClick={() => handleReorder(update)}
-                      className={`flex items-center gap-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-all duration-200 shadow-sm font-medium hover:scale-105 active:scale-95 hover:shadow-md
+                    {isOrder ? (
+                      <>
+                        <button
+                          onClick={() => setExpandedOrderId(isExpanded ? null : update.id)}
+                          className={`flex items-center gap-1.5 bg-gray-900 text-white rounded-lg transition-all duration-200 shadow-sm font-medium hover:scale-105 active:scale-95 hover:shadow-md ${isZoomedView ? 'text-xs px-3 py-2' : 'text-[11px] px-2.5 py-1.5'}`}
+                        >
+                          <ChevronRight size={isZoomedView ? 13 : 11} className={isExpanded ? 'rotate-90 transition-transform' : ''} /> View details
+                        </button>
+                        <button
+                          onClick={() => dismiss(update.id)}
+                          className={`text-gray-400 hover:text-gray-600 transition-all duration-200 hover:scale-110 active:scale-95 ${isZoomedView ? 'text-xs' : 'text-[10px]'}`}
+                        >
+                          Dismiss
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => handleReorder(update)}
+                          className={`flex items-center gap-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-all duration-200 shadow-sm font-medium hover:scale-105 active:scale-95 hover:shadow-md
                         ${isZoomedView ? 'text-xs px-3 py-2' : 'text-[11px] px-2.5 py-1.5'}`}
-                    >
-                      <MessageCircle size={isZoomedView ? 13 : 11} /> Order via Chat
-                    </button>
-                    <button
-                      onClick={() => dismiss(update.id)}
-                      className={`text-gray-400 hover:text-gray-600 transition-all duration-200 hover:scale-110 active:scale-95 ${isZoomedView ? 'text-xs' : 'text-[10px]'}`}
-                    >
-                      Dismiss
-                    </button>
+                        >
+                          <MessageCircle size={isZoomedView ? 13 : 11} /> Order via Chat
+                        </button>
+                        <button
+                          onClick={() => dismiss(update.id)}
+                          className={`text-gray-400 hover:text-gray-600 transition-all duration-200 hover:scale-110 active:scale-95 ${isZoomedView ? 'text-xs' : 'text-[10px]'}`}
+                        >
+                          Dismiss
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
 

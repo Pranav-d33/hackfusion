@@ -22,6 +22,7 @@ class ChatRequest(BaseModel):
     message: str
     source: str = "text"  # "text" or "voice"
     language: Optional[str] = None  # detected language from frontend (en/de/ar)
+    customer_id: Optional[int] = None  # logged-in customer id from frontend
 
 
 class ChatResponse(BaseModel):
@@ -51,6 +52,7 @@ async def chat(request: ChatRequest):
     result = await process_message(
         session_id=request.session_id,
         user_input=request.message.strip(),
+        customer_id=request.customer_id,
     )
     
     return ChatResponse(**result)

@@ -82,6 +82,16 @@ export default function CheckoutAnimation({ isOpen, order, onClose }) {
                                 <span className="text-gray-500">Items</span>
                                 <span className="font-semibold text-gray-800">{order.item_count || 0}</span>
                             </div>
+                            {order.total != null && (
+                                <div className="flex justify-between text-sm">
+                                    <span className="text-gray-500">Total</span>
+                                    <span className="font-semibold text-gray-800">€{Number(order.total).toFixed(2)}</span>
+                                </div>
+                            )}
+                            <div className="flex justify-between text-sm">
+                                <span className="text-gray-500">Payment</span>
+                                <span className="font-semibold text-amber-600">{order.payment_method || 'COD'}</span>
+                            </div>
                             <div className="flex justify-between text-sm">
                                 <span className="text-gray-500">Status</span>
                                 <span className="font-semibold text-green-600">Confirmed</span>
@@ -90,6 +100,12 @@ export default function CheckoutAnimation({ isOpen, order, onClose }) {
                                 <div className="flex justify-between text-sm">
                                     <span className="text-gray-500">Fulfillment</span>
                                     <span className="font-semibold text-blue-600 capitalize">{order.warehouse_status}</span>
+                                </div>
+                            )}
+                            {order.delivery_address && (
+                                <div className="flex justify-between text-sm">
+                                    <span className="text-gray-500">Delivery</span>
+                                    <span className="font-semibold text-gray-700 text-right max-w-[60%] truncate" title={order.delivery_address}>{order.delivery_address}</span>
                                 </div>
                             )}
                         </div>

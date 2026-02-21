@@ -117,10 +117,11 @@ def validate_add_to_cart(
     # Check stock
     stock = medication.get("stock_quantity", 0)
     if stock <= 0:
+        brand_name = medication.get('brand_name', 'This medication')
         return {
             "allowed": False,
             "reason": "out_of_stock",
-            "message": f"{medication.get('brand_name', 'This medication')} is currently out of stock.",
+            "message": f"I'm sorry, {brand_name} is currently out of stock. Would you like me to check for alternative medications with the same active ingredient?",
             "suggest_alternatives": True,
         }
     

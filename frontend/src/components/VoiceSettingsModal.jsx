@@ -11,7 +11,7 @@ export default function VoiceSettingsModal({ isOpen, onClose, voices, currentVoi
         window.speechSynthesis.cancel();
         const utterance = new SpeechSynthesisUtterance(previewText);
         utterance.voice = voice;
-        utterance.rate = 0.9;
+        utterance.rate = 1.1; // updated to user requested rate
         utterance.pitch = 1.1;
 
         utterance.onstart = () => setIsPlaying(true);
@@ -23,18 +23,32 @@ export default function VoiceSettingsModal({ isOpen, onClose, voices, currentVoi
 
     // Group voices by language for better UX
     const groupedVoices = voices.reduce((acc, voice) => {
-        const lang = voice.lang.split('-')[0].toUpperCase(); // EN, HI, etc.
-        if (!acc[lang]) acc[lang] = [];
-        acc[lang].push(voice);
+        let langCode = voice.lang || '';
+        if (!langCode) {
+            if (voice.name.toLowerCase().includes('english') && voice.name.toLowerCase().includes('india')) {
+                langCode = 'en-IN';
+            } else if (voice.name.toLowerCase().includes('english')) {
+                langCode = 'en-US';
+            } else {
+                langCode = 'unknown';
+            }
+        }
+        langCode = langCode.replace('_', '-');
+        const langGroup = langCode.toUpperCase();
+
+        if (!acc[langGroup]) acc[langGroup] = [];
+        acc[langGroup].push(voice);
         return acc;
     }, {});
 
     // Prioritize EN, HI, then others
     const sortedKeys = Object.keys(groupedVoices).sort((a, b) => {
-        if (a === 'EN') return -1;
-        if (b === 'EN') return 1;
-        if (a === 'HI') return -1;
-        if (b === 'HI') return 1;
+        if (a.startsWith('EN') && b.startsWith('EN')) return a.localeCompare(b);
+        if (a.startsWith('EN')) return -1;
+        if (b.startsWith('EN')) return 1;
+        if (a.startsWith('HI') && b.startsWith('HI')) return a.localeCompare(b);
+        if (a.startsWith('HI')) return -1;
+        if (b.startsWith('HI')) return 1;
         return a.localeCompare(b);
     });
 

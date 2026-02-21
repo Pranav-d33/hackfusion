@@ -4,12 +4,17 @@ Session-based cart management.
 Queries V2 schema: cart, product_catalog, orders, inventory_items.
 """
 from typing import Dict, Any, List
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 import sys
 sys.path.insert(0, str(__file__).rsplit('/', 2)[0])
 
 from db.database import execute_query, execute_write
+
+
+def _estimate_delivery_date(days: int = 3) -> str:
+    """Return an ISO date string representing expected delivery date."""
+    return (datetime.now() + timedelta(days=days)).strftime("%Y-%m-%d")
 
 
 async def add_to_cart(session_id: str, med_id: str, qty: int, dose: str = None) -> Dict[str, Any]:
@@ -173,15 +178,17 @@ async def clear_cart(session_id: str) -> Dict[str, Any]:
     return await get_cart(session_id)
 
 
-async def checkout(session_id: str, customer_id: int = None) -> Dict[str, Any]:
+async def checkout(session_id: str, customer_id: int = None, delivery_address: str = None) -> Dict[str, Any]:
     """
     Process checkout:
     1. Retrieve cart items
     2. Create order & order items
     3. Update inventory
-    4. Clear cart
+    4. Save to customer_orders / customer_order_items (for timeline & forecasting)
+    5. Update customer profile with delivery address
+    6. Clear cart
     """
-    print(f"[DEBUG] checkout called: session_id={session_id}, customer_id={customer_id}")
+    print(f"[DEBUG] checkout called: session_id={session_id}, customer_id={customer_id}, address={delivery_address}")
     cart = await get_cart(session_id)
     if not cart['items']:
         print(f"[DEBUG] checkout failed: cart is empty for session_id={session_id}")
@@ -205,6 +212,75 @@ async def checkout(session_id: str, customer_id: int = None) -> Dict[str, Any]:
             (qty, product_id, qty)
         )
 
+    # ── Save to customer_orders + customer_order_items (feeds forecast, refill, timeline) ──
+    customer_order_id = None
+    if customer_id:
+        try:
+            customer_order_id = await execute_write(
+                """INSERT INTO customer_orders
+                   (customer_id, purchase_date, total_price_eur, dosage_frequency, prescription_required)
+                   VALUES (?, date('now'), ?, 'as_needed', 0)""",
+                (customer_id, cart['total'])
+            )
+            for item in cart['items']:
+                await execute_write(
+                    """INSERT INTO customer_order_items
+                       (order_id, product_catalog_id, raw_product_name, quantity, line_total_eur)
+                       VALUES (?, ?, ?, ?, ?)""",
+                    (
+                        customer_order_id,
+                        item['medication_id'],
+                        item.get('brand_name', 'Unknown'),
+                        item['quantity'],
+                        item.get('item_total', 0),
+                    )
+                )
+            print(f"[DEBUG] Saved customer_order #{customer_order_id} with {len(cart['items'])} line items")
+        except Exception as e:
+            print(f"Warning: Failed to save customer order history: {e}")
+
+    # ── Update customer profile with delivery address ──
+    if customer_id and delivery_address:
+        try:
+            # Parse address components if possible
+            addr_parts = [p.strip() for p in delivery_address.split(",")]
+            name = addr_parts[0] if len(addr_parts) > 0 else None
+            address_line = ", ".join(addr_parts[1:-3]) if len(addr_parts) > 4 else delivery_address
+            city = addr_parts[-3] if len(addr_parts) >= 4 else None
+            state_val = addr_parts[-2] if len(addr_parts) >= 3 else None
+            postal = addr_parts[-1].strip() if len(addr_parts) >= 2 else None
+
+            updates = []
+            params = []
+            if name:
+                updates.append("name = ?")
+                params.append(name)
+            if address_line:
+                updates.append("address = ?")
+                params.append(address_line)
+            if city:
+                updates.append("city = ?")
+                params.append(city)
+            if state_val:
+                updates.append("state = ?")
+                params.append(state_val)
+            if postal:
+                updates.append("postal_code = ?")
+                params.append(postal)
+            updates.append("updated_at = CURRENT_TIMESTAMP")
+
+            if updates:
+                params.append(customer_id)
+                await execute_write(
+                    f"UPDATE customers SET {', '.join(updates)} WHERE id = ?",
+                    tuple(params)
+                )
+                print(f"[DEBUG] Updated customer #{customer_id} profile with delivery address")
+        except Exception as e:
+            print(f"Warning: Failed to update customer address: {e}")
+
+    estimated_delivery = _estimate_delivery_date()
+
     # Log customer order event
     try:
         from services.event_service import log_event, EventType, Agent
@@ -212,10 +288,46 @@ async def checkout(session_id: str, customer_id: int = None) -> Dict[str, Any]:
             EventType.CUSTOMER_ORDER,
             Agent.SYSTEM,
             f"🛒 Order #{order_id} placed: {cart['item_count']} item(s) for session {session_id[:8]}...",
-            {"order_id": order_id, "items": cart['items'], "customer_id": customer_id}
+            {
+                "order_id": order_id,
+                "customer_order_id": customer_order_id,
+                "items": cart['items'],
+                "customer_id": customer_id,
+                "delivery_address": delivery_address,
+                "estimated_delivery": estimated_delivery,
+                "total": cart['total'],
+                "payment_method": "COD",
+            }
         )
     except Exception as e:
         print(f"Failed to log order event: {e}")
+
+    # Log outgoing webhook entry so it appears in the admin Webhook Traffic panel
+    try:
+        await execute_write(
+            """INSERT INTO webhook_logs (direction, endpoint, method, payload, status_code, created_at)
+               VALUES ('outgoing', ?, 'POST', ?, 200, ?)""",
+            (
+                "/api/warehouse/fulfill",
+                json.dumps({
+                    "type": "ORDER_CONFIRMED",
+                    "order_id": order_id,
+                    "customer_id": customer_id,
+                    "item_count": cart['item_count'],
+                    "items": [
+                        {"name": i.get("brand_name"), "qty": i.get("quantity")}
+                        for i in cart['items']
+                    ],
+                    "total_eur": cart['total'],
+                    "delivery_address": delivery_address,
+                    "estimated_delivery": estimated_delivery,
+                    "payment_method": "COD",
+                }),
+                datetime.now().isoformat()
+            )
+        )
+    except Exception as e:
+        print(f"Failed to log outgoing webhook: {e}")
 
     # Trigger warehouse fulfillment
     fulfillment_result = await trigger_warehouse_fulfillment(
@@ -245,14 +357,22 @@ async def checkout(session_id: str, customer_id: int = None) -> Dict[str, Any]:
 
     return {
         "order_id": order_id,
+        "customer_order_id": customer_order_id,
         "status": "confirmed",
         "warehouse_status": warehouse_status,
         "items": cart['items'],
         "item_count": cart['item_count'],
+        "total": cart['total'],
+        "subtotal": cart['subtotal'],
+        "tax": cart['tax'],
+        "shipping": cart['shipping'],
+        "delivery_address": delivery_address,
+        "estimated_delivery": estimated_delivery,
+        "payment_method": "COD",
         "message": f"Order #{order_id} confirmed{warehouse_message}. " + ("Procurement triggered." if fulfillment_result.get("procurement_triggered") else ""),
         "fulfillment": fulfillment_result,
         "inventory_updated": True,
-        "purchase_history_saved": customer_id is not None
+        "purchase_history_saved": customer_order_id is not None,
     }
 
 

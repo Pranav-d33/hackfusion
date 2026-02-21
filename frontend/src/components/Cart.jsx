@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { ShoppingBag, Trash2, FileText, X } from 'lucide-react';
+import { useLanguage } from '../i18n/LanguageContext';
 
 const API_BASE = '/api';
 
 export default function Cart({ cart, sessionId, onRemove, onCheckout, onClear, onCartUpdate }) {
+    const { t } = useLanguage();
     const items = cart?.items || [];
     const [animateBadge, setAnimateBadge] = useState(false);
     const [loadingId, setLoadingId] = useState(null);
@@ -59,11 +61,11 @@ export default function Cart({ cart, sessionId, onRemove, onCheckout, onClear, o
                                 </span>
                             )}
                         </div>
-                        <h2 className="font-brand font-bold text-ink-primary">Your Cart</h2>
+                        <h2 className="font-brand font-bold text-ink-primary">{t('yourCart')}</h2>
                     </div>
                     {hasItems && (
                         <button onClick={onClear} className="text-xs font-brand font-semibold text-ink-faint hover:text-mediloon-500 transition-all duration-200 active:scale-95">
-                            Clear all
+                            {t('clearAll')}
                         </button>
                     )}
                 </div>
@@ -76,8 +78,8 @@ export default function Cart({ cart, sessionId, onRemove, onCheckout, onClear, o
                         <div className="w-14 h-14 bg-surface-cloud rounded-2xl flex items-center justify-center mb-3">
                             <ShoppingBag size={24} className="text-ink-ghost" />
                         </div>
-                        <p className="text-sm font-body text-ink-faint">Your cart is empty</p>
-                        <p className="text-xs text-ink-ghost mt-1">Add medicines via chat or search</p>
+                        <p className="text-sm font-body text-ink-faint">{t('cartEmpty')}</p>
+                        <p className="text-xs text-ink-ghost mt-1">{t('addViaChatOrSearch')}</p>
                     </div>
                 ) : (
                     items.map((item) => (
@@ -117,7 +119,7 @@ export default function Cart({ cart, sessionId, onRemove, onCheckout, onClear, o
                             </div>
                             <div className="flex flex-col items-end gap-1">
                                 <span className="text-sm font-brand font-bold text-ink-primary">&#8377;{(item.price * item.quantity).toFixed(2)}</span>
-                                <span className="text-[10px] text-ink-faint font-mono">&#8377;{item.price}/unit</span>
+                                <span className="text-[10px] text-ink-faint font-mono">&#8377;{item.price}/{t('unit')}</span>
                                 <button
                                     onClick={() => onRemove(item.cart_item_id)}
                                     className="p-1 text-ink-ghost hover:text-mediloon-500 rounded transition-all duration-200 hover:scale-110 active:scale-95"
@@ -135,19 +137,19 @@ export default function Cart({ cart, sessionId, onRemove, onCheckout, onClear, o
                 <div className="p-4 bg-surface-snow border-t border-surface-fog space-y-3">
                     <div className="space-y-1 py-1">
                         <div className="flex justify-between text-xs text-ink-muted font-body">
-                            <span>Subtotal</span>
+                            <span>{t('subtotal')}</span>
                             <span>&#8377;{cart.subtotal?.toFixed(2)}</span>
                         </div>
                         <div className="flex justify-between text-xs text-ink-muted font-body">
-                            <span>Tax (10%)</span>
+                            <span>{t('tax')}</span>
                             <span>&#8377;{cart.tax?.toFixed(2)}</span>
                         </div>
                         <div className="flex justify-between text-xs text-ink-muted font-body">
-                            <span>Shipping</span>
-                            <span>{cart.shipping === 0 ? <span className="text-accent-emerald font-brand font-semibold">Free</span> : `₹${cart.shipping?.toFixed(2)}`}</span>
+                            <span>{t('shipping')}</span>
+                            <span>{cart.shipping === 0 ? <span className="text-accent-emerald font-brand font-semibold">{t('free')}</span> : `₹${cart.shipping?.toFixed(2)}`}</span>
                         </div>
                         <div className="flex justify-between text-sm font-brand font-bold text-ink-primary pt-2 border-t border-surface-fog mt-2">
-                            <span>Total</span>
+                            <span>{t('total')}</span>
                             <span className="text-mediloon-600">&#8377;{cart.total?.toFixed(2)}</span>
                         </div>
                     </div>
@@ -155,7 +157,7 @@ export default function Cart({ cart, sessionId, onRemove, onCheckout, onClear, o
                         onClick={onCheckout}
                         className="btn-primary w-full text-center"
                     >
-                        Checkout
+                        {t('checkout')}
                     </button>
                 </div>
             )}

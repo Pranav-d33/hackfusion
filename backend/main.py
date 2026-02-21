@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from config import CORS_ORIGINS, API_HOST, API_PORT
 from db.database import init_db
 from db.seed_data import seed_all
+from agents.procurement_agent import seed_suppliers
 from routes.agent_routes import router as agent_router
 from routes.admin_routes import router as admin_router
 from routes.refill_routes import router as refill_router
@@ -54,7 +55,12 @@ async def lifespan(app: FastAPI):
     
     # Seed database (skip LLM translation on startup for speed)
     await seed_all(skip_translation=True)
-    print("✅ Database seeded")
+    print("Database seeded")
+
+    # Seed suppliers if not already present
+    seeded = await seed_suppliers()
+    if seeded:
+        print(f"Suppliers seeded: {seeded} records")
     
     # Initialize vector store
     if VECTOR_BACKEND == "pinecone" and init_pinecone:

@@ -13,7 +13,7 @@ import uuid
 import sys
 sys.path.insert(0, str(__file__).rsplit("/", 2)[0])
 
-from agents.ordering_agent import handle as ordering_agent_handle
+from agents.ordering_agent import handle as ordering_agent_handle, _detect_script_language
 from agents.safety_agent import check_input_safety, validate_add_to_cart
 from tools.query_tools import (
     lookup_by_indication, vector_search, get_inventory,
@@ -40,6 +40,187 @@ FORBIDDEN_OUTPUT_PATTERNS = [
     "mg per day",
     "antibiotic",
 ]
+
+
+# ── Lightweight language utilities ───────────────────────────────────
+_L10N = {
+    "ask_rx": {
+        "en": "{med} requires a prescription. Do you have one?",
+        "de": "{med} ist verschreibungspflichtig. Hast du ein Rezept?",
+        "ar": "هذا الدواء يحتاج إلى وصفة طبية. هل لديك وصفة؟",
+        "hi": "यह दवा प्रिस्क्रिप्शन से मिलती है। क्या आपके पास प्रिस्क्रिप्शन है?",
+    },
+    "ask_quantity": {
+        "en": "How many units of {med} would you like?",
+        "de": "Wie viele Einheiten von {med} möchtest du?",
+        "ar": "كم وحدة من {med} تريد؟",
+        "hi": "{med} की कितनी यूनिट चाहिए?",
+    },
+    "ask_dose": {
+        "en": "What dose for {med}?",
+        "de": "Welche Dosierung für {med}?",
+        "ar": "ما هي الجرعة لـ {med}؟",
+        "hi": "{med} की कौनसी डोज़?",
+    },
+    "checkout_start": {
+        "en": "Let me start the checkout process for you.",
+        "de": "Ich starte jetzt den Checkout für dich.",
+        "ar": "سأبدأ عملية الدفع لك الآن.",
+        "hi": "मैं चेकआउट शुरू कर रहा हूँ। कृपया डिटेल्स कन्फर्म करें।",
+    },
+    "checkout_empty": {
+        "en": "Your cart is empty. Add some items first!",
+        "de": "Dein Warenkorb ist leer. Bitte füge zuerst Artikel hinzu!",
+        "ar": "سلة التسوق فارغة. أضف بعض المنتجات أولاً!",
+        "hi": "आपका कार्ट खाली है। पहले कुछ आइटम जोड़ें!",
+    },
+    "search_empty": {
+        "en": "I couldn't find {name}. Could you check the spelling or tell me what condition you're treating?",
+        "de": "Ich konnte {name} nicht finden. Bitte prüfe die Schreibweise oder beschreibe, wofür du es brauchst.",
+        "ar": "لم أجد {name}. هل يمكنك التحقق من التهجئة أو إخباري بالحالة التي تعالجها؟",
+        "hi": "मुझे {name} नहीं मिला। स्पेलिंग चेक करें या बताएं किस समस्या के लिए चाहिए?",
+    },
+    "lookup_empty": {
+        "en": "I couldn't find any medications for \"{indication}\". Could you describe your symptoms differently or provide the medication name?",
+        "de": "Ich habe keine Medikamente für \"{indication}\" gefunden. Kannst du die Symptome anders beschreiben oder den Medikamentennamen nennen?",
+        "ar": "لم أجد أدوية لـ \"{indication}\". هل يمكنك وصف الأعراض بطريقة مختلفة أو ذكر اسم الدواء؟",
+        "hi": "\"{indication}\" के लिए कोई दवा नहीं मिली। कृपया लक्षण दूसरे तरीके से बताएं या दवा का नाम दें।",
+    },
+    "add_not_found": {
+        "en": "I couldn't find that medication. Could you try searching again?",
+        "de": "Ich konnte dieses Medikament nicht finden. Bitte suche erneut.",
+        "ar": "لم أتمكن من العثور على هذا الدواء. هل يمكنك البحث مرة أخرى؟",
+        "hi": "यह दवा नहीं मिली। क्या आप दोबारा खोजेंगे?",
+    },
+    "select_prompt": {
+        "en": "Please select an item by number, or ask for more details.",
+        "de": "Bitte wähle einen Artikel per Nummer oder frage nach Details.",
+        "ar": "اختر منتجًا برقم، أو اطلب المزيد من التفاصيل.",
+        "hi": "कृपया नंबर से आइटम चुनें या डिटेल्स पूछें।",
+    },
+    "indication_lead": {
+        "en": "The following medications are available for {indication}:",
+        "de": "Folgende Medikamente sind verfügbar für {indication}:",
+        "ar": "الأدوية التالية متوفرة لـ {indication}:",
+        "hi": "{indication} के लिए ये दवाएं उपलब्ध हैं:",
+    },
+    "search_lead": {
+        "en": "I found the following matches for your search:",
+        "de": "Ich habe folgende Treffer gefunden:",
+        "ar": "عثرت على النتائج التالية لبحثك:",
+        "hi": "मुझे ये परिणाम मिले हैं:",
+    },
+    "single_rx": {
+        "en": "{med} ({dosage}) is available at €{price:.2f}. This medication requires a valid prescription. Do you have one ready?",
+        "de": "{med} ({dosage}) ist für €{price:.2f} verfügbar. Dieses Medikament braucht ein Rezept. Hast du eines?",
+        "ar": "{med} ({dosage}) متوفر بسعر €{price:.2f}. هذا الدواء يحتاج إلى وصفة طبية. هل لديك وصفة؟",
+        "hi": "{med} ({dosage}) €{price:.2f} पर उपलब्ध है। इस दवा के लिए प्रिस्क्रिप्शन ज़रूरी है। क्या आपके पास प्रिस्क्रिप्शन है?",
+    },
+    "single_otc": {
+        "en": "{med} ({dosage}) is available at €{price:.2f}. How many units would you like to add to your cart?",
+        "de": "{med} ({dosage}) ist für €{price:.2f} verfügbar. Wie viele Einheiten soll ich in den Warenkorb legen?",
+        "ar": "{med} ({dosage}) متوفر بسعر €{price:.2f}. كم وحدة تريد إضافتها إلى سلة التسوق؟",
+        "hi": "{med} ({dosage}) €{price:.2f} पर उपलब्ध है। कितनी यूनिट कार्ट में जोड़ूं?",
+    },
+    "add_success": {
+        "en": "{med} ({qty} unit{plural}) has been added to your cart. Your cart now contains {cart_items} item{cart_plural}. Would you like to add more items or proceed to checkout?",
+        "de": "{med} ({qty} Stück{plural}) wurde in deinen Warenkorb gelegt. Er enthält jetzt {cart_items} Artikel{cart_plural}. Möchtest du weiter einkaufen oder zur Kasse gehen?",
+        "ar": "تمت إضافة {med} ({qty} وحدة{plural}) إلى سلة التسوق. السلة تحتوي الآن على {cart_items} منتج{cart_plural}. هل تريد إضافة المزيد أم المتابعة للدفع؟",
+        "hi": "{med} ({qty} यूनिट{plural}) कार्ट में जोड़ दिया गया। कार्ट में अब {cart_items} आइटम{cart_plural} हैं। और कुछ चाहिए या चेकआउट करें?",
+    },
+    "no_alternatives": {
+        "en": "No alternatives with the same active ingredient are available right now. Would you like to search for something else?",
+        "de": "Keine Alternativen mit gleichem Wirkstoff verfügbar. Möchtest du etwas anderes suchen?",
+        "ar": "لا توجد بدائل بنفس المادة الفعالة حاليًا. هل تريد البحث عن شيء آخر؟",
+        "hi": "अभी समान एक्टिव इंग्रीडिएंट वाला कोई विकल्प नहीं है। कुछ और खोजना चाहेंगे?",
+    },
+    "available": {
+        "en": "✓ Available",
+        "de": "✓ Verfügbar",
+        "ar": "✓ متوفر",
+        "hi": "✓ उपलब्ध",
+    },
+    "out_of_stock_label": {
+        "en": "✗ Unavailable",
+        "de": "✗ Nicht verfügbar",
+        "ar": "✗ غير متوفر",
+        "hi": "✗ अनुपलब्ध",
+    },
+    "alt_lead": {
+        "en": "These alternatives with the same active ingredient are available:",
+        "de": "Folgende Alternativen mit dem gleichen Wirkstoff sind verfügbar:",
+        "ar": "البدائل التالية متوفرة بنفس المادة الفعالة:",
+        "hi": "समान एक्टिव इंग्रीडिएंट वाले ये विकल्प उपलब्ध हैं:",
+    },
+    "alt_pick": {
+        "en": "Which one would you like to add to your cart?",
+        "de": "Welches möchtest du in den Warenkorb legen?",
+        "ar": "أيهم تريد إضافته إلى سلة التسوق؟",
+        "hi": "कौनसा कार्ट में जोड़ना चाहेंगे?",
+    },
+    "inventory_status": {
+        "en": "{name} is currently available. Would you like to add it to your cart?",
+        "de": "{name} ist aktuell verfügbar. Soll ich es in den Warenkorb legen?",
+        "ar": "{name} متوفر حاليًا. هل تريد إضافته إلى سلة التسوق؟",
+        "hi": "{name} अभी उपलब्ध है। क्या कार्ट में जोड़ूं?",
+    },
+    "inventory_oos": {
+        "en": "{name} is currently unavailable. Would you like me to check for alternatives?",
+        "de": "{name} ist aktuell nicht verfügbar. Soll ich nach Alternativen suchen?",
+        "ar": "{name} غير متوفر حاليًا. هل تريد أن أبحث عن بدائل؟",
+        "hi": "{name} अभी उपलब्ध नहीं है। क्या विकल्प खोजूं?",
+    },
+}
+
+
+def _localize(key: str, lang: str, **kwargs) -> str:
+    variants = _L10N.get(key, {})
+    lang_key = lang if lang in variants else "en"
+    template = variants.get(lang_key) or variants.get("en") or ""
+    try:
+        return template.format(**kwargs)
+    except Exception:
+        return template
+
+
+def _fmt_candidate(i: int, m: dict, lang: str) -> str:
+    """Format a single medication candidate for display — localized, no raw stock counts."""
+    dosage = (m.get('dosage') or '').strip()
+    name = f"{m['brand_name']} ({dosage})" if dosage else m['brand_name']
+    price = float(m.get('price', 0))
+    stock = m.get('stock_quantity', 0)
+    status = _localize("available", lang) if stock > 0 else _localize("out_of_stock_label", lang)
+    return f"{i+1}. {name} — €{price:.2f} — {status}"
+
+
+def _detect_user_lang(user_input: str | None, state: Dict[str, Any]) -> str:
+    """Detect user language from current input or recent history."""
+    history = state.get("conversation_history", [])
+    
+    # If input is very short (like 'M' or '20') or just numbers, 
+    # the script detector might falsely default to 'en', so we prefer history.
+    if user_input:
+        is_short_or_numeric = len(user_input.strip()) <= 3 or user_input.strip().isdigit()
+        if is_short_or_numeric:
+            for msg in reversed(history):
+                if msg.get("role") == "user":
+                    prev_lang = _detect_script_language(msg.get("content", ""))
+                    if prev_lang != "en":
+                        return prev_lang
+
+        # Otherwise rely on current input detection
+        lang = _detect_script_language(user_input)
+        if lang != "en":
+            return lang
+
+    # Fallback to history for empty input or if current input yielded 'en'
+    for msg in reversed(history):
+        if msg.get("role") == "user":
+            lang = _detect_script_language(msg.get("content", ""))
+            if lang != "en":
+                return lang
+
+    return "en"
 
 
 def validate_output_static(message: str) -> Dict[str, Any]:
@@ -70,11 +251,14 @@ def get_session_state(session_id: str) -> Dict[str, Any]:
     """Get or create session state."""
     if session_id not in _conversation_states:
         _conversation_states[session_id] = {
+            "customer_id": None,
             "candidates": [],
             "selected_medication": None,
             "pending_rx_check": None,
             "pending_qty_dose_check": None,
             "pending_add_confirm": None,
+            "pending_checkout_confirm": None,
+            "pending_checkout_address": None,
             "collected_quantity": None,
             "collected_dose": None,
             "cart": {"items": [], "item_count": 0},
@@ -96,6 +280,7 @@ def update_session_state(session_id: str, updates: Dict[str, Any]):
 async def process_message(
     session_id: str,
     user_input: str,
+    customer_id: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
     Process a single user turn through the full pipeline.
@@ -112,6 +297,8 @@ async def process_message(
         session_id = str(uuid.uuid4())
 
     state = get_session_state(session_id)
+    if customer_id:
+        state["customer_id"] = customer_id
     state["turn_count"] += 1
 
     # Pre-fetch user intelligence on first turn
@@ -168,6 +355,9 @@ async def process_message(
         }
 
     # ── Step 2: Ordering agent (fast path or LLM) ──────────────────
+    # Pass trace_id to agent for LLM observability
+    state["trace_id"] = trace_id
+    
     with TracedOperation(trace, "ordering_agent", "generation") as op:
         op.log_input({"user_input": user_input, "state_summary": _state_summary(state)})
         agent_result = await ordering_agent_handle(user_input, state)
@@ -191,7 +381,7 @@ async def process_message(
     # ── Step 3: Execute action ──────────────────────────────────────
     with TracedOperation(trace, "execute_action", "span") as op:
         op.log_input({"agent_result": agent_result})
-        result = await execute_action(session_id, agent_result, state)
+        result = await execute_action(session_id, agent_result, state, user_input)
         op.log_output(result)
 
     log_trace(session_id, "execute", {
@@ -217,8 +407,43 @@ async def process_message(
         result["message"] = output_safety["message"]
         result["tts_message"] = "I cannot provide that information for safety reasons."
 
+    # ── Step 4.5: Persist trace to DB for observability dashboard ───
+    try:
+        from db.database import execute_write
+        import json
+        await execute_write(
+            """INSERT INTO traces (trace_id, session_id, name, input_text, output_text, metadata_json, latency_ms)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (
+                trace_id or str(uuid.uuid4()),
+                session_id,
+                "agent_turn",
+                user_input,
+                result.get("message", ""),
+                json.dumps({
+                    "turn": state["turn_count"],
+                    "action_taken": result.get("action_taken"),
+                    "candidates_count": len(result.get("candidates", [])),
+                    "cart_items": result.get("cart", {}).get("item_count", 0),
+                    "retrieved_context": state.get("candidates", [])[:3],  # for RAG eval
+                }),
+                int((time.time() - start_time) * 1000),
+            )
+        )
+    except Exception as e:
+        print(f"Warning: Failed to persist trace to DB: {e}")
+
     # ── Step 5: Build response ──────────────────────────────────────
     latency_ms = int((time.time() - start_time) * 1000)
+    detected_lang = _detect_user_lang(user_input, state)
+
+    # End the root trace and flush all pending data to Langfuse
+    if trace and hasattr(trace, 'end'):
+        try:
+            trace.end()
+        except Exception:
+            pass
+    flush()
 
     return {
         "session_id": session_id,
@@ -233,6 +458,7 @@ async def process_message(
         "trace_id": trace_id,
         "trace_url": trace_url,
         "latency_ms": latency_ms,
+        "language": detected_lang,
     }
 
 
@@ -241,13 +467,24 @@ async def execute_action(
     session_id: str,
     plan: Dict[str, Any],
     state: Dict[str, Any],
+    user_input: str | None = None,
 ) -> Dict[str, Any]:
     """Execute the action returned by the ordering agent."""
+    lang = _detect_user_lang(user_input, state)
     action = plan.get("action", "respond")
 
+    # ── Map hallucinated tool actions to tool_call ──────────────────
+    legacy_tool_actions = [
+        "add_to_cart", "vector_search", "lookup_by_indication", 
+        "get_inventory", "get_tier1_alternatives"
+    ]
+    if action in legacy_tool_actions:
+        plan["tool"] = action
+        action = "tool_call"
+        
     # ── tool_call ───────────────────────────────────────────────────
     if action == "tool_call":
-        return await execute_tool_call(session_id, plan, state)
+        return await execute_tool_call(session_id, plan, state, lang)
 
     # ── ask_rx ──────────────────────────────────────────────────────
     if action == "ask_rx":
@@ -267,7 +504,7 @@ async def execute_action(
             "collected_quantity": plan.get("quantity", 1),
             "collected_dose": plan.get("dose"),
         })
-        default_msg = f"{med.get('brand_name', 'This medication')} requires a prescription. Do you have one?"
+        default_msg = _localize("ask_rx", lang, med=med.get("brand_name", "This medication"))
         return {
             "message": plan.get("message", default_msg),
             "tts_message": plan.get("tts_message", plan.get("message", default_msg)),
@@ -294,7 +531,7 @@ async def execute_action(
             "collected_quantity": plan.get("quantity", 1),
             "collected_dose": plan.get("dose"),
         })
-        default_msg = f"How many units of {med.get('brand_name', 'this medication')} would you like?"
+        default_msg = _localize("ask_quantity", lang, med=med.get("brand_name", "this medication"))
         return {
             "message": plan.get("message", default_msg),
             "tts_message": plan.get("tts_message", plan.get("message", default_msg)),
@@ -317,7 +554,7 @@ async def execute_action(
             "pending_qty_dose_check": med or None,
             "collected_quantity": qty,
         })
-        default_msg = f"What dose for {med.get('brand_name', 'this medication')}?"
+        default_msg = _localize("ask_dose", lang, med=med.get("brand_name", "this medication"))
         return {
             "message": plan.get("message", default_msg),
             "tts_message": plan.get("tts_message", plan.get("message", default_msg)),
@@ -325,48 +562,97 @@ async def execute_action(
             "needs_input": True,
         }
 
-    # ── checkout ────────────────────────────────────────────────────
-    if action == "checkout":
-        # Check if user already provided delivery address (comes from frontend after login+address flow)
-        address_in_input = False
-        last_user_msg = ""
+    # ── checkout / confirm_checkout ──────────────────────────────────
+    if action in ("checkout", "confirm_checkout"):
+        # Search ALL recent conversation history for a delivery address
+        delivery_address = state.get("pending_checkout_address")
         history = state.get("conversation_history", [])
-        for msg in reversed(history):
-            if msg.get("role") == "user":
-                last_user_msg = msg.get("content", "")
-                break
-        if "deliver to:" in last_user_msg.lower() or "delivery address" in last_user_msg.lower():
-            address_in_input = True
+        if not delivery_address:
+            import re as _re
+            for msg in reversed(history):
+                if msg.get("role") == "user":
+                    content = msg.get("content", "")
+                    lower = content.lower()
+                    if "deliver to:" in lower or "delivery address" in lower:
+                        addr_match = _re.search(
+                            r'deliver(?:y\s+address)?\s*(?:to)?\s*:?\s*(.+)',
+                            content, _re.IGNORECASE | _re.DOTALL,
+                        )
+                        delivery_address = addr_match.group(1).strip() if addr_match else content
+                        break
 
-        if address_in_input:
-            # User already provided address via the login+address flow — execute checkout
-            customer_id = state.get("customer_id", 2)
-            result = await checkout(session_id, customer_id=customer_id)
+        # If we have an address OR this is confirm_checkout OR pending_checkout_confirm is set, execute
+        should_execute = bool(delivery_address) or action == "confirm_checkout" or state.get("pending_checkout_confirm")
+
+        if should_execute:
+            if delivery_address:
+                update_session_state(session_id, {"pending_checkout_address": delivery_address})
+
+            customer_id = state.get("customer_id") or 2
+            result = await checkout(session_id, customer_id=customer_id, delivery_address=delivery_address)
             if result.get("error"):
+                empty_msg = _localize("checkout_empty", lang)
                 return {
-                    "message": "Your cart is empty. Add some items first!",
+                    "message": empty_msg,
+                    "tts_message": empty_msg,
                     "action_taken": "checkout_failed",
                     "needs_input": True,
                 }
+
+            # Build final COD order confirmation message
+            order_id = result.get("order_id", "N/A")
+            items_summary = ", ".join(
+                f"{item.get('brand_name', 'Item')} x{item.get('quantity', 1)}"
+                for item in result.get("items", [])
+            )
+            total = result.get("total", 0)
+            addr_display = delivery_address or "your registered address"
+
+            confirm_msg = (
+                f"Order #{order_id} has been confirmed.\n\n"
+                f"Items: {items_summary}\n"
+                f"Total: \u20ac{total:.2f}\n"
+                f"Delivery to: {addr_display}\n"
+                f"Payment method: Cash on Delivery (COD)\n\n"
+                f"Your order has been placed and your account updated. "
+                f"Thank you for choosing Mediloon."
+            )
+            tts_msg = (
+                f"Order number {order_id} confirmed! "
+                f"Payment is Cash on Delivery. "
+                f"Thank you for ordering with Mediloon!"
+            )
+
+            # Clear checkout state
+            update_session_state(session_id, {
+                "pending_checkout_address": None,
+                "pending_checkout_confirm": None,
+            })
+
             return {
-                "message": result.get("message", "Order placed!") + " Inventory updated.",
-                "tts_message": "Order placed successfully!",
+                "message": confirm_msg,
+                "tts_message": tts_msg,
                 "action_taken": "checkout",
                 "order": result,
                 "end_conversation": True,
             }
         else:
-            # Signal frontend to run the login → address → checkout flow
+            # No address yet — signal frontend to run login → address → checkout flow
             cart_data = await get_cart(session_id)
             if not cart_data.get("items"):
+                empty_msg = _localize("checkout_empty", lang)
                 return {
-                    "message": "Your cart is empty. Add some items first!",
+                    "message": empty_msg,
+                    "tts_message": empty_msg,
                     "action_taken": "checkout_failed",
                     "needs_input": True,
                 }
+            # Mark checkout as pending so next confirmation closes the loop
+            update_session_state(session_id, {"pending_checkout_confirm": True})
+            start_msg = _localize("checkout_start", lang)
             return {
-                "message": "Let me start the checkout process for you.",
-                "tts_message": "Starting checkout. Please confirm your details.",
+                "message": plan.get("message", start_msg),
+                "tts_message": plan.get("tts_message", plan.get("message", start_msg)),
                 "cart": cart_data,
                 "action_taken": "checkout_ready",
                 "needs_input": True,
@@ -403,6 +689,7 @@ async def execute_tool_call(
     session_id: str,
     plan: Dict[str, Any],
     state: Dict[str, Any],
+    lang: str,
 ) -> Dict[str, Any]:
     """Execute a tool call from the agent's plan."""
     tool = plan.get("tool")
@@ -420,11 +707,10 @@ async def execute_tool_call(
         if not results:
             results = await vector_search(indication)
         if not results:
+            fallback_msg = _localize("lookup_empty", lang, indication=indication)
             return {
-                "message": plan.get(
-                    "message",
-                    f"I couldn't find products for '{indication}'. Could you provide the exact medication name?",
-                ),
+                "message": plan.get("message", fallback_msg),
+                "tts_message": plan.get("tts_message", fallback_msg),
                 "candidates": [],
                 "action_taken": "lookup_empty",
             }
@@ -434,13 +720,12 @@ async def execute_tool_call(
             "pending_add_confirm": None,
             "pending_qty_dose_check": None,
         })
-        med_list = "\n".join(
-            f"{i+1}. {m['brand_name']} ({m.get('generic_name','')} {m.get('dosage','')}) — €{m.get('price',0)} — Stock: {m.get('stock_quantity',0)}"
-            for i, m in enumerate(results[:5])
-        )
+        med_list = "\n".join(_fmt_candidate(i, m, lang) for i, m in enumerate(results[:5]))
         # Always build the real medication list — never trust the LLM's placeholder message
-        msg = f"Here are medications for {indication}:\n{med_list}\n\nWhich one would you like to order?"
-        tts = f"I found {', '.join(m['brand_name'] for m in results[:3])} for {indication}. Which one would you like?"
+        lead = _localize("indication_lead", lang, indication=indication)
+        select_prompt = _localize("select_prompt", lang)
+        msg = f"{lead}\n{med_list}\n\n{select_prompt}"
+        tts = plan.get("tts_message") or select_prompt
         return {
             "message": msg,
             "tts_message": tts,
@@ -455,11 +740,10 @@ async def execute_tool_call(
         if not results and name:
             results = await lookup_by_indication(name)
         if not results:
+            fallback_msg = plan.get("message") or _localize("search_empty", lang, name=name)
             return {
-                "message": plan.get(
-                    "message",
-                    f"Couldn't find '{name}'. Could you check the spelling or describe the condition?",
-                ),
+                "message": fallback_msg,
+                "tts_message": plan.get("tts_message", fallback_msg),
                 "candidates": [],
                 "action_taken": "search_empty",
             }
@@ -477,9 +761,16 @@ async def execute_tool_call(
                     "pending_rx_check": med,
                     "selected_medication": med,
                 })
+                msg = plan.get("message") or _localize(
+                    "single_rx",
+                    lang,
+                    med=med["brand_name"],
+                    dosage=med.get("dosage", ""),
+                    price=float(med.get("price", 0)),
+                )
                 return {
-                    "message": f"Found {med['brand_name']} ({med.get('dosage','')}) — €{med.get('price',0)}. This requires a prescription. Do you have one?",
-                    "tts_message": f"Found {med['brand_name']}. Do you have a prescription?",
+                    "message": msg,
+                    "tts_message": plan.get("tts_message", msg),
                     "candidates": results,
                     "action_taken": "ask_rx",
                 }
@@ -488,19 +779,25 @@ async def execute_tool_call(
                     "selected_medication": med,
                     "pending_add_confirm": med,
                 })
+                msg = plan.get("message") or _localize(
+                    "single_otc",
+                    lang,
+                    med=med["brand_name"],
+                    dosage=med.get("dosage", ""),
+                    price=float(med.get("price", 0)),
+                )
                 return {
-                    "message": f"Found {med['brand_name']} ({med.get('dosage','')}) — €{med.get('price',0)}. Would you like to add it to your cart?",
-                    "tts_message": f"Found {med['brand_name']}. Want to add it?",
+                    "message": msg,
+                    "tts_message": plan.get("tts_message", msg),
                     "candidates": results,
                     "action_taken": "search_single",
                 }
 
-        med_list = "\n".join(
-            f"{i+1}. {m['brand_name']} ({m.get('dosage','')}) — €{m.get('price',0)} — Stock: {m.get('stock_quantity',0)}"
-            for i, m in enumerate(results[:5])
-        )
-        msg = f"Found several matches:\n{med_list}\n\nWhich one would you like to order?"
-        tts = f"I found {', '.join(m['brand_name'] for m in results[:3])}. Which one would you like?"
+        med_list = "\n".join(_fmt_candidate(i, m, lang) for i, m in enumerate(results[:5]))
+        lead = _localize("search_lead", lang)
+        select_prompt = _localize("select_prompt", lang)
+        msg = f"{lead}\n{med_list}\n\n{select_prompt}"
+        tts = plan.get("tts_message", select_prompt)
         return {
             "message": msg,
             "tts_message": tts,
@@ -510,9 +807,12 @@ async def execute_tool_call(
 
     # ── add_to_cart ─────────────────────────────────────────────────
     if tool == "add_to_cart":
-        med_id = args.get("med_id")
-        qty = args.get("qty", 1)
-        dose = args.get("dose")
+        med_id = args.get("med_id") or plan.get("med_id")
+        if not med_id and plan.get("medication") and isinstance(plan["medication"], dict):
+            med_id = plan["medication"].get("id")
+            
+        qty = args.get("qty") or args.get("quantity") or plan.get("quantity") or plan.get("qty") or 1
+        dose = args.get("dose") or plan.get("dose")
 
         # Validate med_id — if LLM hallucinated, try to resolve from session state
         med = await get_medication_details(med_id) if med_id else None
@@ -533,26 +833,46 @@ async def execute_tool_call(
                     med_id = candidates[0]["id"]
                     med = await get_medication_details(med_id)
             if not med:
+                msg = _localize("add_not_found", lang)
                 return {
-                    "message": "I couldn't find that medication. Could you try searching again?",
+                    "message": msg,
+                    "tts_message": msg,
                     "action_taken": "add_blocked",
                 }
 
-        validation = validate_add_to_cart(med, rx_confirmed=True)
+        # Determine whether RX is confirmed from session state instead of assuming True.
+        pending = state.get("pending_rx_check")
+        rx_confirmed = (not med.get("rx_required", False)) or bool(state.get("rx_verified")) or (pending and pending.get("id") == med.get("id"))
+        validation = validate_add_to_cart(med, rx_confirmed=rx_confirmed)
 
         if not validation.get("allowed"):
             if validation.get("suggest_alternatives"):
                 alternatives = await get_tier1_alternatives(med_id)
                 if alternatives:
                     update_session_state(session_id, {"candidates": alternatives})
-                    alt_list = "\n".join(
-                        f"{i+1}. {a['brand_name']} ({a.get('dosage','')})"
-                        for i, a in enumerate(alternatives[:3])
-                    )
+                    # Filter only in-stock alternatives
+                    in_stock_alts = [a for a in alternatives if a.get('stock_quantity', 0) > 0]
+                    display_alts = in_stock_alts[:3] if in_stock_alts else alternatives[:3]
+                    
+                    alt_list = "\n".join(_fmt_candidate(i, a, lang) for i, a in enumerate(display_alts))
+                    alt_lead = _localize("alt_lead", lang)
+                    alt_pick = _localize("alt_pick", lang)
+                    msg = f"{validation['message']}\n\n{alt_lead}\n{alt_list}\n\n{alt_pick}"
+                    tts = f"{validation['message']} I found {', '.join(a['brand_name'] for a in display_alts[:2])} as alternatives. Interested?"
+                    
                     return {
-                        "message": f"{validation['message']}\n\nAlternatives:\n{alt_list}",
-                        "candidates": alternatives,
+                        "message": msg,
+                        "tts_message": tts,
+                        "candidates": display_alts,
                         "action_taken": "out_of_stock_alternatives",
+                    }
+                else:
+                    no_alt_msg = _localize("no_alternatives", lang)
+                    full_msg = f"{validation['message']} {no_alt_msg}"
+                    return {
+                        "message": full_msg,
+                        "tts_message": plan.get("tts_message", full_msg),
+                        "action_taken": "out_of_stock_no_alternatives",
                     }
             return {"message": validation["message"], "action_taken": "add_blocked"}
 
@@ -568,14 +888,18 @@ async def execute_tool_call(
             "cart": cart,
         })
 
-        msg = (
-            f"Added {med['brand_name']} ({qty} unit{'s' if qty != 1 else ''}) to your cart. "
-            f"Cart now has {cart['item_count']} item{'s' if cart['item_count'] != 1 else ''}. "
-            f"Would you like to add more or checkout?"
+        msg = _localize(
+            "add_success",
+            lang,
+            med=med["brand_name"],
+            qty=qty,
+            plural="s" if qty != 1 else "",
+            cart_items=cart["item_count"],
+            cart_plural="s" if cart.get("item_count", 0) != 1 else "",
         )
         return {
             "message": msg,
-            "tts_message": f"Done! Added {med['brand_name']} to your cart. {cart['item_count']} item{'s' if cart['item_count'] != 1 else ''} total. Add more or say checkout.",
+            "tts_message": plan.get("tts_message", msg),
             "cart": cart,
             "candidates": [],
             "action_taken": "add_to_cart",
@@ -585,10 +909,18 @@ async def execute_tool_call(
     if tool == "get_inventory":
         med_id = args.get("med_id")
         inv = await get_inventory(med_id)
+        name = inv.get('brand_name', 'Item')
+        stock = inv.get('stock_quantity', 0)
+        if stock > 0:
+            msg = _localize("inventory_status", lang, name=name)
+        else:
+            msg = _localize("inventory_oos", lang, name=name)
         return {
-            "message": f"{inv.get('brand_name','Item')}: {inv.get('stock_quantity',0)} in stock",
+            "message": msg,
+            "tts_message": msg,
             "inventory": inv,
             "action_taken": "check_inventory",
+            "needs_input": True,
         }
 
     # ── get_tier1_alternatives ──────────────────────────────────────
@@ -596,19 +928,22 @@ async def execute_tool_call(
         med_id = args.get("med_id")
         alts = await get_tier1_alternatives(med_id)
         if not alts:
+            no_alt_msg = plan.get("message") or _localize("no_alternatives", lang)
             return {
-                "message": "No alternatives found with the same active ingredient.",
+                "message": no_alt_msg,
+                "tts_message": plan.get("tts_message", no_alt_msg),
                 "action_taken": "no_alternatives",
             }
         update_session_state(session_id, {"candidates": alts})
-        alt_list = "\n".join(
-            f"{i+1}. {a['brand_name']} ({a.get('dosage','')}) — Stock: {a.get('stock_quantity',0)}"
-            for i, a in enumerate(alts[:5])
-        )
+        alt_list = "\n".join(_fmt_candidate(i, a, lang) for i, a in enumerate(alts[:5]))
+        alt_lead = _localize("alt_lead", lang)
+        alt_pick = _localize("alt_pick", lang)
         return {
-            "message": f"Alternatives available:\n{alt_list}\n\nWhich one?",
+            "message": f"{alt_lead}\n{alt_list}\n\n{alt_pick}",
+            "tts_message": alt_pick,
             "candidates": alts,
             "action_taken": "show_alternatives",
+            "needs_input": True,
         }
 
     # ── upload_prescription ─────────────────────────────────────────

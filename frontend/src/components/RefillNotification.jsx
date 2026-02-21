@@ -32,8 +32,8 @@ export default function RefillNotification({ customerId, onReorder }) {
       const critical = alerts.find(a => a.urgency === 'critical');
       if (critical && !dismissed.has(critical.medication_id)) {
         setToastAlert(critical);
-        // Auto-hide toast after 10 seconds
-        const t = setTimeout(() => setToastAlert(null), 10000);
+        // Auto-hide toast after 5 seconds
+        const t = setTimeout(() => setToastAlert(null), 5000);
         return () => clearTimeout(t);
       }
     }

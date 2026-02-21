@@ -2,8 +2,10 @@
  * ResultsList — Medication candidate cards with visual hierarchy
  */
 import React from 'react';
+import { useLanguage } from '../i18n/LanguageContext';
 
 export default function ResultsList({ candidates, onSelect, selectedId, onFlyToCart }) {
+    const { t } = useLanguage();
     if (!candidates || candidates.length === 0) {
         return null;
     }
@@ -11,7 +13,7 @@ export default function ResultsList({ candidates, onSelect, selectedId, onFlyToC
     return (
         <div className="space-y-2.5">
             <h3 className="text-xs font-brand font-semibold text-ink-faint uppercase tracking-wider">
-                Available Medications
+                {t('availableMedications')}
             </h3>
             <div className="grid gap-2">
                 {candidates.map((med, index) => (
@@ -63,17 +65,17 @@ export default function ResultsList({ candidates, onSelect, selectedId, onFlyToC
                                 {med.stock_quantity > 0 ? (
                                     <span className="feature-badge-emerald">
                                         <span className="w-1.5 h-1.5 bg-accent-emerald rounded-full" />
-                                        In Stock
+                                        {t('inStock')}
                                     </span>
                                 ) : (
                                     <span className="feature-badge bg-red-50 text-mediloon-600 border border-mediloon-200">
                                         <span className="w-1.5 h-1.5 bg-mediloon-500 rounded-full" />
-                                        Out of Stock
+                                        {t('outOfStock')}
                                     </span>
                                 )}
                                 {med.similarity && (
                                     <p className="text-[10px] text-ink-faint mt-1 font-mono">
-                                        Match: {Math.round(med.similarity * 100)}%
+                                        {t('match')}: {Math.round(med.similarity * 100)}%
                                     </p>
                                 )}
                             </div>

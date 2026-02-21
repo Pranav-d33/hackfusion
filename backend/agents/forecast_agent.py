@@ -12,6 +12,8 @@ sys.path.insert(0, str(__file__).rsplit('/', 2)[0])
 from db.database import execute_query
 
 MAX_VELOCITY_CAP = 1000  # Max units/day considered valid
+MIN_SAFETY_STOCK = 10    # Fallback threshold when velocity data is sparse
+DEFAULT_REORDER_QTY = 50
 
 
 async def calculate_sales_velocity(product_id: int, days_lookback: int = 30) -> Dict[str, Any]:
@@ -101,6 +103,8 @@ async def predict_stock_depletion(product_id: int) -> Optional[Dict[str, Any]]:
     stock_data = await execute_query("""
         SELECT
             inv.stock_quantity,
+            inv.reorder_threshold,
+            inv.reorder_quantity,
             pc.product_name,
             pc.package_size
         FROM inventory_items inv
@@ -113,6 +117,9 @@ async def predict_stock_depletion(product_id: int) -> Optional[Dict[str, Any]]:
 
     stock = stock_data[0]
     current_stock = stock['stock_quantity']
+    reorder_threshold = stock.get('reorder_threshold') or 0
+    reorder_quantity = stock.get('reorder_quantity') or 0
+    safety_threshold = max(reorder_threshold, MIN_SAFETY_STOCK)
 
     velocity = await calculate_sales_velocity(product_id)
 
@@ -124,9 +131,16 @@ async def predict_stock_depletion(product_id: int) -> Optional[Dict[str, Any]]:
             "dosage": stock['package_size'] or "",
             "current_stock": current_stock,
             "units_per_day": 0,
-            "days_until_stockout": None,
-            "predicted_stockout_date": None,
-            "urgency": "no_demand"
+            # When there is no velocity data, fall back to absolute safety stock
+            "days_until_stockout": 1 if current_stock <= safety_threshold else None,
+            "predicted_stockout_date": (
+                datetime.now() + timedelta(days=1)
+            ).strftime("%Y-%m-%d") if current_stock <= safety_threshold else None,
+            "urgency": "critical" if current_stock <= max(5, safety_threshold // 2) else (
+                "warning" if current_stock <= safety_threshold else "no_demand"
+            ),
+            "reorder_threshold": safety_threshold,
+            "reorder_quantity": reorder_quantity,
         }
 
     days_until_stockout = int(current_stock / velocity['units_per_day'])
@@ -141,6 +155,12 @@ async def predict_stock_depletion(product_id: int) -> Optional[Dict[str, Any]]:
     else:
         urgency = "healthy"
 
+    # Respect explicit reorder thresholds even if calculated depletion is far out
+    if current_stock <= safety_threshold and (days_until_stockout is None or days_until_stockout > 14):
+        urgency = "critical" if current_stock <= max(5, safety_threshold // 2) else "warning"
+        days_until_stockout = min(days_until_stockout or 30, 7)
+        stockout_date = (datetime.now() + timedelta(days=days_until_stockout)).strftime("%Y-%m-%d")
+
     return {
         "medication_id": product_id,
         "brand_name": stock['product_name'],
@@ -150,7 +170,9 @@ async def predict_stock_depletion(product_id: int) -> Optional[Dict[str, Any]]:
         "units_per_day": velocity['units_per_day'],
         "days_until_stockout": days_until_stockout,
         "predicted_stockout_date": stockout_date,
-        "urgency": urgency
+        "urgency": urgency,
+        "reorder_threshold": safety_threshold,
+        "reorder_quantity": reorder_quantity,
     }
 
 
@@ -159,7 +181,7 @@ async def get_low_stock_predictions(days_threshold: int = 14) -> List[Dict[str, 
     Get all products predicted to run out within threshold days.
     """
     products = await execute_query("""
-        SELECT product_catalog_id FROM inventory_items WHERE stock_quantity > 0
+        SELECT product_catalog_id, reorder_threshold FROM inventory_items WHERE stock_quantity >= 0
     """)
 
     predictions = []
@@ -167,9 +189,24 @@ async def get_low_stock_predictions(days_threshold: int = 14) -> List[Dict[str, 
     for prod in products:
         prediction = await predict_stock_depletion(prod['product_catalog_id'])
 
-        if prediction and prediction['days_until_stockout'] is not None:
-            if prediction['days_until_stockout'] <= days_threshold:
-                predictions.append(prediction)
+        if not prediction:
+            continue
+
+        threshold = max(prediction.get("reorder_threshold", 0), MIN_SAFETY_STOCK)
+
+        # Include predictions when either calculated depletion is soon OR safety stock is breached
+        if prediction.get('days_until_stockout') is not None and prediction['days_until_stockout'] <= days_threshold:
+            predictions.append(prediction)
+            continue
+
+        if prediction['current_stock'] <= threshold:
+            # Force an entry so procurement can trigger even without velocity
+            prediction['urgency'] = "critical" if prediction['current_stock'] <= max(5, threshold // 2) else "warning"
+            prediction['days_until_stockout'] = prediction.get('days_until_stockout') or 7
+            prediction['predicted_stockout_date'] = prediction.get('predicted_stockout_date') or (
+                datetime.now() + timedelta(days=prediction['days_until_stockout'])
+            ).strftime("%Y-%m-%d")
+            predictions.append(prediction)
 
     predictions.sort(key=lambda x: x['days_until_stockout'])
     return predictions
@@ -186,9 +223,9 @@ async def get_demand_forecast(product_id: int, forecast_days: int = 30) -> Dict[
         return {"error": "Product not found"}
 
     projected_demand = int(velocity['units_per_day'] * forecast_days)
-    reorder_point = int(velocity['units_per_day'] * 7)
+    reorder_point = max(int(velocity['units_per_day'] * 7), prediction.get('reorder_threshold') or 0, MIN_SAFETY_STOCK)
     needs_reorder = prediction['current_stock'] <= reorder_point
-    suggested_order = max(projected_demand - prediction['current_stock'] + reorder_point, 0)
+    suggested_order = max(projected_demand - prediction['current_stock'] + reorder_point, prediction.get('reorder_quantity') or 0, DEFAULT_REORDER_QTY)
 
     return {
         "medication_id": product_id,

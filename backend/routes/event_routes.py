@@ -13,7 +13,7 @@ router = APIRouter(prefix="/api/events", tags=["events"])
 
 
 @router.get("")
-async def list_events(limit: int = 50, event_type: str = None, agent: str = None) -> Dict[str, Any]:
+async def list_events(limit: int = 50, event_type: str = None, agent: str = None, customer_id: int = None) -> Dict[str, Any]:
     """
     Get recent events from the activity log.
     
@@ -24,6 +24,9 @@ async def list_events(limit: int = 50, event_type: str = None, agent: str = None
     """
     limit = min(limit, 100)
     events = await get_recent_events(limit, event_type, agent)
+
+    if customer_id is not None:
+        events = [e for e in events if e.get("metadata", {}).get("customer_id") == customer_id]
     
     return {
         "events": events,

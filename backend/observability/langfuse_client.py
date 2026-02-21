@@ -1,9 +1,8 @@
 """
-Langfuse Observability Client
+Langfuse Observability Client (v3 SDK)
 Provides tracing for NLU, Planner, and Agent operations.
 """
 from typing import Optional, Any, Dict
-from functools import wraps
 import time
 
 # Import config which loads .env
@@ -18,10 +17,6 @@ except ImportError:
     Langfuse = None
 
 
-# Configuration
-# LANGFUSE_PUBLIC_KEY and LANGFUSE_SECRET_KEY are imported from config above
-# LANGFUSE_HOST is imported from config above
-
 # Global client instance
 _client: Optional[Any] = None
 _enabled = False
@@ -30,15 +25,15 @@ _enabled = False
 def init_langfuse() -> bool:
     """Initialize Langfuse client. Returns True if successful."""
     global _client, _enabled
-    
+
     if not LANGFUSE_AVAILABLE:
         print("⚠️ Langfuse not installed. Run: pip install langfuse")
         return False
-    
+
     if not LANGFUSE_PUBLIC_KEY or not LANGFUSE_SECRET_KEY:
         print("⚠️ Langfuse keys not configured. Set LANGFUSE_PUBLIC_KEY and LANGFUSE_SECRET_KEY")
         return False
-    
+
     try:
         _client = Langfuse(
             public_key=LANGFUSE_PUBLIC_KEY,
@@ -46,7 +41,7 @@ def init_langfuse() -> bool:
             host=LANGFUSE_HOST,
         )
         _enabled = True
-        print("✅ Langfuse initialized successfully")
+        print("✅ Langfuse initialized successfully (v3 SDK)")
         return True
     except Exception as e:
         print(f"⚠️ Failed to initialize Langfuse: {e}")
@@ -54,7 +49,7 @@ def init_langfuse() -> bool:
 
 
 def get_client() -> Optional[Any]:
-    """Get the Langfuse client instance."""
+    """Get the raw Langfuse client instance."""
     return _client
 
 
@@ -70,24 +65,31 @@ def create_trace(
     metadata: Optional[Dict] = None,
 ) -> Optional[Any]:
     """
-    Create a new trace for a session.
-    
+    Create a new trace for a session using Langfuse v3 SDK.
+
     Returns:
-        Trace object or None if Langfuse not enabled
+        A trace-like wrapper object, or None if Langfuse not enabled.
     """
     if not _enabled or not _client:
         return None
-    
+
     try:
-        trace = _client.start_span(
+        # v3: use start_span at the top level to create a root span (acts as trace)
+        trace_id = _client.create_trace_id()
+        span = _client.start_span(
             name=name,
-            metadata={
-                **(metadata or {}),
-                "session_id": session_id,
-                "user_id": user_id or "",
-            },
+            trace_context={"trace_id": trace_id},
+            metadata=metadata or {},
         )
-        return trace
+        
+        # In v3, set trace-level attributes separately if needed
+        span.update_trace(
+            session_id=session_id,
+            user_id=user_id or "",
+        )
+        
+        # Wrap so callers can access .id = trace_id
+        return _TraceWrapper(trace_id=trace_id, root_span=span, session_id=session_id)
     except Exception as e:
         print(f"⚠️ Failed to create trace: {e}")
         return None
@@ -95,12 +97,77 @@ def create_trace(
 
 def get_trace_url(trace_id: str) -> str:
     """Get the public URL for a trace."""
+    if _enabled and _client:
+        try:
+            url = _client.get_trace_url(trace_id=trace_id)
+            if url:
+                return url
+        except Exception as e:
+            print(f"Failed to get trace URL from client: {e}")
+            pass
     return f"{LANGFUSE_HOST}/trace/{trace_id}"
+
+
+class _TraceWrapper:
+    """Wraps a Langfuse v3 root span to provide a trace-like interface."""
+
+    def __init__(self, trace_id: str, root_span: Any, session_id: str):
+        self.id = trace_id
+        self._root_span = root_span
+        self.session_id = session_id
+
+    def span(self, name: str, **kwargs) -> Any:
+        """Create a child span."""
+        if not _client:
+            return _NoopSpan()
+        try:
+            return _client.start_span(
+                name=name,
+                trace_id=self.id,
+                **kwargs,
+            )
+        except Exception:
+            return _NoopSpan()
+
+    def generation(self, name: str, **kwargs) -> Any:
+        """Create a child generation span."""
+        if not _client:
+            return _NoopSpan()
+        try:
+            return _client.start_generation(
+                name=name,
+                trace_id=self.id,
+                **kwargs,
+            )
+        except Exception:
+            return _NoopSpan()
+
+    def end(self, **kwargs):
+        """End the root span."""
+        try:
+            if self._root_span and hasattr(self._root_span, 'end'):
+                self._root_span.end(**kwargs)
+        except Exception:
+            pass
+
+
+class _NoopSpan:
+    """No-op span for when Langfuse is not available."""
+    id = None
+
+    def __init__(self, **_kwargs):
+        pass
+
+    def end(self, **_kwargs):
+        pass
+
+    def update(self, **_kwargs):
+        pass
 
 
 class TracedOperation:
     """Context manager for tracing operations."""
-    
+
     def __init__(
         self,
         trace: Any,
@@ -114,7 +181,7 @@ class TracedOperation:
         self.metadata = metadata or {}
         self.span = None
         self.start_time = None
-    
+
     def __enter__(self):
         self.start_time = time.time()
         if self.trace:
@@ -129,10 +196,10 @@ class TracedOperation:
                         name=self.name,
                         metadata=self.metadata,
                     )
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"⚠️ TracedOperation enter failed: {e}")
         return self
-    
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         duration = time.time() - self.start_time if self.start_time else 0
         if self.span:
@@ -144,7 +211,7 @@ class TracedOperation:
             except Exception:
                 pass
         return False
-    
+
     def update(self, **kwargs):
         """Update span with additional data."""
         if self.span:
@@ -152,7 +219,7 @@ class TracedOperation:
                 self.span.update(**kwargs)
             except Exception:
                 pass
-    
+
     def log_input(self, input_data: Any):
         """Log input to the span."""
         if self.span:
@@ -160,7 +227,7 @@ class TracedOperation:
                 self.span.update(input=input_data)
             except Exception:
                 pass
-    
+
     def log_output(self, output_data: Any):
         """Log output to the span."""
         if self.span:
