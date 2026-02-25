@@ -235,10 +235,11 @@ Use the candidate IDs from the session state — do NOT invent IDs.
 - **ALWAYS translate tool arguments to English.** The database is in English.
   - If user says "mujhe fever hai" → call `lookup_by_indication` with `{"indication": "fever"}`.
   - If user says "kopfschmerzen" → call `lookup_by_indication` with `{"indication": "headache"}`.
+- IF a user asks to add a medication but it is NOT in the CURRENT SESSION STATE candidates, YOU MUST FIRST use `vector_search` to find it. Do NOT jump straight to `ask_quantity` or `add_to_cart`.
 - When you need to search for a medication, use `vector_search` with the English medication name if possible.
 - When user describes a symptom/condition, use `lookup_by_indication`.
 - When adding to cart, use the `med_id` from the candidates/state, NOT a made-up number.
-- NEVER hallucinate medication IDs — only use IDs from the session state.
+- NEVER hallucinate medication IDs or assume they are available — search first.
 
 Return ONLY the JSON object. No markdown fences, no explanation outside JSON.
 
@@ -314,7 +315,7 @@ async def _call_groq(
             if langfuse and trace_id:
                 try:
                     generation = langfuse.start_generation(
-                        trace_id=trace_id,
+                        trace_context={"trace_id": trace_id},
                         name="groq_llm_call",
                         model=m,
                         input=messages,
@@ -354,7 +355,8 @@ async def _call_groq(
                 print(f"[Groq] API error from {m}: {err_msg}")
                 if generation:
                     try:
-                        generation.end(level="ERROR", status_message=err_msg)
+                        generation.update(level="ERROR", status_message=err_msg)
+                        generation.end()
                     except: pass
                 continue
 
@@ -368,7 +370,7 @@ async def _call_groq(
             # Log successful generation to Langfuse
             if generation:
                 try:
-                    generation.end(
+                    generation.update(
                         output=content,
                         usage={
                             "input": usage.get("prompt_tokens", 0),
@@ -377,6 +379,7 @@ async def _call_groq(
                         },
                         metadata={"latency_ms": int((time.time() - start_time) * 1000)}
                     )
+                    generation.end()
                 except Exception as e:
                     print(f"[Langfuse] Failed to end generation: {e}")
             
@@ -417,7 +420,7 @@ async def _call_openrouter(
             if langfuse and trace_id:
                 try:
                     generation = langfuse.start_generation(
-                        trace_id=trace_id,
+                        trace_context={"trace_id": trace_id},
                         name="openrouter_llm_call",
                         model=m,
                         input=messages,
@@ -445,7 +448,8 @@ async def _call_openrouter(
                 print(f"[OpenRouter] 429 on {m}, trying next...")
                 if generation:
                     try:
-                        generation.end(level="WARNING", status_message="Rate limited")
+                        generation.update(level="WARNING", status_message="Rate limited")
+                        generation.end()
                     except: pass
                 continue
 
@@ -457,7 +461,8 @@ async def _call_openrouter(
                 print(f"[OpenRouter] API error from {m}: {err_msg}")
                 if generation:
                     try:
-                        generation.end(level="ERROR", status_message=err_msg)
+                        generation.update(level="ERROR", status_message=err_msg)
+                        generation.end()
                     except: pass
                 continue
 
@@ -471,7 +476,7 @@ async def _call_openrouter(
             # Log successful generation to Langfuse
             if generation:
                 try:
-                    generation.end(
+                    generation.update(
                         output=content,
                         usage={
                             "input": usage.get("prompt_tokens", 0),
@@ -480,6 +485,7 @@ async def _call_openrouter(
                         },
                         metadata={"latency_ms": int((time.time() - start_time) * 1000)}
                     )
+                    generation.end()
                 except Exception as e:
                     print(f"[Langfuse] Failed to end generation: {e}")
 
@@ -491,13 +497,15 @@ async def _call_openrouter(
             print(f"[OpenRouter] {type(e).__name__} on {m}: {e}")
             if generation:
                 try:
-                    generation.end(level="ERROR", status_message=str(e))
+                    generation.update(level="ERROR", status_message=str(e))
+                    generation.end()
                 except: pass
             continue
         except Exception as e:
             if generation:
                 try:
-                    generation.end(level="ERROR", status_message=str(e))
+                    generation.update(level="ERROR", status_message=str(e))
+                    generation.end()
                 except: pass
             print(f"[OpenRouter] Unexpected error on {m}: {type(e).__name__}: {e}")
             continue

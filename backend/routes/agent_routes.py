@@ -33,6 +33,7 @@ class ChatResponse(BaseModel):
     candidates: List[Dict[str, Any]] = []
     cart: Dict[str, Any] = {}
     action_taken: Optional[str] = None
+    ui_action: Optional[str] = None
     needs_input: bool = True
     end_conversation: bool = False
     latency_ms: int = 0

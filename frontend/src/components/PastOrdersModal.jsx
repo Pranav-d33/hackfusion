@@ -1,39 +1,60 @@
 /**
- * Past Orders Modal
- * Compact button that opens a zoomed modal with full order history.
- * Matches Mediloon white-glass UI.
+ * My Orders & Refills Modal
+ * Full-width stacked layout:
+ *   - Top: Prediction Timeline (needs full width for the 30-day horizontal track)
+ *   - Bottom: Active + Past orders (scrollable list)
+ * Tooltip-safe: timeline section uses overflow-visible so hover cards render.
  */
 import React, { useState } from 'react';
 import {
   History, X, Pill, Calendar, Clock,
   Package, ChevronDown, ChevronUp, ShoppingBag,
-  Maximize2,
+  Maximize2, Activity, TrendingUp,
+  AlertTriangle, ShoppingCart, RefreshCw, BarChart2,
 } from 'lucide-react';
 
+/* ── helpers ── */
 function formatDate(dateStr) {
   try {
     const d = new Date(dateStr);
     return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
-  } catch {
-    return dateStr;
-  }
+  } catch { return dateStr; }
 }
 
-function formatShortDate(dateStr) {
-  try {
-    const d = new Date(dateStr);
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  } catch {
-    return dateStr;
-  }
-}
+/* ── urgency config ── */
+const urgencyConfig = {
+  critical: {
+    bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-700',
+    badge: 'bg-red-500 text-white', dot: 'bg-red-500',
+    icon: <AlertTriangle size={13} className="text-red-500" />,
+  },
+  soon: {
+    bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700',
+    badge: 'bg-amber-500 text-white', dot: 'bg-amber-500',
+    icon: <Clock size={13} className="text-amber-500" />,
+  },
+  upcoming: {
+    bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700',
+    badge: 'bg-emerald-500 text-white', dot: 'bg-emerald-500',
+    icon: <Calendar size={13} className="text-emerald-500" />,
+  },
+};
+const getUrgency = (u) => urgencyConfig[u] || urgencyConfig.upcoming;
+const getDaysLabel = (d) => d <= 0 ? 'Depleted' : d === 1 ? 'Tomorrow' : `${d} days`;
+const pct = (days) => Math.min(Math.max(days, 0), 30) / 30 * 100;
 
-export default function PastOrdersModal({ orders, activeOrders, loading, onReorder }) {
-  const [isOpen, setIsOpen] = useState(false);
+
+export default function PastOrdersModal({ orders, activeOrders, timeline, stats, consumption, loading, onReorder, externalOpen, onExternalClose, isVoiceMode }) {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isOpen = externalOpen || internalOpen;
+  const handleClose = () => {
+    setInternalOpen(false);
+    onExternalClose?.();
+  };
   const [expandedDate, setExpandedDate] = useState(null);
   const [expandedActiveOrder, setExpandedActiveOrder] = useState(null);
 
-  // Group past orders by date
+  /* group past orders */
   const grouped = {};
   (orders || []).forEach(o => {
     const date = (o.purchase_date || '').slice(0, 10);
@@ -43,216 +64,301 @@ export default function PastOrdersModal({ orders, activeOrders, loading, onReord
   const groupedEntries = Object.entries(grouped).sort((a, b) => b[0].localeCompare(a[0]));
 
   const orderCount = orders?.length || 0;
-  const dateCount = groupedEntries.length;
   const activeCount = activeOrders?.length || 0;
+  const timelineCount = timeline?.length || 0;
 
   return (
     <>
-      {/* Trigger button */}
+      {/* ── Trigger Button ── */}
       <button
-        onClick={() => setIsOpen(true)}
-        className="flex items-center gap-2 px-3 py-2 bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md hover:border-red-200 transition-all duration-200 group"
+        onClick={() => setInternalOpen(true)}
+        className="w-full flex items-center gap-3 px-4 py-3 bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:border-red-200 transition-all duration-200 group"
       >
-        <div className="p-1.5 bg-gray-50 group-hover:bg-red-50 rounded-lg transition-colors">
-          <History size={14} className="text-gray-400 group-hover:text-red-500 transition-colors" />
+        <div className="p-2 bg-gradient-to-br from-red-50 to-red-100 group-hover:from-red-100 group-hover:to-red-200 rounded-xl transition-colors">
+          <ShoppingBag size={18} className="text-red-500" />
         </div>
-        <div className="text-left">
-          <p className="text-[11px] font-semibold text-gray-700">My Orders</p>
-          <p className="text-[9px] text-gray-400">
-            {loading ? 'Loading...' : (activeCount > 0 ? `${activeCount} active • ` : '') + (orderCount > 0 ? `${orderCount} past` : 'No orders yet')}
+        <div className="text-left flex-1 min-w-0">
+          <p className="text-base font-bold text-gray-800">My Orders & Refills</p>
+          <p className="text-xs text-gray-400 truncate">
+            {loading ? 'Loading…' : [
+              activeCount > 0 && `${activeCount} active`,
+              orderCount > 0 && `${orderCount} past`,
+              timelineCount > 0 && `${timelineCount} tracked`,
+            ].filter(Boolean).join(' · ') || 'No orders yet'}
           </p>
         </div>
         {activeCount > 0 && (
-          <span className="flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white ml-1">{activeCount}</span>
+          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">{activeCount}</span>
         )}
-        <Maximize2 size={10} className="text-gray-300 ml-1" />
+        <Maximize2 size={14} className="text-gray-300 group-hover:text-red-400 transition-colors" />
       </button>
 
-      {/* Modal */}
+      {/* ── Modal ── */}
       {isOpen && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 sm:p-8" onClick={() => setIsOpen(false)}>
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6" onClick={handleClose}>
           <div
-            className="w-full max-w-xl max-h-[80vh] bg-white rounded-3xl shadow-2xl border border-gray-100 flex flex-col overflow-hidden animate-fade-in-up"
+            className="w-full max-w-[1000px] h-[90vh] sm:max-h-[85vh] bg-white rounded-3xl shadow-2xl border border-gray-100 flex flex-col animate-fade-in-up"
             onClick={e => e.stopPropagation()}
           >
-            {/* Modal header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex-shrink-0">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 bg-gradient-to-br from-red-500 to-red-700 rounded-xl flex items-center justify-center">
-                  <ShoppingBag size={16} className="text-white" />
+
+            {/* ═══ Header ═══ */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-red-500 to-red-700 rounded-xl flex items-center justify-center shadow-md">
+                  <Activity size={20} className="text-white" />
                 </div>
                 <div>
-                  <h2 className="text-sm font-bold text-gray-900">My Orders</h2>
-                  <p className="text-[11px] text-gray-400">
-                    {activeCount > 0 ? `${activeCount} active • ` : ''}{orderCount} past item{orderCount !== 1 ? 's' : ''}
+                  <h2 className="text-lg font-bold text-gray-900">My Orders & Refills</h2>
+                  <p className="text-xs text-gray-400">
+                    {activeCount > 0 ? `${activeCount} active · ` : ''}{orderCount} past · {timelineCount} tracked
                   </p>
                 </div>
               </div>
-              <button
-                onClick={() => setIsOpen(false)}
-                className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors"
-              >
+              <button onClick={handleClose} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors">
                 <X size={18} />
               </button>
             </div>
 
-            {/* Content */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            {/* ═══ Scrollable Body ═══ */}
+            <div className="flex-1 overflow-y-auto">
 
-              {/* ── Active / Current Orders ── */}
-              {activeCount > 0 && (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 px-1">
-                    <span className="flex h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-green-700">Active Orders</p>
+              {/* ─── Section 1: Prediction Timeline (full width) ─── */}
+              <div className="px-6 pt-5 pb-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <TrendingUp size={18} className="text-blue-500" />
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-gray-500">Refill Predictions</h3>
+                  <span className="text-xs text-gray-400 ml-1">AI-powered medication timeline</span>
+                </div>
+
+                {/* Timeline Track — overflow visible for tooltips */}
+                {loading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <RefreshCw size={20} className="text-gray-300 animate-spin" />
                   </div>
-                  {activeOrders.map((order) => {
-                    const isExp = expandedActiveOrder === order.order_id;
-                    return (
-                      <div key={order.id || order.order_id} className="bg-green-50 rounded-xl border border-green-100 shadow-sm overflow-hidden">
-                        <button
-                          onClick={() => setExpandedActiveOrder(isExp ? null : order.order_id)}
-                          className="w-full flex items-center justify-between px-4 py-3 hover:bg-green-100/50 transition-colors"
-                        >
-                          <div className="flex items-center gap-2.5">
-                            <div className="p-1.5 bg-green-100 rounded-lg">
-                              <Package size={13} className="text-green-600" />
+                ) : !timeline || timeline.length === 0 ? (
+                  <div className="text-center py-6 bg-gray-50 rounded-2xl border border-gray-100">
+                    <Calendar size={28} className="mx-auto text-gray-200 mb-2" />
+                    <p className="text-sm text-gray-400">No medication timeline yet</p>
+                    <p className="text-xs text-gray-300 mt-0.5">Order medications to see refill predictions</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {/* Visual Track */}
+                    <div className="relative pt-16 pb-2" style={{ overflow: 'visible' }}>
+                      {/* Scale labels */}
+                      <div className="absolute top-1 left-0 right-0 flex justify-between text-xs text-gray-400 px-2 uppercase tracking-widest font-medium">
+                        <span>Today</span><span>1 wk</span><span>2 wk</span><span>3 wk</span><span>4 wk</span>
+                      </div>
+
+                      {/* Track bar */}
+                      <div className="relative h-12 rounded-xl bg-gradient-to-r from-red-50 via-amber-50 to-emerald-50 border border-gray-100">
+                        <div className="absolute inset-y-0 left-0 w-[10%] bg-red-100/50 rounded-l-xl" />
+                        <div className="absolute inset-y-0 left-[10%] w-[15%] bg-amber-100/30" />
+
+                        {/* Dots */}
+                        {timeline.map((pred, i) => {
+                          const cfg = getUrgency(pred.urgency);
+                          const left = pct(pred.days_until_depletion);
+                          return (
+                            <div
+                              key={i}
+                              className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 group"
+                              style={{ left: `${left}%`, zIndex: 20 }}
+                            >
+                              <div className={`w-9 h-9 rounded-full ${cfg.dot} flex items-center justify-center shadow-lg cursor-pointer transition-transform group-hover:scale-125 border-2 border-white`}>
+                                <Pill size={14} className="text-white" />
+                              </div>
+                              {/* Hover tooltip — positioned ABOVE, overflow visible */}
+                              <div className="hidden group-hover:block absolute bottom-full left-1/2 -translate-x-1/2 mb-3 bg-white rounded-xl shadow-2xl border border-gray-100 p-4 min-w-[220px] z-[100]">
+                                <p className="font-bold text-gray-900 text-base">{pred.brand_name}</p>
+                                <p className="text-xs text-gray-500 mt-0.5">{pred.dosage}</p>
+                                <div className="flex items-center gap-2 mt-2">
+                                  <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${cfg.badge}`}>{getDaysLabel(pred.days_until_depletion)}</span>
+                                  {pred.frequency_label && (
+                                    <span className="text-xs text-gray-500 flex items-center gap-1">
+                                      <TrendingUp size={12} /> {pred.frequency_label}
+                                    </span>
+                                  )}
+                                </div>
+                                <button
+                                  onClick={() => onReorder?.(pred)}
+                                  className="mt-4 w-full text-sm bg-red-500 hover:bg-red-600 text-white py-2 rounded-xl flex items-center justify-center gap-1.5 transition-colors font-semibold"
+                                >
+                                  <ShoppingCart size={14} /> Reorder
+                                </button>
+                                {/* Arrow */}
+                                <div className="absolute top-full left-1/2 -translate-x-1/2 w-3 h-3 bg-white border-r border-b border-gray-100 rotate-45 -mt-1.5" />
+                              </div>
                             </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Legend */}
+                    <div className="flex justify-center gap-5 text-xs text-gray-500 font-medium">
+                      {[
+                        { color: 'bg-red-500', label: 'Critical (0-3d)' },
+                        { color: 'bg-amber-500', label: 'Soon (4-7d)' },
+                        { color: 'bg-emerald-500', label: 'Upcoming (8+d)' },
+                      ].map((l, i) => (
+                        <span key={i} className="flex items-center gap-1.5">
+                          <span className={`w-2.5 h-2.5 rounded-full ${l.color}`} />{l.label}
+                        </span>
+                      ))}
+                    </div>
+
+                    {/* Medication Cards (compact) */}
+                    {timeline.filter(t => t.urgency === 'critical' || t.urgency === 'soon').length > 0 && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+                        {timeline.filter(t => t.urgency === 'critical' || t.urgency === 'soon').map((pred, i) => {
+                          const cfg = getUrgency(pred.urgency);
+                          return (
+                            <div key={i} className={`flex items-center gap-3 p-3 rounded-xl border ${cfg.border} ${cfg.bg}`}>
+                              <div className={`w-8 h-8 rounded-lg ${cfg.dot} flex items-center justify-center flex-shrink-0`}>
+                                <Pill size={13} className="text-white" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-semibold text-gray-800 truncate">{pred.brand_name}</p>
+                                <p className="text-xs text-gray-500">{pred.dosage}</p>
+                              </div>
+                              <span className={`text-xs px-2.5 py-1 rounded-full font-semibold flex-shrink-0 ${cfg.badge}`}>
+                                {getDaysLabel(pred.days_until_depletion)}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Divider */}
+              <div className="mx-6 border-t border-gray-100" />
+
+              {/* ─── Section 2: Order History ─── */}
+              <div className="px-6 pt-4 pb-6 space-y-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <History size={18} className="text-amber-500" />
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-gray-500">Order History</h3>
+                </div>
+
+                {/* Active Orders */}
+                {activeCount > 0 && (
+                  <div className="space-y-3">
+                    <p className="text-xs font-bold uppercase tracking-wider text-green-600 flex items-center gap-1.5 px-1 mb-1">
+                      <span className="flex h-2.5 w-2.5 rounded-full bg-green-500 animate-pulse" />
+                      Active ({activeCount})
+                    </p>
+                    {activeOrders.map((order) => {
+                      const isExp = expandedActiveOrder === order.order_id;
+                      return (
+                        <div key={order.id || order.order_id} className="bg-green-50/80 rounded-xl border border-green-100 overflow-hidden">
+                          <button
+                            onClick={() => setExpandedActiveOrder(isExp ? null : order.order_id)}
+                            className="w-full flex items-center justify-between px-5 py-3 hover:bg-green-100/40 transition-colors"
+                          >
+                            <div className="flex items-center gap-3">
+                              <Package size={16} className="text-green-600" />
+                              <div className="text-left">
+                                <p className="text-sm font-semibold text-gray-800">Order #{order.order_id}</p>
+                                <p className="text-xs text-green-700">{order.status || 'Confirmed'}{order.estimated_delivery ? ` · ETA ${order.estimated_delivery}` : ''}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              {order.total != null && <span className="text-xs font-bold text-gray-600">€{Number(order.total).toFixed(2)}</span>}
+                              {isExp ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
+                            </div>
+                          </button>
+                          {isExp && (
+                            <div className="border-t border-green-100 divide-y divide-green-50">
+                              {(order.items || []).map((item, i) => (
+                                <div key={i} className="flex items-center gap-3 px-5 py-3">
+                                  <Pill size={14} className="text-green-500 flex-shrink-0" />
+                                  <span className="text-sm text-gray-700 flex-1 truncate font-medium">{item.brand_name}</span>
+                                  <span className="text-xs text-gray-500 font-medium">×{item.quantity}</span>
+                                  <button onClick={() => onReorder?.({ brand_name: item.brand_name })} className="text-xs text-red-500 font-semibold hover:text-red-700 bg-white/50 px-2.5 py-1 rounded-lg">Reorder</button>
+                                </div>
+                              ))}
+                              {order.address && <p className="px-5 py-3 text-xs text-gray-500 border-t border-green-50/50">📍 {order.address}</p>}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Past Orders */}
+                {activeCount > 0 && orderCount > 0 && (
+                  <div className="flex items-center gap-3 px-1 py-1">
+                    <div className="flex-1 h-px bg-gray-100" />
+                    <p className="text-xs font-bold uppercase tracking-wider text-gray-400">Past Orders</p>
+                    <div className="flex-1 h-px bg-gray-100" />
+                  </div>
+                )}
+
+                {loading ? (
+                  <div className="py-8 text-center">
+                    <RefreshCw size={20} className="mx-auto text-gray-300 animate-spin mb-2" />
+                    <p className="text-xs text-gray-400">Loading history…</p>
+                  </div>
+                ) : groupedEntries.length === 0 && activeCount === 0 ? (
+                  <div className="py-8 text-center">
+                    <ShoppingBag size={28} className="mx-auto text-gray-200 mb-2" />
+                    <p className="text-sm text-gray-400">No orders yet</p>
+                    <p className="text-xs text-gray-300 mt-0.5">Your order history will appear here</p>
+                  </div>
+                ) : groupedEntries.length === 0 ? null : (
+                  groupedEntries.map(([date, items]) => {
+                    const isExp = expandedDate === date;
+                    return (
+                      <div key={date} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+                        <button
+                          onClick={() => setExpandedDate(isExp ? null : date)}
+                          className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-gray-50/50 transition-colors"
+                        >
+                          <div className="flex items-center gap-3">
+                            <Calendar size={16} className="text-red-400" />
                             <div className="text-left">
-                              <p className="text-xs font-semibold text-gray-800">Order #{order.order_id}</p>
-                              <p className="text-[10px] text-green-700 font-medium">
-                                {order.status || 'Confirmed'}{order.estimated_delivery ? ` · ETA ${order.estimated_delivery}` : ''}
-                              </p>
+                              <p className="text-sm font-semibold text-gray-800">{formatDate(date)}</p>
+                              <p className="text-xs text-gray-500 font-medium">{items.length} item{items.length > 1 ? 's' : ''}</p>
                             </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            {order.total != null && (
-                              <span className="text-[10px] font-bold text-gray-600">€{Number(order.total).toFixed(2)}</span>
-                            )}
-                            {isExp ? <ChevronUp size={14} className="text-gray-400" /> : <ChevronDown size={14} className="text-gray-400" />}
+                          <div className="flex items-center gap-3">
+                            <div className="hidden sm:flex gap-1.5">
+                              {items.slice(0, 2).map((it, i) => (
+                                <span key={i} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full truncate max-w-[90px] font-medium">{it.brand_name}</span>
+                              ))}
+                            </div>
+                            {isExp ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
                           </div>
                         </button>
                         {isExp && (
-                          <div className="border-t border-green-100 divide-y divide-green-50">
-                            {(order.items || []).map((item, i) => (
-                              <div key={i} className="flex items-center gap-3 px-4 py-2.5">
-                                <div className="w-7 h-7 bg-white rounded-lg flex items-center justify-center flex-shrink-0 border border-green-100">
-                                  <Pill size={12} className="text-green-500" />
-                                </div>
+                          <div className="border-t border-gray-50 divide-y divide-gray-50">
+                            {items.map((item, i) => (
+                              <div key={i} className="flex items-center gap-3 px-5 py-3.5 hover:bg-gray-50/30 transition-colors">
+                                <Pill size={14} className="text-red-400 flex-shrink-0" />
                                 <div className="flex-1 min-w-0">
-                                  <p className="text-xs font-medium text-gray-800 truncate">{item.brand_name}</p>
-                                  <p className="text-[10px] text-gray-400">Qty: {item.quantity}</p>
+                                  <p className="text-sm font-semibold text-gray-800 truncate">{item.brand_name}</p>
+                                  <p className="text-xs text-gray-500 font-medium">{item.dosage} · Qty: {item.quantity}</p>
                                 </div>
-                                <button
-                                  onClick={() => onReorder?.({ brand_name: item.brand_name })}
-                                  className="text-[10px] text-red-500 hover:text-red-700 font-semibold hover:bg-red-50 px-2 py-1 rounded-lg transition-colors"
-                                >
-                                  Reorder
-                                </button>
+                                {item.dosage_frequency && (
+                                  <span className="text-xs text-gray-500 flex items-center gap-1.5 bg-gray-50 px-2.5 py-1 rounded-lg">
+                                    <Clock size={12} /> {item.dosage_frequency}
+                                  </span>
+                                )}
+                                <button onClick={() => onReorder?.({ brand_name: item.brand_name })} className="text-xs text-red-500 hover:text-red-700 font-semibold bg-red-50 hover:bg-red-100 px-2.5 py-1 rounded-lg transition-colors ml-2">Reorder</button>
                               </div>
                             ))}
-                            {order.address && (
-                              <p className="px-4 py-2 text-[10px] text-gray-400">📍 {order.address}</p>
-                            )}
                           </div>
                         )}
                       </div>
                     );
-                  })}
-                </div>
-              )}
-
-              {/* Divider between sections */}
-              {activeCount > 0 && orderCount > 0 && (
-                <div className="flex items-center gap-2 px-1 pt-1">
-                  <div className="flex-1 h-px bg-gray-100" />
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Past Orders</p>
-                  <div className="flex-1 h-px bg-gray-100" />
-                </div>
-              )}
-              {activeCount === 0 && (
-                <div className="flex items-center gap-2 px-1">
-                  <span className="w-2 h-2 rounded-full bg-gray-300" />
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Past Orders</p>
-                </div>
-              )}
-
-              {loading ? (
-                <div className="py-12 text-center">
-                  <div className="w-8 h-8 border-2 border-gray-200 border-t-red-500 rounded-full animate-spin mx-auto mb-3" />
-                  <p className="text-sm text-gray-400">Loading order history…</p>
-                </div>
-              ) : groupedEntries.length === 0 && activeCount === 0 ? (
-                <div className="py-12 text-center">
-                  <ShoppingBag size={32} className="mx-auto text-gray-200 mb-3" />
-                  <p className="text-sm font-medium text-gray-500">No orders yet</p>
-                  <p className="text-xs text-gray-400 mt-1">Your order history will appear here</p>
-                </div>
-              ) : groupedEntries.length === 0 ? null : (
-                groupedEntries.map(([date, items]) => {
-                  const isExp = expandedDate === date;
-                  return (
-                    <div key={date} className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md transition-all duration-200">
-                      {/* Date header */}
-                      <button
-                        onClick={() => setExpandedDate(isExp ? null : date)}
-                        className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50/50 transition-colors"
-                      >
-                        <div className="flex items-center gap-2.5">
-                          <div className="p-1.5 bg-red-50 rounded-lg">
-                            <Calendar size={13} className="text-red-400" />
-                          </div>
-                          <div className="text-left">
-                            <p className="text-xs font-semibold text-gray-700">{formatDate(date)}</p>
-                            <p className="text-[10px] text-gray-400">{items.length} medicine{items.length > 1 ? 's' : ''}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {/* Preview pills */}
-                          <div className="hidden sm:flex gap-1">
-                            {items.slice(0, 3).map((it, i) => (
-                              <span key={i} className="text-[9px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full truncate max-w-[80px]">
-                                {it.brand_name}
-                              </span>
-                            ))}
-                          </div>
-                          {isExp ? <ChevronUp size={14} className="text-gray-400" /> : <ChevronDown size={14} className="text-gray-400" />}
-                        </div>
-                      </button>
-
-                      {/* Items */}
-                      {isExp && (
-                        <div className="border-t border-gray-50 divide-y divide-gray-50 animate-fade-in-up">
-                          {items.map((item, i) => (
-                            <div key={i} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50/30 transition-colors">
-                              <div className="w-8 h-8 bg-red-50 rounded-lg flex items-center justify-center flex-shrink-0">
-                                <Pill size={14} className="text-red-400" />
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-gray-800 truncate">{item.brand_name}</p>
-                                <p className="text-[11px] text-gray-400">{item.dosage} • Qty: {item.quantity}</p>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                {item.dosage_frequency && (
-                                  <span className="text-[10px] text-gray-400 flex items-center gap-1 bg-gray-50 px-2 py-0.5 rounded-full">
-                                    <Clock size={9} /> {item.dosage_frequency}
-                                  </span>
-                                )}
-                                <button
-                                  onClick={() => onReorder?.({ brand_name: item.brand_name })}
-                                  className="text-[10px] text-red-500 hover:text-red-700 font-semibold hover:bg-red-50 px-2 py-1 rounded-lg transition-colors"
-                                >
-                                  Reorder
-                                </button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })
-              )}
+                  })
+                )}
+              </div>
             </div>
           </div>
         </div>

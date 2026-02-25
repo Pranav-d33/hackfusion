@@ -16,13 +16,14 @@ import MedicineSearch from './components/MedicineSearch';
 import AddressModal from './components/AddressModal';
 import CheckoutAnimation from './components/CheckoutAnimation';
 import CartDetailModal from './components/CartDetailModal';
-import PredictionTimeline from './components/PredictionTimeline';
 import PastOrdersModal from './components/PastOrdersModal';
+import PrescriptionModal from './components/PrescriptionModal';
 import UpdatesModal from './components/UpdatesModal';
 import { useSpeech } from './hooks/useSpeech';
 import { useRefillPredictions } from './hooks/useRefillPredictions';
 import { useLanguage } from './i18n/LanguageContext';
 import LanguageSelector from './components/LanguageSelector';
+import { useUI } from './contexts/UIContext';
 
 const API_BASE = '/api';
 const LANGUAGE_OPTIONS = [
@@ -120,6 +121,9 @@ function FeatureCards() {
 export default function App() {
     // --- Language ---
     const { t, lang, bcp47, dir, setLang } = useLanguage();
+
+    // --- UI Context (agent-controlled navigation) ---
+    const { executeUIAction, isCartOpen, setCartOpen, isOrdersOpen, setOrdersOpen, isPrescriptionModalOpen, setPrescriptionModalOpen, prescriptionMode, isTraceOpen, setTraceOpen } = useUI();
 
     // --- State ---
     const [messages, setMessages] = useState([{
@@ -372,13 +376,18 @@ export default function App() {
                 refreshRefills?.();
                 fetchOrderUpdates?.();
             }
+
+            // NEW: Agent-controlled UI actions (runs alongside existing logic, never replaces it)
+            if (data.ui_action) {
+                executeUIAction(data.ui_action);
+            }
         } catch (error) {
             console.error(error);
             setMessages(prev => [...prev, { id: Date.now() + 1, text: t('sorry'), isUser: false }]);
         } finally {
             setIsLoading(false);
         }
-    }, [sessionId, isLoading, liveMode, speak, startListening, scriptInfo, detectedLanguage, handleCheckoutFlow, user?.id, refreshRefills]);
+    }, [sessionId, isLoading, liveMode, speak, startListening, scriptInfo, detectedLanguage, handleCheckoutFlow, user?.id, refreshRefills, executeUIAction]);
 
     const handleFileUpload = useCallback(async (file) => {
         if (!file || isLoading) return;
@@ -584,19 +593,17 @@ export default function App() {
                 {/* ─── LEFT COLUMN: Trace ─── */}
                 <aside className={`flex flex-col gap-3 order-2 lg:order-1 lg:h-full`}>
                     <div className="flex-1 flex flex-col gap-3 min-h-0">
-                        <TracePanel trace={trace} latency={latency} traceUrl={traceUrl} traceId={traceId} />
+                        <TracePanel
+                            trace={trace}
+                            latency={latency}
+                            traceUrl={traceUrl}
+                            traceId={traceId}
+                            externalOpen={isTraceOpen}
+                            onExternalClose={() => setTraceOpen(false)}
+                            isVoiceMode={liveMode}
+                        />
 
-                        {/* AI Timeline (Moved to Sidebar) */}
-                        <div className="flex-1 min-h-0 animate-fade-in-up delay-100">
-                            <PredictionTimeline
-                                timeline={refillTimeline}
-                                consumption={refillConsumption}
-                                recentOrders={recentOrders}
-                                loading={refillLoading}
-                                onReorder={(pred) => handleSend(`Reorder ${pred.brand_name}`)}
-                            // showcase={true}  <-- Removing this to use default vertical mode
-                            />
-                        </div>
+                        {/* AI Timeline moved to PastOrdersModal */}
                     </div>
                 </aside>
 
@@ -706,8 +713,14 @@ export default function App() {
                             <PastOrdersModal
                                 orders={recentOrders}
                                 activeOrders={orderUpdates}
+                                timeline={refillTimeline}
+                                stats={refillStats}
+                                consumption={refillConsumption}
                                 loading={refillLoading}
                                 onReorder={(item) => handleSend(`Reorder ${item.brand_name}`)}
+                                externalOpen={isOrdersOpen}
+                                onExternalClose={() => setOrdersOpen(false)}
+                                isVoiceMode={liveMode}
                             />
                         </div>
                     )}
@@ -894,10 +907,18 @@ export default function App() {
 
             {user && <RefillNotification customerId={user.id} onReorder={(alert) => handleSend(`Reorder ${alert.brand_name}`)} />}
             <MedicineSearch isOpen={showSearch} onClose={() => setShowSearch(false)} onAddToCart={handleSearchAdd} sessionId={sessionId} />
-            <CartDetailModal isOpen={showCartDetail} onClose={() => setShowCartDetail(false)} cart={cart} sessionId={sessionId} onCartUpdate={handleCartUpdate} onCheckout={() => { setShowCartDetail(false); handleCheckoutFlow(); }} />
+            <CartDetailModal isOpen={showCartDetail || isCartOpen} onClose={() => { setShowCartDetail(false); setCartOpen(false); }} cart={cart} sessionId={sessionId} onCartUpdate={handleCartUpdate} onCheckout={() => { setShowCartDetail(false); setCartOpen(false); handleCheckoutFlow(); }} />
             <AddressModal isOpen={showAddressModal} onClose={() => setShowAddressModal(false)} onConfirm={handleAddressConfirm} cart={cart} user={user} />
             <CheckoutAnimation isOpen={showCheckoutAnim} order={checkoutOrder} onClose={() => setShowCheckoutAnim(false)} />
             <FlyToCartLayer items={flyingItems} cartRef={cartRef} />
+
+            {/* Prescription Upload Modal (agent-controlled) */}
+            <PrescriptionModal
+                isOpen={isPrescriptionModalOpen}
+                mode={prescriptionMode}
+                onClose={() => setPrescriptionModalOpen(false)}
+                isVoiceMode={liveMode}
+            />
         </div>
     );
 }

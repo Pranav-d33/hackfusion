@@ -15,6 +15,7 @@ sys.path.insert(0, str(__file__).rsplit("/", 2)[0])
 
 from agents.ordering_agent import handle as ordering_agent_handle, _detect_script_language
 from agents.safety_agent import check_input_safety, validate_add_to_cart
+from agents.ui_agent import validate_ui_action
 from tools.query_tools import (
     lookup_by_indication, vector_search, get_inventory,
     get_rx_flag, get_medication_details, get_tier1_alternatives,
@@ -30,6 +31,166 @@ from observability.langfuse_client import (
 # ── Session state ───────────────────────────────────────────────────────
 _conversation_states: Dict[str, Dict[str, Any]] = {}
 
+
+# ── Navigation intent classifier ───────────────────────────────────────
+# Negative patterns: if ANY word/phrase from this set appears in user input,
+# skip classification entirely and let the ordering agent handle it.
+_ORDERING_OVERRIDE_PHRASES = {
+    # English
+    "add to cart", "remove from cart", "checkout", "check out",
+    "order now", "buy", "confirm", "cancel order",
+    "yes", "no", "sure", "okay", "ok",
+    # German
+    "bestellen", "kaufen", "in den warenkorb", "bestätigen", "ja", "nein",
+    # Arabic
+    "اشتري", "اطلب", "أضف", "نعم", "لا", "تأكيد",
+    # Hindi / Hinglish
+    "kharidna", "karo", "haan", "nahi", "order karo",
+    "add karo", "confirm karo", "checkout karo",
+}
+
+# Positive patterns: explicit navigation phrases mapped to UI actions.
+_NAVIGATION_MAP = {
+    "open_cart": [
+        # English
+        "open my cart", "show my cart", "view my cart", "show cart",
+        "open cart", "view cart", "see my cart", "see cart",
+        # German
+        "warenkorb öffnen", "zeig meinen warenkorb", "warenkorb anzeigen",
+        "meinen warenkorb zeigen",
+        # Arabic
+        "افتح السلة", "اعرض السلة", "سلة التسوق",
+        # Hindi / Hinglish
+        "cart dikhao", "mera cart dikhao", "cart kholdo",
+        "कार्ट दिखाओ", "मेरा कार्ट दिखाओ",
+    ],
+    "open_my_orders": [
+        # English
+        "my orders", "show my orders", "order history", "past orders",
+        "show orders", "view my orders", "view orders", "see my orders",
+        # German
+        "meine bestellungen", "bestellverlauf", "bestellhistorie",
+        "zeig meine bestellungen",
+        # Arabic
+        "طلباتي", "اعرض طلباتي", "سجل الطلبات",
+        # Hindi / Hinglish
+        "meri orders dikhao", "order history dikhao",
+        "मेरे ऑर्डर दिखाओ", "ऑर्डर हिस्ट्री",
+    ],
+    "close_modal": [
+        # English
+        "close this", "close modal", "close popup", "go back", "dismiss",
+        # German
+        "schließen", "zurück",
+        # Arabic
+        "أغلق", "ارجع",
+        # Hindi / Hinglish
+        "band karo", "close karo", "बंद करो",
+    ],
+    "open_upload_prescription": [
+        # English
+        "upload prescription", "upload my prescription",
+        "submit prescription", "add prescription",
+        "i want to upload a prescription", "i need to upload my prescription",
+        # German
+        "rezept hochladen", "mein rezept hochladen",
+        # Arabic
+        "ارفع الوصفة", "تحميل الوصفة",
+        # Hindi / Hinglish
+        "prescription upload karo", "prescription dedo",
+        "प्रिस्क्रिप्शन अपलोड करो",
+    ],
+    "trigger_prescription_upload": [
+        "start prescription upload", "begin upload",
+    ],
+    "trigger_prescription_update": [
+        # English
+        "replace my prescription", "update my prescription",
+        "replace prescription", "change prescription",
+        # German
+        "rezept ersetzen", "rezept aktualisieren",
+        # Arabic
+        "استبدل الوصفة", "حدث الوصفة",
+        # Hindi / Hinglish
+        "prescription badlo", "प्रिस्क्रिप्शन बदलो",
+    ],
+    "open_trace": [
+        "show trace", "show your thought process", "how did you decide",
+        "agent trace", "show reasoning", "show logs", "show agent logs",
+        "thought process", "explain reasoning",
+    ],
+}
+
+
+def classify_navigation_intent(user_input: str) -> str | None:
+    """
+    Classify user input as a navigation intent.
+
+    Returns the UI action string if matched, None otherwise.
+    Uses negative patterns to yield to the ordering agent on ambiguous inputs.
+    This function NEVER mutates session state.
+    """
+    if not user_input or not user_input.strip():
+        return None
+
+    lower = user_input.strip().lower()
+
+    # Step 1: Check negative patterns — if any ordering phrase is found, bail out
+    for phrase in _ORDERING_OVERRIDE_PHRASES:
+        if phrase in lower:
+            return None
+
+    # Step 2: Check positive navigation patterns
+    for action, phrases in _NAVIGATION_MAP.items():
+        for phrase in phrases:
+            if phrase in lower:
+                return action
+
+    return None
+
+
+def _localize_ui_action(action: str, lang: str) -> str:
+    """Provide a short, spoken confirmation for UI actions so Voice Mode doesn't hang."""
+    tts_map = {
+        "open_cart": {
+            "en": "Opening your cart.",
+            "de": "Öffne deinen Warenkorb.",
+            "ar": "جاري فتح سلة التسوق.",
+            "hi": "आपका कार्ट खोल रही हूँ।",
+        },
+        "open_my_orders": {
+            "en": "Opening your orders.",
+            "de": "Öffne deine Bestellungen.",
+            "ar": "جاري فتح طلباتك.",
+            "hi": "आपके आदेश दिखा रही हूँ।",
+        },
+        "open_upload_prescription": {
+            "en": "Please upload your prescription.",
+            "de": "Bitte lade dein Rezept hoch.",
+            "ar": "يرجى تحميل الوصفة الطبية.",
+            "hi": "कृपया अपना पर्चा अपलोड करें।",
+        },
+        "trigger_prescription_update": {
+            "en": "Ready to update your prescription.",
+            "de": "Bereit, dein Rezept zu aktualisieren.",
+            "ar": "جاهز لتحديث وصفتك.",
+            "hi": "पर्चा अपडेट करने के लिए तैयार हूँ।",
+        },
+        "open_trace": {
+            "en": "Here is my thought process.",
+            "de": "Hier ist mein Gedankengang.",
+            "ar": "إليك عملية التفكير الخاصة بي.",
+            "hi": "यहाँ मेरी विचार प्रक्रिया है।",
+        },
+        "close_modal": {
+            "en": "Closing the window.",
+            "de": "Schließe das Fenster.",
+            "ar": "جاري إغلاق النافذة.",
+            "hi": "विंडो बंद कर रही हूँ।",
+        },
+    }
+    msgs = tts_map.get(action, {})
+    return msgs.get(lang, msgs.get("en", "Okay."))
 
 # ── Static output guard ────────────────────────────────────────────────
 FORBIDDEN_OUTPUT_PATTERNS = [
@@ -354,6 +515,56 @@ async def process_message(
             "latency_ms": int((time.time() - start_time) * 1000),
         }
 
+    # ── Step 1.5: Navigation intent check ───────────────────────────
+    # Classify BEFORE ordering agent — if it's pure navigation,
+    # skip the LLM call entirely. Session state is NOT mutated.
+    nav_action = classify_navigation_intent(user_input)
+    if nav_action:
+        with TracedOperation(trace, "orchestrator_navigation_classify", "span") as op:
+            op.log_input({"user_input": user_input, "classified_action": nav_action})
+            validated = validate_ui_action(nav_action)
+            op.log_output(validated)
+
+        log_trace(session_id, "ui_agent_validation", {
+            "source": "Orchestrator", "target": "UIAgent",
+            "requested_action": nav_action,
+            "validated_action": validated["action"],
+        })
+
+        if validated["action"] != "none":
+            log_trace(session_id, "ui_action_execution", {
+                "source": "UIAgent", "target": "Frontend",
+                "action": validated["action"],
+            })
+
+            # Add to history so conversation context is preserved
+            state.setdefault("conversation_history", []).append(
+                {"role": "user", "content": user_input}
+            )
+
+            latency_ms = int((time.time() - start_time) * 1000)
+            if trace and hasattr(trace, 'end'):
+                try: trace.end()
+                except Exception: pass
+            flush()
+
+            return {
+                "session_id": session_id,
+                "message": "",
+                "tts_message": _localize_ui_action(validated["action"], _detect_user_lang(user_input, state)),
+                "candidates": [],
+                "cart": await get_cart(session_id),
+                "action_taken": "ui_action",
+                "ui_action": validated["action"],
+                "needs_input": True,
+                "end_conversation": False,
+                "trace": get_trace(session_id),
+                "trace_id": trace_id,
+                "trace_url": trace_url,
+                "latency_ms": latency_ms,
+                "language": _detect_user_lang(user_input, state),
+            }
+
     # ── Step 2: Ordering agent (fast path or LLM) ──────────────────
     # Pass trace_id to agent for LLM observability
     state["trace_id"] = trace_id
@@ -445,7 +656,7 @@ async def process_message(
             pass
     flush()
 
-    return {
+    response = {
         "session_id": session_id,
         "message": result.get("message", ""),
         "tts_message": result.get("tts_message", result.get("message", "")),
@@ -460,6 +671,12 @@ async def process_message(
         "latency_ms": latency_ms,
         "language": detected_lang,
     }
+
+    # Attach ui_action if the execute step produced one (e.g. ask_rx triggers prescription upload)
+    if result.get("ui_action"):
+        response["ui_action"] = result["ui_action"]
+
+    return response
 
 
 # ── Action executor ─────────────────────────────────────────────────────
@@ -509,6 +726,7 @@ async def execute_action(
             "message": plan.get("message", default_msg),
             "tts_message": plan.get("tts_message", plan.get("message", default_msg)),
             "action_taken": "ask_rx",
+            "ui_action": "open_upload_prescription",
             "needs_input": True,
         }
 

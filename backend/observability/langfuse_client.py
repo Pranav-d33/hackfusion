@@ -123,7 +123,7 @@ class _TraceWrapper:
         try:
             return _client.start_span(
                 name=name,
-                trace_id=self.id,
+                trace_context={"trace_id": self.id},
                 **kwargs,
             )
         except Exception:
@@ -136,7 +136,7 @@ class _TraceWrapper:
         try:
             return _client.start_generation(
                 name=name,
-                trace_id=self.id,
+                trace_context={"trace_id": self.id},
                 **kwargs,
             )
         except Exception:

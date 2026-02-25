@@ -1,8 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ArrowRight, ExternalLink } from 'lucide-react';
 
-export default function TracePanel({ trace, latency, traceId, traceUrl }) {
-    const [isZoomed, setIsZoomed] = useState(false);
+export default function TracePanel({ trace, latency, traceId, traceUrl, externalOpen, onExternalClose, isVoiceMode }) {
+    const [internalOpen, setInternalOpen] = useState(false);
+    const isZoomed = externalOpen || internalOpen;
+
+    const handleClose = () => {
+        setInternalOpen(false);
+        if (onExternalClose) onExternalClose();
+    };
+
     const scrollRef = useRef(null);
 
     useEffect(() => {
@@ -23,7 +30,7 @@ export default function TracePanel({ trace, latency, traceId, traceUrl }) {
         <>
             {/* Zoomed Modal View */}
             {isZoomed && (
-                <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-8 animate-fade-in">
+                <div className={`fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-8 animate-fade-in ${isVoiceMode ? 'z-[60]' : 'z-50'}`}>
                     <div className="w-full max-w-4xl h-[80vh] bg-[#0D0D1A] rounded-2xl shadow-2xl border border-gray-800/50 flex flex-col overflow-hidden animate-scale-in">
                         <div className="flex items-center justify-between px-5 py-3 bg-[#08081A] border-b border-gray-800/50">
                             <div className="flex items-center gap-3">
@@ -31,7 +38,7 @@ export default function TracePanel({ trace, latency, traceId, traceUrl }) {
                                 <span className="font-brand font-semibold text-gray-200 tracking-wide">Agent Thought Process</span>
                             </div>
                             <button
-                                onClick={() => setIsZoomed(false)}
+                                onClick={handleClose}
                                 className="p-2 rounded-lg hover:bg-gray-800 text-gray-400 hover:text-white transition-all duration-200 active:scale-95"
                             >
                                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -64,7 +71,7 @@ export default function TracePanel({ trace, latency, traceId, traceUrl }) {
                     </div>
 
                     <button
-                        onClick={() => setIsZoomed(true)}
+                        onClick={() => setInternalOpen(true)}
                         className="p-1.5 rounded-lg hover:bg-gray-800 text-gray-500 hover:text-white transition-all duration-200 active:scale-95"
                         title="Expand trace view"
                     >
