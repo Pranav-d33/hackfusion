@@ -118,8 +118,8 @@ export default function Cart({ cart, sessionId, onRemove, onCheckout, onClear, o
                                 </div>
                             </div>
                             <div className="flex flex-col items-end gap-1">
-                                <span className="text-sm font-brand font-bold text-ink-primary">&#8377;{(item.price * item.quantity).toFixed(2)}</span>
-                                <span className="text-[10px] text-ink-faint font-mono">&#8377;{item.price}/{t('unit')}</span>
+                                <span className="text-sm font-brand font-bold text-ink-primary">€{(item.price * item.quantity).toFixed(2)}</span>
+                                <span className="text-[10px] text-ink-faint font-mono">€{item.price}/{t('unit')}</span>
                                 <button
                                     onClick={() => onRemove(item.cart_item_id)}
                                     className="p-1 text-ink-ghost hover:text-mediloon-500 rounded transition-all duration-200 hover:scale-110 active:scale-95"
@@ -138,19 +138,19 @@ export default function Cart({ cart, sessionId, onRemove, onCheckout, onClear, o
                     <div className="space-y-1 py-1">
                         <div className="flex justify-between text-xs text-ink-muted font-body">
                             <span>{t('subtotal')}</span>
-                            <span>&#8377;{cart.subtotal?.toFixed(2)}</span>
+                            <span>€{cart.subtotal?.toFixed(2)}</span>
                         </div>
                         <div className="flex justify-between text-xs text-ink-muted font-body">
                             <span>{t('tax')}</span>
-                            <span>&#8377;{cart.tax?.toFixed(2)}</span>
+                            <span>€{cart.tax?.toFixed(2)}</span>
                         </div>
                         <div className="flex justify-between text-xs text-ink-muted font-body">
                             <span>{t('shipping')}</span>
-                            <span>{cart.shipping === 0 ? <span className="text-accent-emerald font-brand font-semibold">{t('free')}</span> : `₹${cart.shipping?.toFixed(2)}`}</span>
+                            <span>{cart.shipping === 0 ? <span className="text-accent-emerald font-brand font-semibold">{t('free')}</span> : `€${cart.shipping?.toFixed(2)}`}</span>
                         </div>
                         <div className="flex justify-between text-sm font-brand font-bold text-ink-primary pt-2 border-t border-surface-fog mt-2">
                             <span>{t('total')}</span>
-                            <span className="text-mediloon-600">&#8377;{cart.total?.toFixed(2)}</span>
+                            <span className="text-mediloon-600">€{cart.total?.toFixed(2)}</span>
                         </div>
                     </div>
                     <button

@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { useLanguage } from '../i18n/LanguageContext';
 
-export default function UserProfileModal({ user, sessionToken, onUpdate, onSkip, onClose }) {
+export default function UserProfileModal({ user, sessionToken, onUpdate, onSkip, onClose, isVoiceMode }) {
+    const { t, dir } = useLanguage();
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [formData, setFormData] = useState({
@@ -29,7 +31,7 @@ export default function UserProfileModal({ user, sessionToken, onUpdate, onSkip,
         try {
             const response = await fetch(`/api/auth/me?session_token=${encodeURIComponent(sessionToken)}`, {
                 method: 'PUT',
-                headers: { 
+                headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
@@ -40,7 +42,7 @@ export default function UserProfileModal({ user, sessionToken, onUpdate, onSkip,
             });
 
             if (!response.ok) {
-                throw new Error('Failed to update profile');
+                throw new Error(t('sorry'));
             }
 
             const data = await response.json();
@@ -59,12 +61,12 @@ export default function UserProfileModal({ user, sessionToken, onUpdate, onSkip,
     };
 
     return (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl w-full max-w-2xl overflow-hidden shadow-xl max-h-[90vh] overflow-y-auto">
+        <div className={`fixed inset-0 z-50 flex items-center ${isVoiceMode ? 'justify-end pr-8 bg-black/10' : 'justify-center p-4 bg-black/50'}`}>
+            <div className={`bg-white rounded-2xl w-full ${isVoiceMode ? 'max-w-md animate-slide-in-right' : 'max-w-2xl animate-scale-in'} overflow-hidden shadow-xl max-h-[90vh] overflow-y-auto`} dir={dir}>
                 <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between sticky top-0 bg-white z-10">
                     <div>
-                        <h2 className="text-xl font-bold text-gray-900">Complete Your Profile</h2>
-                        <p className="text-sm text-gray-500">Help us serve you better (optional)</p>
+                        <h2 className="text-xl font-bold text-gray-900">{t('completeYourProfile')}</h2>
+                        <p className="text-sm text-gray-500">{t('helpUsServeBetterOptional')}</p>
                     </div>
                     <button
                         onClick={onClose}
@@ -93,36 +95,36 @@ export default function UserProfileModal({ user, sessionToken, onUpdate, onSkip,
                                 <svg className="w-5 h-5 text-mediloon-red" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                                 </svg>
-                                Personal Information
+                                {t('personalInformation')}
                             </h3>
-                            
+
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('fullName')}</label>
                                     <input
                                         type="text"
                                         name="name"
                                         value={formData.name}
                                         onChange={handleChange}
                                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-mediloon-red focus:border-transparent outline-none transition-all"
-                                        placeholder="John Doe"
+                                        placeholder={t('fullNamePlaceholder')}
                                     />
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('phoneNumber')}</label>
                                     <input
                                         type="tel"
                                         name="phone"
                                         value={formData.phone}
                                         onChange={handleChange}
                                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-mediloon-red focus:border-transparent outline-none transition-all"
-                                        placeholder="+49 123 456789"
+                                        placeholder={t('phonePlaceholder')}
                                     />
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Age</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('age')}</label>
                                     <input
                                         type="number"
                                         name="age"
@@ -136,18 +138,18 @@ export default function UserProfileModal({ user, sessionToken, onUpdate, onSkip,
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('gender')}</label>
                                     <select
                                         name="gender"
                                         value={formData.gender}
                                         onChange={handleChange}
                                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-mediloon-red focus:border-transparent outline-none transition-all"
                                     >
-                                        <option value="">Select gender</option>
-                                        <option value="male">Male</option>
-                                        <option value="female">Female</option>
-                                        <option value="other">Other</option>
-                                        <option value="prefer_not_to_say">Prefer not to say</option>
+                                        <option value="">{t('selectGender')}</option>
+                                        <option value="male">{t('male')}</option>
+                                        <option value="female">{t('female')}</option>
+                                        <option value="other">{t('other')}</option>
+                                        <option value="prefer_not_to_say">{t('preferNotToSay')}</option>
                                     </select>
                                 </div>
                             </div>
@@ -160,70 +162,70 @@ export default function UserProfileModal({ user, sessionToken, onUpdate, onSkip,
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                                 </svg>
-                                Delivery Address (Optional)
+                                {t('deliveryAddressOptional')}
                             </h3>
 
                             <div className="space-y-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Street Address</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">{t('streetAddress')}</label>
                                     <input
                                         type="text"
                                         name="address"
                                         value={formData.address}
                                         onChange={handleChange}
                                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-mediloon-red focus:border-transparent outline-none transition-all"
-                                        placeholder="123 Main Street"
+                                        placeholder={t('addressLine1Placeholder')}
                                     />
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">{t('city')}</label>
                                         <input
                                             type="text"
                                             name="city"
                                             value={formData.city}
                                             onChange={handleChange}
                                             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-mediloon-red focus:border-transparent outline-none transition-all"
-                                            placeholder="Berlin"
+                                            placeholder={t('cityPlaceholder')}
                                         />
                                     </div>
 
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">State/Region</label>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">{t('stateRegion')}</label>
                                         <input
                                             type="text"
                                             name="state"
                                             value={formData.state}
                                             onChange={handleChange}
                                             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-mediloon-red focus:border-transparent outline-none transition-all"
-                                            placeholder="Berlin"
+                                            placeholder={t('statePlaceholder')}
                                         />
                                     </div>
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Postal Code</label>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">{t('postalCode')}</label>
                                         <input
                                             type="text"
                                             name="postal_code"
                                             value={formData.postal_code}
                                             onChange={handleChange}
                                             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-mediloon-red focus:border-transparent outline-none transition-all"
-                                            placeholder="10115"
+                                            placeholder={t('pincodePlaceholder')}
                                         />
                                     </div>
 
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Country</label>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">{t('country')}</label>
                                         <input
                                             type="text"
                                             name="country"
                                             value={formData.country}
                                             onChange={handleChange}
                                             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-mediloon-red focus:border-transparent outline-none transition-all"
-                                            placeholder="Germany"
+                                            placeholder={t('country')}
                                         />
                                     </div>
                                 </div>
@@ -235,11 +237,10 @@ export default function UserProfileModal({ user, sessionToken, onUpdate, onSkip,
                             <button
                                 type="submit"
                                 disabled={loading}
-                                className={`flex-1 py-3 rounded-lg font-bold text-white transition-all transform active:scale-95 ${
-                                    loading 
-                                        ? 'bg-gray-400 cursor-not-allowed' 
+                                className={`flex-1 py-3 rounded-lg font-bold text-white transition-all transform active:scale-95 ${loading
+                                        ? 'bg-gray-400 cursor-not-allowed'
                                         : 'bg-mediloon-red hover:bg-red-700 shadow-lg hover:shadow-xl'
-                                }`}
+                                    }`}
                             >
                                 {loading ? (
                                     <span className="flex items-center justify-center gap-2">
@@ -247,10 +248,10 @@ export default function UserProfileModal({ user, sessionToken, onUpdate, onSkip,
                                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                         </svg>
-                                        Saving...
+                                        {t('saving')}
                                     </span>
                                 ) : (
-                                    'Save Profile'
+                                    t('saveProfile')
                                 )}
                             </button>
 
@@ -260,13 +261,13 @@ export default function UserProfileModal({ user, sessionToken, onUpdate, onSkip,
                                 disabled={loading}
                                 className="flex-1 py-3 rounded-lg font-bold border-2 border-gray-300 text-gray-700 hover:bg-gray-50 transition-all transform active:scale-95"
                             >
-                                Skip for Now
+                                {t('skipForNow')}
                             </button>
                         </div>
                     </form>
 
                     <p className="text-xs text-gray-400 text-center mt-4">
-                        You can complete or update your profile anytime from settings
+                        {t('updateProfileAnytime')}
                     </p>
                 </div>
             </div>

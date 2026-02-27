@@ -1,8 +1,14 @@
 import React, { useState, useEffect } from 'react';
+import { useLanguage } from '../i18n/LanguageContext';
 
-export default function VoiceSettingsModal({ isOpen, onClose, voices, currentVoice, onVoiceChange }) {
-    const [previewText, setPreviewText] = useState("Hello, I am your Mediloon AI assistant.");
+export default function VoiceSettingsModal({ isOpen, onClose, voices, currentVoice, onVoiceChange, isVoiceMode }) {
+    const { t } = useLanguage();
+    const [previewText, setPreviewText] = useState(t('voicePreviewDefault'));
     const [isPlaying, setIsPlaying] = useState(false);
+
+    useEffect(() => {
+        setPreviewText(t('voicePreviewDefault'));
+    }, [t]);
 
     if (!isOpen) return null;
 
@@ -11,8 +17,8 @@ export default function VoiceSettingsModal({ isOpen, onClose, voices, currentVoi
         window.speechSynthesis.cancel();
         const utterance = new SpeechSynthesisUtterance(previewText);
         utterance.voice = voice;
-        utterance.rate = 1.1; // updated to user requested rate
-        utterance.pitch = 1.1;
+        utterance.rate = 1.0;
+        utterance.pitch = 1.0;
 
         utterance.onstart = () => setIsPlaying(true);
         utterance.onend = () => setIsPlaying(false);
@@ -24,13 +30,13 @@ export default function VoiceSettingsModal({ isOpen, onClose, voices, currentVoi
     // Group voices by language for better UX
     const groupedVoices = voices.reduce((acc, voice) => {
         let langCode = voice.lang || '';
-        if (!langCode) {
-            if (voice.name.toLowerCase().includes('english') && voice.name.toLowerCase().includes('india')) {
-                langCode = 'en-IN';
-            } else if (voice.name.toLowerCase().includes('english')) {
-                langCode = 'en-US';
-            } else {
-                langCode = 'unknown';
+            if (!langCode) {
+                if (voice.name.toLowerCase().includes('english') && voice.name.toLowerCase().includes('india')) {
+                    langCode = 'en-US';
+                } else if (voice.name.toLowerCase().includes('english')) {
+                    langCode = 'en-US';
+                } else {
+                    langCode = 'unknown';
             }
         }
         langCode = langCode.replace('_', '-');
@@ -53,18 +59,18 @@ export default function VoiceSettingsModal({ isOpen, onClose, voices, currentVoi
     });
 
     return (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+        <div className={`fixed inset-0 z-[60] flex items-center ${isVoiceMode ? 'justify-end pr-8' : 'justify-center p-4'}`}>
             {/* Backdrop */}
             <div
-                className="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity"
+                className={`absolute inset-0 ${isVoiceMode ? 'bg-black/10' : 'bg-black/40 backdrop-blur-sm'} transition-opacity`}
                 onClick={onClose}
             />
 
             {/* Modal */}
-            <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-scale-in">
+            <div className={`relative bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden ${isVoiceMode ? 'animate-slide-in-right' : 'animate-scale-in'}`}>
                 {/* Header */}
                 <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
-                    <h2 className="text-lg font-brand font-bold text-gray-800">Voice Settings</h2>
+                    <h2 className="text-lg font-brand font-bold text-gray-800">{t('voiceSettings')}</h2>
                     <button
                         onClick={onClose}
                         className="p-2 hover:bg-gray-200/50 rounded-full transition-colors text-gray-500"
@@ -78,7 +84,7 @@ export default function VoiceSettingsModal({ isOpen, onClose, voices, currentVoi
                 {/* Content */}
                 <div className="p-6 max-h-[60vh] overflow-y-auto">
                     <div className="mb-6">
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">Preview Text</label>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">{t('previewText')}</label>
                         <input
                             type="text"
                             value={previewText}
@@ -88,17 +94,17 @@ export default function VoiceSettingsModal({ isOpen, onClose, voices, currentVoi
                     </div>
 
                     <div className="space-y-4">
-                        <label className="block text-sm font-semibold text-gray-700">Select Voice</label>
+                        <label className="block text-sm font-semibold text-gray-700">{t('selectVoice')}</label>
 
                         {voices.length === 0 ? (
                             <div className="text-center py-8 text-gray-500 text-sm bg-gray-50 rounded-xl border border-dashed border-gray-200">
-                                No voices found. Please check your browser settings.
+                                {t('noVoicesFound')}
                             </div>
                         ) : (
                             <div className="space-y-6">
                                 {sortedKeys.map(lang => (
                                     <div key={lang}>
-                                        <h3 className="text-xs font-bold text-gray-400 uppercase mb-2 ml-1">{lang} choices</h3>
+                                        <h3 className="text-xs font-bold text-gray-400 uppercase mb-2 ml-1">{t('voiceChoices', { lang })}</h3>
                                         <div className="space-y-2">
                                             {groupedVoices[lang].map((voice, idx) => {
                                                 const isSelected = currentVoice?.name === voice.name;
@@ -122,7 +128,7 @@ export default function VoiceSettingsModal({ isOpen, onClose, voices, currentVoi
                                                                 {voice.name}
                                                             </div>
                                                             <div className="text-xs text-gray-400 truncate">
-                                                                {voice.lang} {voice.localService ? '(Local)' : '(Online)'}
+                                                                {voice.lang} {voice.localService ? `(${t('local')})` : `(${t('online')})`}
                                                             </div>
                                                         </div>
 
@@ -136,7 +142,7 @@ export default function VoiceSettingsModal({ isOpen, onClose, voices, currentVoi
                                                                     handlePreview(voice);
                                                                 }}
                                                                 className={`p-2 rounded-full hover:bg-white hover:shadow-sm transition-all ${isPlaying && isSelected ? 'text-blue-500 animate-pulse' : 'text-gray-400'}`}
-                                                                title="Preview"
+                                                                title={t('preview')}
                                                             >
                                                                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
@@ -161,7 +167,7 @@ export default function VoiceSettingsModal({ isOpen, onClose, voices, currentVoi
                         onClick={onClose}
                         className="px-5 py-2 bg-gray-800 text-white text-sm font-semibold rounded-xl hover:bg-gray-900 transition-colors shadow-lg shadow-gray-200"
                     >
-                        Done
+                        {t('done')}
                     </button>
                 </div>
             </div>

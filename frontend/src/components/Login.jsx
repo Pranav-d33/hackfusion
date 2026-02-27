@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { auth } from '../firebase/firebaseClient';
+import { useLanguage } from '../i18n/LanguageContext';
 
 export default function Login({ onLogin, onCancel }) {
+    const { t, dir } = useLanguage();
     const [isRegister, setIsRegister] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
@@ -15,7 +17,7 @@ export default function Login({ onLogin, onCancel }) {
 
     const ensureFirebaseAuth = async () => {
         if (!auth) {
-            throw new Error('Firebase is not configured. Add the VITE_FIREBASE_* variables to your Vite environment.');
+            throw new Error(t('firebaseNotConfigured'));
         }
         if (isRegister) {
             const credential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
@@ -50,7 +52,7 @@ export default function Login({ onLogin, onCancel }) {
                 body: JSON.stringify(body),
             });
             const data = await response.json();
-            if (!response.ok) throw new Error(data.detail || 'Authentication failed');
+            if (!response.ok) throw new Error(data.detail || t('sorry'));
             onLogin(data);
         } catch (err) {
             setError(err.message);
@@ -63,7 +65,7 @@ export default function Login({ onLogin, onCancel }) {
 
     return (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-md z-50 flex items-center justify-center p-4 animate-fade-in">
-            <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-glass-lg animate-scale-in">
+            <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-glass-lg animate-scale-in" dir={dir}>
                 {/* Red accent bar */}
                 <div className="h-1.5 bg-gradient-to-r from-mediloon-400 via-mediloon-600 to-mediloon-400" />
 
@@ -74,10 +76,10 @@ export default function Login({ onLogin, onCancel }) {
                         <span className="text-white font-brand font-black text-2xl">M</span>
                     </div>
                     <h2 className="text-2xl font-brand font-extrabold text-ink-primary">
-                        {isRegister ? 'Create Account' : 'Welcome Back'}
+                        {isRegister ? t('createAccount') : t('welcomeBack')}
                     </h2>
                     <p className="text-sm text-ink-muted mt-1 font-body">
-                        {isRegister ? 'Join Mediloon to start ordering' : 'Sign in to your Mediloon account'}
+                        {isRegister ? t('joinMediloonToOrder') : t('signInToMediloonAccount')}
                     </p>
                 </div>
 
@@ -105,7 +107,7 @@ export default function Login({ onLogin, onCancel }) {
                         {isRegister && (
                             <>
                                 <div>
-                                    <label className="block text-sm font-brand font-semibold text-ink-secondary mb-1.5">Full Name</label>
+                                    <label className="block text-sm font-brand font-semibold text-ink-secondary mb-1.5">{t('fullName')}</label>
                                     <input
                                         type="text"
                                         name="name"
@@ -113,25 +115,25 @@ export default function Login({ onLogin, onCancel }) {
                                         value={formData.name}
                                         onChange={handleChange}
                                         className={inputClasses}
-                                        placeholder="John Doe"
+                                        placeholder={t('fullNamePlaceholder')}
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-brand font-semibold text-ink-secondary mb-1.5">Phone (Optional)</label>
+                                    <label className="block text-sm font-brand font-semibold text-ink-secondary mb-1.5">{t('phoneOptional')}</label>
                                     <input
                                         type="tel"
                                         name="phone"
                                         value={formData.phone}
                                         onChange={handleChange}
                                         className={inputClasses}
-                                        placeholder="+91 98765 43210"
+                                        placeholder={t('phonePlaceholder')}
                                     />
                                 </div>
                             </>
                         )}
 
                         <div>
-                            <label className="block text-sm font-brand font-semibold text-ink-secondary mb-1.5">Email Address</label>
+                            <label className="block text-sm font-brand font-semibold text-ink-secondary mb-1.5">{t('emailAddress')}</label>
                             <input
                                 type="email"
                                 name="email"
@@ -144,7 +146,7 @@ export default function Login({ onLogin, onCancel }) {
                         </div>
 
                         <div>
-                            <label className="block text-sm font-brand font-semibold text-ink-secondary mb-1.5">Password</label>
+                            <label className="block text-sm font-brand font-semibold text-ink-secondary mb-1.5">{t('password')}</label>
                             <input
                                 type="password"
                                 name="password"
@@ -169,25 +171,25 @@ export default function Login({ onLogin, onCancel }) {
                                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                                     </svg>
-                                    Processing...
+                                    {t('processing')}
                                 </span>
                             ) : (
-                                isRegister ? 'Create Account' : 'Sign In'
+                                isRegister ? t('createAccount') : t('signIn')
                             )}
                         </button>
                     </form>
 
                     <div className="mt-6 text-center text-sm text-ink-muted font-body">
-                        {isRegister ? 'Already have an account?' : "Don't have an account?"}{' '}
+                        {isRegister ? t('alreadyHaveAccount') : t('dontHaveAccount')}{' '}
                         <button
                             onClick={() => setIsRegister(!isRegister)}
                             className="font-brand font-bold text-mediloon-600 hover:text-mediloon-700 hover:underline transition-colors"
                         >
-                            {isRegister ? 'Sign in' : 'Create one'}
+                            {isRegister ? t('signIn') : t('createOne')}
                         </button>
                     </div>
                     <p className="mt-4 text-[10px] uppercase tracking-[0.15em] text-ink-ghost text-center font-brand">
-                        Secured by Firebase Auth
+                        {t('securedByFirebaseAuth')}
                     </p>
                 </div>
             </div>

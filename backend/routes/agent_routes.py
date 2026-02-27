@@ -8,12 +8,50 @@ from typing import Optional, List, Dict, Any
 import sys
 sys.path.insert(0, str(__file__).rsplit('/', 2)[0])
 
-from agents.orchestrator import process_message, get_session_state, clear_session
+from agents.orchestrator import process_message, get_session_state, clear_session, update_session_state
 from tools.trace_tools import get_trace, clear_trace
-from tools.cart_tools import get_cart, clear_cart, update_cart_quantity
+from tools.cart_tools import get_cart, clear_cart, update_cart_quantity, remove_from_cart
 from tools.query_tools import vector_search
+from tools.query_tools import get_medication_details
+from agents.safety_agent import validate_add_to_cart
 
 router = APIRouter(prefix="/api", tags=["agent"])
+
+
+def _lang_key(lang: Optional[str]) -> str:
+    base = (lang or "en").split("-")[0].lower()
+    return base if base in {"en", "de", "ar", "hi"} else "en"
+
+
+def _direct_add_error(reason: str, lang: str, med_name: str = "This medication") -> str:
+    messages = {
+        "not_found": {
+            "en": "Medication not found.",
+            "de": "Medikament nicht gefunden.",
+            "ar": "لم يتم العثور على الدواء.",
+            "hi": "दवा नहीं मिली।",
+        },
+        "rx_required": {
+            "en": f"{med_name} is prescription-only. Please upload and verify a valid prescription before ordering.",
+            "de": f"{med_name} ist verschreibungspflichtig. Bitte lade ein gültiges Rezept hoch und verifiziere es vor der Bestellung.",
+            "ar": f"{med_name} دواء يُصرف بوصفة طبية فقط. يرجى رفع وصفة صالحة والتحقق منها قبل الطلب.",
+            "hi": f"{med_name} केवल प्रिस्क्रिप्शन पर मिलता है। कृपया ऑर्डर से पहले वैध प्रिस्क्रिप्शन अपलोड करके सत्यापित करें।",
+        },
+        "out_of_stock": {
+            "en": f"{med_name} is currently out of stock.",
+            "de": f"{med_name} ist derzeit nicht auf Lager.",
+            "ar": f"{med_name} غير متوفر حاليًا في المخزون.",
+            "hi": f"{med_name} फिलहाल स्टॉक में उपलब्ध नहीं है।",
+        },
+        "default": {
+            "en": "Cannot add medication to cart.",
+            "de": "Das Medikament kann nicht zum Warenkorb hinzugefügt werden.",
+            "ar": "لا يمكن إضافة الدواء إلى السلة.",
+            "hi": "दवा को कार्ट में नहीं जोड़ा जा सकता।",
+        },
+    }
+    bucket = messages.get(reason, messages["default"])
+    return bucket.get(lang, bucket["en"])
 
 
 class ChatRequest(BaseModel):
@@ -33,12 +71,17 @@ class ChatResponse(BaseModel):
     candidates: List[Dict[str, Any]] = []
     cart: Dict[str, Any] = {}
     action_taken: Optional[str] = None
-    ui_action: Optional[str] = None
     needs_input: bool = True
     end_conversation: bool = False
     latency_ms: int = 0
     trace: List[Dict[str, Any]] = []
+    trace_id: Optional[str] = None
+    trace_url: Optional[str] = None
     language: Optional[str] = None  # language of the response
+    blocked: Optional[bool] = None
+    reason: Optional[str] = None
+    order: Optional[Dict[str, Any]] = None
+    ui_action: Optional[str] = None
 
 
 @router.post("/chat", response_model=ChatResponse)
@@ -54,6 +97,7 @@ async def chat(request: ChatRequest):
         session_id=request.session_id,
         user_input=request.message.strip(),
         customer_id=request.customer_id,
+        preferred_language=request.language,
     )
     
     return ChatResponse(**result)
@@ -79,6 +123,7 @@ async def get_session_cart(session_id: str):
 async def clear_session_cart(session_id: str):
     """Clear cart for a session."""
     cart = await clear_cart(session_id)
+    update_session_state(session_id, {"cart": cart})
     return {"status": "cleared", "cart": cart}
 
 
@@ -149,7 +194,28 @@ async def direct_add_to_cart(session_id: str, request: AddToCartRequest):
     More reliable for UI-driven add operations (clicking medicine cards).
     """
     from tools.cart_tools import add_to_cart
+    med = await get_medication_details(request.med_id)
+    state = get_session_state(session_id)
+    preferred_lang = _lang_key(state.get("preferred_language"))
+    if not med:
+        raise HTTPException(status_code=404, detail=_direct_add_error("not_found", preferred_lang))
+
+    rx_verified = bool(state.get("rx_verified"))
+    validation = validate_add_to_cart(
+        med,
+        rx_confirmed=rx_verified,
+        rx_bypass=False,
+    )
+    if not validation.get("allowed"):
+        reason = validation.get("reason", "default")
+        detail = _direct_add_error(reason, preferred_lang, med.get("brand_name", "This medication"))
+        raise HTTPException(status_code=400, detail=detail)
+
     cart = await add_to_cart(session_id, str(request.med_id), request.qty, dose=request.dose)
+    if not cart.get("added", True):
+        detail = cart.get("warning") or _direct_add_error("default", preferred_lang)
+        raise HTTPException(status_code=400, detail=detail)
+    update_session_state(session_id, {"cart": cart})
     return cart
 
 
@@ -162,4 +228,15 @@ async def update_item_quantity(session_id: str, cart_item_id: int, request: Upda
         raise HTTPException(status_code=400, detail="Quantity must be non-negative")
     
     cart = await update_cart_quantity(session_id, cart_item_id, request.quantity)
+    update_session_state(session_id, {"cart": cart})
+    return cart
+
+
+@router.delete("/cart/{session_id}/item/{cart_item_id}")
+async def delete_cart_item(session_id: str, cart_item_id: int):
+    """
+    Remove one cart item explicitly.
+    """
+    cart = await remove_from_cart(session_id, cart_item_id)
+    update_session_state(session_id, {"cart": cart})
     return cart

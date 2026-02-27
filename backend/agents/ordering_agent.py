@@ -75,9 +75,10 @@ def _detect_script_language(text: str) -> str:
     return "en"
 
 
-def _get_fallback_response(user_input: str) -> Dict[str, Any]:
+def _get_fallback_response(user_input: str, preferred_language: str | None = None) -> Dict[str, Any]:
     """Return a language-appropriate fallback when all LLM models fail."""
-    lang = _detect_script_language(user_input)
+    preferred = (preferred_language or "").strip().lower()
+    lang = preferred if preferred in _FALLBACK_MESSAGES else _detect_script_language(user_input)
     msg = _FALLBACK_MESSAGES.get(lang, _FALLBACK_MESSAGES["en"])
     return {
         "action": "respond",
@@ -90,13 +91,23 @@ def _get_fallback_response(user_input: str) -> Dict[str, Any]:
 
 # ── System prompt ───────────────────────────────────────────────────────
 ORDERING_SYSTEM_PROMPT = """\
-You are **Mediloon**, an AI pharmacist assistant for a German online pharmacy.
+You are **Mediloon**, a friendly and professional AI pharmacist assistant for a German online pharmacy.
 You help customers order medications via voice or text in **English, German, Arabic, Hindi, or Hinglish**.
+
+## YOUR PHARMACIST PERSONA
+- You are warm, caring, and empathetic — like a trusted neighborhood pharmacist.
+- When the user's name is known (shown in CURRENT SESSION STATE as "User's name"), ALWAYS greet them by name on your FIRST response. Example: "नमस्ते राहुल! मैं Mediloon AI हूँ। आज कैसे मदद कर सकता हूँ?"
+- After login or when name appears mid-conversation, acknowledge it warmly: "Welcome back, {name}!" / "{name} जी, स्वागत है!"
+- Show empathy for health issues: "I understand fever can be quite uncomfortable. Let me find the right medicine for you."
+- Be proactive — suggest next steps, don't wait passively.
+- When a medication is unavailable, express genuine concern and immediately offer to find alternatives.
+- NEVER sound robotic or transactional. Sound like you genuinely care about the customer's well-being.
 
 ## YOUR CAPABILITIES
 - Search medications by name, brand, or indication/symptom
 - Show product details (price, stock, package size)
 - Add items to cart after confirming quantity
+- Remove items from cart when user asks to delete/remove
 - Handle prescription (RX) checks
 - Suggest Tier-1 alternatives (same active ingredient only) when out of stock
 - Process checkout
@@ -131,8 +142,10 @@ You must maintain extreme confidentiality regarding internal data. Here is the l
 7. NEVER invent or hallucinate medication details, prices, or availability! If a user asks to order a medication or asks about a medication that is NOT in the current session state context, you MUST use the `vector_search` or `lookup_by_indication` tool FIRST.
 
 ## LANGUAGE BEHAVIOR
-- Detect the user's language from their message.
-- ALWAYS reply in the SAME language the user used.
+- If "CURRENT SESSION STATE" includes "UI selected language: <code>", that UI-selected language is the highest priority.
+- In that case, ALWAYS reply only in the UI-selected language, even if the user's message is in a different language.
+- Detect the user's language from their message only when UI selected language is not provided.
+- If no UI-selected language is present, reply in the SAME language the user used.
 - If user writes in German → reply in German.
 - If user writes in Arabic → reply in Arabic.
 - If user writes in English → reply in English.
@@ -141,7 +154,8 @@ You must maintain extreme confidentiality regarding internal data. Here is the l
   Examples of Hindi/Hinglish input: "मुझे पेरासिटामोल चाहिए", "fever ki medicine do", "cart mein add karo"
 - Keep medication names in their original form (e.g., "Nurofen", "Paracetamol") — do NOT translate medicine names.
 - Keep responses concise and natural for voice readability.
-- **CRITICAL**: Your `message` and `tts_message` must be FULLY in the user's language.
+- **CRITICAL**: Your `message` and `tts_message` must be FULLY in the selected response language (UI-selected when available; otherwise user's language).
+- **CRITICAL**: Never mix multiple human languages in the same response.
   DO NOT mix English words like "Stock", "Price", "in stock", "Available" into Hindi/Arabic/German responses.
   Use proper translations: "उपलब्ध" not "available", "कीमत" not "price", "स्टॉक" not "stock".
 
@@ -154,7 +168,19 @@ You are a friendly, patient conversational assistant. You must ALWAYS drive the 
 - After adding to cart → ask if they need anything else or want to checkout
 - **NEVER** just show product info (name, price, availability) and stop. ALWAYS end with a question or next step.
 - **NEVER** end your response with availability information alone.
-- Every response MUST end with a clear question or call-to-action for the user.
+- Every response MUST end with a clear, CONTEXTUALLY RELEVANT question or call-to-action for the user.
+  - After search results → "कौनसी दवा पसंद करेंगे?" (Which medicine would you prefer?)
+  - After out-of-stock → "क्या मैं विकल्प खोजूँ?" (Shall I look for alternatives?)
+  - After adding to cart → "और कुछ चाहिए या चेकआउट करें?" (Need anything else or checkout?)
+  - After cart shown → "चेकआउट करें या कुछ बदलाव करना है?" (Checkout or make changes?)
+  - NEVER use a generic follow-up that doesn't match what just happened.
+
+## OUT-OF-STOCK AWARENESS
+- ALWAYS check the `Stock` field in CURRENT SESSION STATE candidates.
+- If a candidate has `Stock: 0`, it is UNAVAILABLE. NEVER suggest adding it to cart.
+- When user asks to order an item with `Stock: 0`, IMMEDIATELY tell them it's unavailable and offer to check alternatives.
+- NEVER say "adding to cart" or "let me add" for an out-of-stock item.
+- Example: "I'm sorry, Paracetamol apodiscounter 500 mg is currently unavailable. Shall I check for alternatives with the same active ingredient?"
 
 ## USER-FACING OUTPUT RULES
 - Do NOT show internal data like stock quantities, medication IDs, or database fields.
@@ -165,8 +191,11 @@ You are a friendly, patient conversational assistant. You must ALWAYS drive the 
   - They should NOT be completely different messages. The `tts_message` MUST be a spoken version of `message` with the exact same core meaning and tone.
   - The `tts_message` MUST BE EXTREMELY SHORT and natural to say aloud.
   - If `message` contains a long list of medications, the `tts_message` should summarize it naturally instead of reading the whole list, but otherwise they must align perfectly.
-  - NEVER put exact prices, bullet points, or long German medicine names in Hindi `tts_message` as it breaks the voice engine.
   - E.g., if showing a list, the `tts_message` should just be: "मुझे ये दवाइयां मिली हैं। कृपया स्क्रीन पर देखकर चुनें।" (I found these medicines. Please select from the screen).
+  - **MEDICINE NAMES IN TTS**: You MUST TRANSLITERATE medicine names into the native script of the response language for the `tts_message` so the voice engine reads them correctly.
+    - Example (Hindi): "Nurofen 200 mg" -> "न्यूरोफेन 200 मिलीग्राम"
+    - Example (Arabic): "Paracetamol 500 mg" -> "باراسيتامول ٥٠٠ مجم"
+    - Do this ONLY for the `tts_message`. The regular `message` should retain the original Latin name (e.g. "Nurofen").
 
 ## HOW TO RESPOND
 Return ONLY a JSON object with these fields:
@@ -178,6 +207,7 @@ Return ONLY a JSON object with these fields:
   "tts_message": "<shorter version for text-to-speech>",
   "tool": "<tool_name if action=tool_call, else omit>",
   "tool_args": {},
+  "ui_action": "<ui action name if action=ui_action, else omit>",
   "medication": {},
   "quantity": null,
   "dose": null,
@@ -191,8 +221,12 @@ Return ONLY a JSON object with these fields:
   • `vector_search` — args: `{"name": "<search query>"}`
   • `lookup_by_indication` — args: `{"indication": "<symptom/condition>"}`
   • `add_to_cart` — args: `{"med_id": <int>, "qty": <int>, "dose": "<string>"}`
+  • `remove_from_cart` — args: `{"cart_item_id": <int>}` (preferred) OR `{"item_name": "<name from cart>"}`
   • `get_inventory` — args: `{"med_id": <int>}`
   • `get_tier1_alternatives` — args: `{"med_id": <int>}`
+- `ui_action` — control the user interface. Set `ui_action` to one of:
+  • `open_cart`, `close_modal`, `open_my_orders`, `open_upload_prescription`, `open_trace`
+  Provide a short verbal confirmation in `tts_message` (e.g., "Closing the window." or "Here is your cart.") and omit the `message` if it's purely a UI change.
 - `ask_rx` — ask if user has prescription. Set `medication` to the med object from state.
 - `ask_quantity` — ask how many units. Set `medication`.
 - `ask_dose` — ask for prescribed dose. Set `medication` and `quantity`.
@@ -210,6 +244,7 @@ You receive the full conversation history. Use it to understand what the user me
 - "the first one", "number 2", "das zweite" after showing a list → user selected that item.
 - "as prescribed", "wie verordnet", "حسب الوصفة" for dose → use "As Prescribed".
 - "checkout", "done", "bestellen", "fertig", "اطلب", "order karo" → use action `checkout`.
+- "remove this", "delete from cart", "cart se hatao", "warenkorb entfernen" after cart is shown → use `tool_call` with `tool: "remove_from_cart"` and pass `cart_item_id` (from session state cart list) when possible.
 - After showing order summary/delivery details, user says "yes", "confirm", "कंफर्म", "haan", "ja", "bestätigen", "تأكيد", "ok" → use action `confirm_checkout` to finalize the order.
   IMPORTANT: Do NOT keep asking for confirmation in a loop. Once delivery details have been shown and the user confirms, use `confirm_checkout` immediately.
 - "cancel", "stop", "abbrechen", "إلغاء", "band karo", "ruko" → end session.
@@ -235,26 +270,47 @@ Use the candidate IDs from the session state — do NOT invent IDs.
 - **ALWAYS translate tool arguments to English.** The database is in English.
   - If user says "mujhe fever hai" → call `lookup_by_indication` with `{"indication": "fever"}`.
   - If user says "kopfschmerzen" → call `lookup_by_indication` with `{"indication": "headache"}`.
-- IF a user asks to add a medication but it is NOT in the CURRENT SESSION STATE candidates, YOU MUST FIRST use `vector_search` to find it. Do NOT jump straight to `ask_quantity` or `add_to_cart`.
+- IF a user asks to add a medication but it is NOT in the CURRENT SESSION STATE candidates (check BOTH brand_name AND generic_name fields), YOU MUST FIRST use `vector_search` to find it. Do NOT jump straight to `ask_quantity` or `add_to_cart`.
+  - However, if a candidate's brand_name OR generic_name contains the medication name the user mentioned, treat it as a MATCH and proceed with that candidate — do NOT re-search.
+- **VOICE / STT MISINTERPRETATION AWARENESS**: Users often interact via voice. Speech-to-text frequently produces misspellings or phonetically similar but incorrect names. If the user mentions a medication name that SOUNDS SIMILAR to an existing candidate (e.g. "Neuropen" for "Nurofen", "Iboprofen" for "Ibuprofen", "Paracetamall" for "Paracetamol"), you MUST treat it as the same medication and proceed with the existing candidate. Do NOT re-search for the misspelled name. Use the candidate's ID from the session state.
 - When you need to search for a medication, use `vector_search` with the English medication name if possible.
 - When user describes a symptom/condition, use `lookup_by_indication`.
 - When adding to cart, use the `med_id` from the candidates/state, NOT a made-up number.
+- When removing from cart, use `cart_item_id` from the cart list in CURRENT SESSION STATE whenever possible.
 - NEVER hallucinate medication IDs or assume they are available — search first.
+- NEVER claim that an item was removed unless you actually call `remove_from_cart`.
+- When calling a tool, keep your `message` field minimal (e.g., "" or a very brief note). The system will generate a proper response with actual results.
+- **CRITICAL for tool call `tts_message`**: Even though `message` is minimal during tool calls, the `tts_message` MUST include the medicine/search term name so the user hears what is being searched. Examples:
+  - Searching for Paracetamol → `tts_message`: "मैं पेरासिटामोल खोज रहा हूँ।" (I'm searching for Paracetamol)
+  - Searching for fever medicine → `tts_message`: "मैं बुखार की दवाइयाँ खोज रहा हूँ।" (I'm searching for fever medicines)
+  - NEVER use generic phrases like "मैं खोज रहा हूँ" (I'm searching) without naming WHAT you're searching for.
 
 Return ONLY the JSON object. No markdown fences, no explanation outside JSON.
 
 ## EXAMPLE GOOD vs BAD RESPONSES (Hindi)
-BAD (just dumps info, stops): 
+BAD (just dumps info, no question, no med name in TTS): 
 {"message": "Nurofen 200 mg — Available — Price: €10.98", "tts_message": "Nurofen 200 mg — Available — Price: €10.98"}
 
-GOOD (leads forward, very short TTS): 
-{"message": "मैं आपकी मदद कर सकता हूँ। बुखार के लिए ये दवाएं उपलब्ध हैं:\n1. Nurofen 200 mg (12 tablets) — €10.98\n\nकौन सी दवा चुनें?", "tts_message": "बुखार के लिए दवाएं उपलब्ध हैं। कौन सी दवा कार्ट में जोड़ूं?"}
+GOOD (leads forward, medicine name transliterated in TTS): 
+{"message": "बुखार के लिए ये दवाइयाँ उपलब्ध हैं:\n1. Nurofen 200 mg (12 tablets) — €10.98 — उपलब्ध\n\nकौन सी दवा पसंद करेंगे?", "tts_message": "बुखार के लिए न्यूरोफेन 200 मिलीग्राम उपलब्ध है, कीमत लगभग 11 यूरो। कौन सी दवा कार्ट में जोड़ूं?"}
 
-BAD (English in Hindi mode, long TTS): 
-{"message": "Nurofen is available.", "tts_message": "I found 1. Nurofen 200 mg Schmelztabletten Lemon 12 st for 10.98 euros."}
+BAD (English in Hindi mode, TTS has no medicine name): 
+{"message": "Nurofen is available.", "tts_message": "दवा उपलब्ध है। क्या कार्ट में जोड़ूं?"}
 
-GOOD (proper Hindi, no hard-to-read data in TTS): 
-{"message": "Nurofen (12 tablets) €10.98 पर उपलब्ध है। क्या कार्ट में जोड़ूं?", "tts_message": "दवा उपलब्ध है। क्या कार्ट में जोड़ूं?"}
+GOOD (proper Hindi, medicine name in TTS, contextual follow-up): 
+{"message": "Nurofen (12 tablets) €10.98 पर उपलब्ध है। क्या इसे कार्ट में जोड़ दूँ?", "tts_message": "न्यूरोफेन 200 मिलीग्राम उपलब्ध है, लगभग 11 यूरो में। क्या कार्ट में जोड़ूं?"}
+
+BAD (tool call TTS without medicine name):
+{"action": "tool_call", "tool": "vector_search", "message": "", "tts_message": "मैं खोज रहा हूँ।"}
+
+GOOD (tool call TTS WITH medicine name):
+{"action": "tool_call", "tool": "vector_search", "message": "", "tts_message": "मैं पेरासिटामोल खोज रहा हूँ।"}
+
+BAD (out-of-stock but says adding):
+{"action": "add_to_cart", "message": "पेरासिटामोल को कार्ट में जोड़ रहा हूँ।"}
+
+GOOD (out-of-stock handled properly):
+{"action": "respond", "message": "Paracetamol apodiscounter 500 mg फिलहाल उपलब्ध नहीं है। क्या मैं समान सक्रिय घटक वाले विकल्प खोजूँ?", "tts_message": "पेरासिटामोल फिलहाल स्टॉक में नहीं है। क्या मैं आपके लिए कोई विकल्प खोजूँ?"}
 """
 
 
@@ -288,9 +344,15 @@ def _parse_llm_content(content: str, model_name: str) -> Dict[str, Any] | None:
                 return parsed
         except Exception:
             pass
-        print(f"[LLM] JSONDecodeError on {model_name}. Raw: {content[:200]}")
-        return None
-
+            
+        print(f"[LLM] JSONDecodeError on {model_name}. Attempting aggressive fallback parsing. Raw: {content[:200]}")
+        return {
+            "action": "respond",
+            "message": content.strip()[:500],
+            "tts_message": content.strip()[:200],  # Keep TTS short
+            "reasoning": "Fallback JSON created from plain text due to DecodeError",
+            "_model_used": f"{model_name}_forced_json_fallback"
+        }
 
 async def _call_groq(
     messages: List[Dict[str, str]],
@@ -298,7 +360,7 @@ async def _call_groq(
     trace_id: str | None = None,
 ) -> Dict[str, Any] | None:
     """
-    Try Groq API (primary provider — fast, generous free tier).
+    Try Groq API (primary provider - fast, generous free tier).
     Returns parsed JSON dict on success, None on any failure.
     """
     if not GROQ_API_KEY:
@@ -336,6 +398,7 @@ async def _call_groq(
                         "messages": messages,
                         "temperature": 0.3,
                         "max_tokens": 600,
+                        "response_format": {"type": "json_object"},
                     },
                 )
 
@@ -441,6 +504,7 @@ async def _call_openrouter(
                         "messages": messages,
                         "temperature": 0.3,
                         "max_tokens": 600,
+                        "response_format": {"type": "json_object"},
                     },
                 )
 
@@ -516,15 +580,16 @@ async def _call_openrouter(
 async def _call_llm(
     messages: List[Dict[str, str]],
     user_input: str = "",
+    preferred_language: str | None = None,
     trace_id: str | None = None,
 ) -> Dict[str, Any]:
     """
     Dual-provider LLM call.
 
     Priority order:
-      1. Groq  (fast ~200-500ms, reliable free tier)
-      2. OpenRouter  (fallback, free models often rate-limited)
-      3. Language-aware static fallback
+      - Groq (fast, reliable free tier)
+      - OpenRouter (fallback, free models often rate-limited)
+      - Language-aware static fallback
     """
     # 1. Try Groq first (fast + reliable)
     result = await _call_groq(messages, trace_id=trace_id)
@@ -539,7 +604,7 @@ async def _call_llm(
 
     # 3. All providers failed
     print("[LLM] All providers failed — returning static fallback")
-    return _get_fallback_response(user_input)
+    return _get_fallback_response(user_input, preferred_language=preferred_language)
 
 
 # ── Build prompt messages ───────────────────────────────────────────────
@@ -555,6 +620,24 @@ def _build_messages(
     messages: List[Dict[str, str]] = [
         {"role": "system", "content": ORDERING_SYSTEM_PROMPT},
     ]
+
+    preferred_lang = str(state.get("preferred_language") or "").strip().lower()
+    preferred_label = {
+        "en": "English",
+        "de": "German",
+        "ar": "Arabic",
+        "hi": "Hindi",
+    }.get(preferred_lang)
+    if preferred_label:
+        messages.append({
+            "role": "system",
+            "content": (
+                f"## LANGUAGE OVERRIDE\n"
+                f"The user has selected {preferred_label} in the app UI.\n"
+                f"You MUST respond ONLY in {preferred_label} for both `message` and `tts_message`.\n"
+                f"Do not auto-switch language based on user text unless the selected UI language changes."
+            ),
+        })
 
     # Inject current state so the LLM knows what's on screen / pending
     state_context = _build_state_context(state)
@@ -586,7 +669,7 @@ def _build_state_context(state: Dict[str, Any]) -> str:
     candidates = state.get("candidates", [])
     if candidates:
         cand_strs = [
-            f"  {i+1}. {c.get('brand_name','')} — {c.get('dosage','')} — "
+            f"  {i+1}. {c.get('brand_name','')} (generic: {c.get('generic_name','')}) — {c.get('dosage','')} — "
             f"Stock: {c.get('stock_quantity',0)} — Price: €{c.get('price',0)} — "
             f"RX: {'Yes' if c.get('rx_required') else 'No'} — ID: {c.get('id')}"
             for i, c in enumerate(candidates[:5])
@@ -594,6 +677,10 @@ def _build_state_context(state: Dict[str, Any]) -> str:
         parts.append("Candidates currently shown to user:\n" + "\n".join(cand_strs))
 
     # Pending states
+    if state.get("customer_name"):
+        parts.append(f"User's name: {state.get('customer_name')}. Greet or acknowledge them politely.")
+    if state.get("preferred_language"):
+        parts.append(f"UI selected language: {state.get('preferred_language')}")
     if state.get("pending_rx_check"):
         med = state["pending_rx_check"]
         parts.append(f"WAITING for RX confirmation for: {med.get('brand_name')} (ID {med.get('id')})")
@@ -614,7 +701,14 @@ def _build_state_context(state: Dict[str, Any]) -> str:
     cart = state.get("cart", {})
     if cart.get("items"):
         items = cart["items"]
-        parts.append(f"Cart has {len(items)} item(s)")
+        item_lines = [
+            f"  {i+1}. {item.get('brand_name','')} (generic: {item.get('generic_name','')}) — "
+            f"Qty: {item.get('quantity', 1)} — CartItemID: {item.get('cart_item_id')} — MedID: {item.get('medication_id')}"
+            for i, item in enumerate(items[:10])
+        ]
+        parts.append(
+            f"Cart has {len(items)} item(s):\n" + "\n".join(item_lines)
+        )
 
     # Checkout state
     if state.get("pending_checkout_confirm"):
@@ -642,7 +736,7 @@ async def handle(
     state: Dict[str, Any],
 ) -> Dict[str, Any]:
     """
-    Main entry point — called by the orchestrator for every user turn.
+    Main entry point - called by the orchestrator for every user turn.
 
     Every message goes to the LLM. No regex. No fast paths.
     The LLM has the full conversation history + state to decide what to do.
@@ -656,7 +750,12 @@ async def handle(
 
     messages = _build_messages(user_input, state)
     trace_id = state.get("trace_id")
-    result = await _call_llm(messages, user_input=user_input, trace_id=trace_id)
+    result = await _call_llm(
+        messages,
+        user_input=user_input,
+        preferred_language=state.get("preferred_language"),
+        trace_id=trace_id,
+    )
 
     # Ensure required fields exist
     result.setdefault("action", "respond")

@@ -181,7 +181,7 @@ async def get_low_stock_predictions(days_threshold: int = 14) -> List[Dict[str, 
     Get all products predicted to run out within threshold days.
     """
     products = await execute_query("""
-        SELECT product_catalog_id, reorder_threshold FROM inventory_items WHERE stock_quantity >= 0
+        SELECT product_catalog_id, reorder_threshold FROM inventory_items
     """)
 
     predictions = []

@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
+import { useLanguage } from '../i18n/LanguageContext';
 
 export default function CheckoutAnimation({ isOpen, order, onClose }) {
+    const { t, dir } = useLanguage();
     const [phase, setPhase] = useState(0); // 0: enter, 1: show, 2: exit
 
     useEffect(() => {
@@ -44,7 +46,7 @@ export default function CheckoutAnimation({ isOpen, order, onClose }) {
 
             {/* Content */}
             <div className={`relative z-10 bg-white rounded-3xl shadow-2xl p-10 max-w-md w-full mx-4 text-center transition-all duration-700 ${phase >= 1 ? 'scale-100 translate-y-0' : 'scale-50 translate-y-10'
-                }`}>
+                }`} dir={dir}>
                 {/* Animated Checkmark */}
                 <div className="relative w-24 h-24 mx-auto mb-6">
                     <div className={`absolute inset-0 rounded-full bg-green-100 transition-all duration-700 ${phase >= 1 ? 'scale-100' : 'scale-0'
@@ -68,43 +70,43 @@ export default function CheckoutAnimation({ isOpen, order, onClose }) {
 
                 <h2 className={`text-2xl font-bold text-gray-900 mb-2 transition-all duration-500 delay-500 ${phase >= 1 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
                     }`}>
-                    Order Confirmed!
+                    {t('orderConfirmed')}
                 </h2>
 
                 {order && (
                     <div className={`transition-all duration-500 delay-700 ${phase >= 1 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
                         }`}>
                         <p className="text-gray-500 mb-4">
-                            Your order #{order.order_id || '...'} has been placed successfully
+                            {t('orderPlacedSuccessfully', { orderId: order.order_id || '...' })}
                         </p>
                         <div className="bg-gray-50 rounded-xl p-4 space-y-2">
                             <div className="flex justify-between text-sm">
-                                <span className="text-gray-500">Items</span>
+                                <span className="text-gray-500">{t('items')}</span>
                                 <span className="font-semibold text-gray-800">{order.item_count || 0}</span>
                             </div>
                             {order.total != null && (
                                 <div className="flex justify-between text-sm">
-                                    <span className="text-gray-500">Total</span>
+                                    <span className="text-gray-500">{t('total')}</span>
                                     <span className="font-semibold text-gray-800">€{Number(order.total).toFixed(2)}</span>
                                 </div>
                             )}
                             <div className="flex justify-between text-sm">
-                                <span className="text-gray-500">Payment</span>
+                                <span className="text-gray-500">{t('payment')}</span>
                                 <span className="font-semibold text-amber-600">{order.payment_method || 'COD'}</span>
                             </div>
                             <div className="flex justify-between text-sm">
-                                <span className="text-gray-500">Status</span>
-                                <span className="font-semibold text-green-600">Confirmed</span>
+                                <span className="text-gray-500">{t('status')}</span>
+                                <span className="font-semibold text-green-600">{t('confirmed')}</span>
                             </div>
                             {order.warehouse_status && (
                                 <div className="flex justify-between text-sm">
-                                    <span className="text-gray-500">Fulfillment</span>
+                                    <span className="text-gray-500">{t('fulfillment')}</span>
                                     <span className="font-semibold text-blue-600 capitalize">{order.warehouse_status}</span>
                                 </div>
                             )}
                             {order.delivery_address && (
                                 <div className="flex justify-between text-sm">
-                                    <span className="text-gray-500">Delivery</span>
+                                    <span className="text-gray-500">{t('delivery')}</span>
                                     <span className="font-semibold text-gray-700 text-right max-w-[60%] truncate" title={order.delivery_address}>{order.delivery_address}</span>
                                 </div>
                             )}
@@ -114,7 +116,7 @@ export default function CheckoutAnimation({ isOpen, order, onClose }) {
 
                 <p className={`text-xs text-gray-400 mt-6 transition-all duration-500 delay-1000 ${phase >= 1 ? 'opacity-100' : 'opacity-0'
                     }`}>
-                    Tap anywhere to dismiss
+                    {t('tapAnywhereDismiss')}
                 </p>
             </div>
         </div>

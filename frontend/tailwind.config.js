@@ -80,6 +80,7 @@ export default {
                 'pulse-subtle': 'pulse-subtle 3s ease-in-out infinite',
                 'dot-bounce': 'dot-bounce 1.4s infinite ease-in-out both',
                 'gradient-shift': 'gradient-shift 3s ease infinite',
+                'slide-in-right': 'slide-in-right 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards',
             },
             keyframes: {
                 'float': {
@@ -134,6 +135,10 @@ export default {
                 'waveIdle': {
                     '0%': { transform: 'scaleY(0.4)' },
                     '100%': { transform: 'scaleY(1)' },
+                },
+                'slide-in-right': {
+                    '0%': { transform: 'translateX(100%)', opacity: '0' },
+                    '100%': { transform: 'translateX(0)', opacity: '1' },
                 },
             },
         },

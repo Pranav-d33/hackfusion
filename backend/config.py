@@ -61,3 +61,20 @@ API_HOST = os.getenv("API_HOST", "0.0.0.0")
 API_PORT = int(os.getenv("API_PORT", "8000"))
 CORS_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"]
 
+# Ordering limits (backend-enforced across voice/text/UI)
+MAX_ORDER_TOTAL_UNITS = int(os.getenv("MAX_ORDER_TOTAL_UNITS", "30"))
+MAX_ORDER_SUBTOTAL_EUR = float(os.getenv("MAX_ORDER_SUBTOTAL_EUR", "500"))
+MAX_ORDER_LINE_QTY = int(os.getenv("MAX_ORDER_LINE_QTY", "10"))
+
+# RX enforcement and bypass controls
+RX_ENFORCEMENT_ENABLED = os.getenv("RX_ENFORCEMENT_ENABLED", "true").lower() in ("1", "true", "yes")
+RX_BYPASS_ENABLED = os.getenv("RX_BYPASS_ENABLED", "false").lower() in ("1", "true", "yes")
+RX_BYPASS_TOKEN = os.getenv("RX_BYPASS_TOKEN", "")
+RX_BYPASS_PHRASE = os.getenv("RX_BYPASS_PHRASE", "override rx")
+# Comma-separated keyword hints used only when database lacks explicit rx_required flag.
+RX_REQUIRED_KEYWORDS = [
+    k.strip().lower() for k in os.getenv(
+        "RX_REQUIRED_KEYWORDS",
+        "amoxicillin,azithromycin,ciprofloxacin,doxycycline,metformin,ramipril,atorvastatin,levothyroxine"
+    ).split(",") if k.strip()
+]

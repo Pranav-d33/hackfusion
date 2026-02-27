@@ -8,6 +8,8 @@ import sys
 sys.path.insert(0, str(__file__).rsplit('/', 2)[0])
 
 from db.database import execute_query
+from config import RX_ENFORCEMENT_ENABLED
+from agents.safety_agent import is_rx_required_by_keyword
 
 # Try Pinecone first, then ChromaDB, then SQL-only fallback
 try:
@@ -74,6 +76,17 @@ SYMPTOM_PRODUCT_MAP = {
 }
 
 
+def _resolve_rx_required(raw_rx: Any, product_name: str | None) -> bool:
+    """
+    Resolve rx_required from schema if available; otherwise use keyword fallback.
+    """
+    if not RX_ENFORCEMENT_ENABLED:
+        return False
+    if raw_rx is not None:
+        return bool(raw_rx)
+    return is_rx_required_by_keyword(product_name)
+
+
 async def lookup_by_indication(indication: str) -> List[Dict[str, Any]]:
     """
     Look up products by keyword / indication.
@@ -117,7 +130,7 @@ async def lookup_by_indication(indication: str) -> List[Dict[str, Any]]:
                         "description": r['description'],
                         "price": r['base_price_eur'],
                         "stock_quantity": r['stock_quantity'],
-                        "rx_required": False,
+                        "rx_required": _resolve_rx_required(r.get("rx_required"), r.get("product_name")),
                         "form": r['package_size'] or "unit",
                         "dosage": r['package_size'] or "",
                     })
@@ -161,7 +174,7 @@ async def lookup_by_indication(indication: str) -> List[Dict[str, Any]]:
             "description": r.get('description_en') or r['description'],
             "price": r['base_price_eur'],
             "stock_quantity": r['stock_quantity'],
-            "rx_required": False,
+            "rx_required": _resolve_rx_required(r.get("rx_required"), r.get("product_name")),
             "form": r['package_size'] or "unit",
             "dosage": r['package_size'] or "",
         }
@@ -195,7 +208,7 @@ async def lookup_by_indication(indication: str) -> List[Dict[str, Any]]:
                         "description": "",
                         "price": c.get('price', 0),
                         "stock_quantity": c.get('stock_quantity', 0),
-                        "rx_required": c.get('rx_required', False),
+                        "rx_required": _resolve_rx_required(c.get('rx_required'), c.get('brand_name') or c.get('product_name')),
                         "form": c.get('form', 'unit'),
                         "dosage": c.get('dosage', ''),
                     })
@@ -286,7 +299,7 @@ async def vector_search(name: str, top_k: int = 3) -> List[Dict[str, Any]]:
             "form": c.get('package_size') or c.get('form', 'unit'),
             "unit_type": "unit",
             "price": c.get('base_price_eur') or c.get('price', 0),
-            "rx_required": c.get('rx_required', False),
+            "rx_required": _resolve_rx_required(c.get('rx_required'), c.get('product_name') or c.get('brand_name')),
             "stock_quantity": c.get('stock_quantity', 0),
             "similarity": c.get('similarity', 0.8),
         })
@@ -346,7 +359,7 @@ async def get_rx_flag(med_id: int) -> Dict[str, Any]:
     return {
         "med_id": result[0]['id'],
         "brand_name": result[0]['product_name'],
-        "rx_required": False,
+        "rx_required": _resolve_rx_required(result[0].get("rx_required"), result[0].get("product_name")),
     }
 
 
@@ -381,7 +394,7 @@ async def get_medication_details(med_id: int) -> Optional[Dict[str, Any]]:
         "dosage": p['package_size'] or "",
         "form": p['package_size'] or "unit",
         "unit_type": "unit",
-        "rx_required": False,
+        "rx_required": _resolve_rx_required(p.get("rx_required"), p.get("product_name")),
         "notes": p['description'] or "",
         "price": p['base_price_eur'],
         "pzn": p['pzn'],
@@ -432,7 +445,7 @@ async def get_tier1_alternatives(med_id: int) -> List[Dict[str, Any]]:
             "brand_name": alt['product_name'],
             "dosage": alt['package_size'] or "",
             "form": alt['package_size'] or "unit",
-            "rx_required": False,
+            "rx_required": _resolve_rx_required(alt.get("rx_required"), alt.get("product_name")),
             "stock_quantity": alt['stock_quantity'],
             "price": alt['base_price_eur'],
         }

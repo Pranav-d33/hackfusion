@@ -3,24 +3,37 @@ Safety Agent
 Pre-action validation and safety constraint enforcement.
 """
 from typing import Dict, Any, Optional, List
+from config import (
+    RX_ENFORCEMENT_ENABLED,
+    RX_BYPASS_ENABLED,
+    RX_BYPASS_TOKEN,
+    RX_BYPASS_PHRASE,
+    RX_REQUIRED_KEYWORDS,
+)
 
 # Blocked queries (medical advice, antibiotic recommendations)
+# NOTE: Patterns must be specific enough to NOT block legitimate ordering inputs.
+# e.g. "dosage" alone would block "I want the 500mg dosage" — use multi-word patterns.
 BLOCKED_PATTERNS = [
     "which medicine should i take",
-    "what medicine for",
-    "recommend medicine",
-    "recommend medication",
-    "prescribe",
-    "which antibiotic",
-    "best antibiotic",
-    "antibiotic for",
-    "dosage",
+    "what medicine should i take",
+    "what should i take for",
+    "recommend me a medicine",
+    "recommend me a medication",
+    "recommend a medicine",
+    "recommend a medication",
+    "prescribe me",
+    "prescribe something",
+    "which antibiotic should",
+    "best antibiotic for",
+    "antibiotic for my",
+    "what dosage should i take",
     "how much should i take",
-    "how many tablets",
-    "side effects",
-    "is it safe",
-    "can i take",
-    "interaction",
+    "how many should i take per day",
+    "is it safe to take",
+    "can i take this with",
+    "drug interaction",
+    "what are the side effects of",
 ]
 
 # Antibiotic keywords
@@ -95,6 +108,7 @@ async def check_input_safety(user_input: str) -> Dict[str, Any]:
 def validate_add_to_cart(
     medication: Dict[str, Any],
     rx_confirmed: bool = False,
+    rx_bypass: bool = False,
 ) -> Dict[str, Any]:
     """
     Validate if medication can be added to cart.
@@ -126,11 +140,22 @@ def validate_add_to_cart(
         }
     
     # Check RX requirement
-    if medication.get("rx_required", False) and not rx_confirmed:
+    requires_rx = bool(medication.get("rx_required", False)) and RX_ENFORCEMENT_ENABLED
+    if requires_rx and rx_bypass and RX_BYPASS_ENABLED:
+        return {
+            "allowed": True,
+            "medication": medication,
+            "rx_bypassed": True,
+        }
+
+    if requires_rx and not rx_confirmed:
         return {
             "allowed": False,
             "reason": "rx_required",
-            "message": f"I've noted that {medication.get('brand_name', 'this medication')} is a prescription-only treatment. Do you have a valid prescription ready for clinical verification?",
+            "message": (
+                f"{medication.get('brand_name', 'This medication')} is prescription-only. "
+                f"Please upload and verify a valid prescription before ordering."
+            ),
             "needs_rx_confirmation": True,
         }
     
@@ -138,6 +163,38 @@ def validate_add_to_cart(
         "allowed": True,
         "medication": medication,
     }
+
+
+def is_rx_required_by_keyword(name: str | None) -> bool:
+    """
+    Fallback RX classifier when catalog lacks explicit rx metadata.
+    """
+    if not RX_ENFORCEMENT_ENABLED:
+        return False
+    text = (name or "").lower().strip()
+    if not text:
+        return False
+    return any(keyword in text for keyword in RX_REQUIRED_KEYWORDS)
+
+
+def can_use_rx_bypass(user_input: str | None, bypass_token: str | None = None) -> bool:
+    """
+    Controlled RX bypass gate.
+    """
+    if not RX_BYPASS_ENABLED:
+        return False
+
+    if RX_BYPASS_TOKEN and bypass_token and bypass_token == RX_BYPASS_TOKEN:
+        return True
+    if RX_BYPASS_TOKEN:
+        return False
+
+    # Optional phrase-based bypass for demo environments where token isn't wired in UI.
+    phrase = (RX_BYPASS_PHRASE or "").strip().lower()
+    if not phrase:
+        return False
+    text = (user_input or "").lower()
+    return phrase in text
 
 
 def validate_substitution(

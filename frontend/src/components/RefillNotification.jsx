@@ -8,10 +8,12 @@ import {
   Bell, Pill, X, AlertCircle, AlertTriangle, CheckCircle,
   Clock, Calendar, ShoppingCart, TrendingUp, Sparkles,
 } from 'lucide-react';
+import { useLanguage } from '../i18n/LanguageContext';
 
 const API_BASE = '/api';
 
 export default function RefillNotification({ customerId, onReorder }) {
+  const { t } = useLanguage();
   const [alerts, setAlerts] = useState([]);
   const [dismissed, setDismissed] = useState(new Set());
   const [expanded, setExpanded] = useState(false);
@@ -105,10 +107,10 @@ export default function RefillNotification({ customerId, onReorder }) {
                 <p className="text-sm font-semibold text-gray-900">{toastAlert.brand_name}</p>
                 <p className="text-xs text-gray-500 mt-0.5">
                   {toastAlert.days_until_depletion <= 0
-                    ? 'This medicine has likely run out!'
+                    ? t('thisMedicineLikelyRunOut')
                     : toastAlert.days_until_depletion === 1
-                      ? 'Runs out tomorrow — time to reorder'
-                      : `Runs out in ${toastAlert.days_until_depletion} days`}
+                      ? t('runningOutTomorrow')
+                      : t('runningOutInDays', { days: toastAlert.days_until_depletion })}
                 </p>
 
                 <div className="flex items-center gap-2 mt-3">
@@ -116,13 +118,13 @@ export default function RefillNotification({ customerId, onReorder }) {
                     onClick={() => { handleReorder(toastAlert); setToastAlert(null); }}
                     className="flex-1 text-xs bg-red-500 hover:bg-red-600 text-white py-2 rounded-lg flex items-center justify-center gap-1.5 transition-colors shadow-sm"
                   >
-                    <ShoppingCart size={13} /> Reorder Now
+                    <ShoppingCart size={13} /> {t('reorder')}
                   </button>
                   <button
                     onClick={() => { setToastAlert(null); setExpanded(true); }}
                     className="text-xs text-gray-500 hover:text-gray-700 py-2 px-3 rounded-lg hover:bg-gray-100 transition-colors"
                   >
-                    View All
+                    {t('viewDetails')}
                   </button>
                 </div>
               </div>
@@ -144,10 +146,10 @@ export default function RefillNotification({ customerId, onReorder }) {
           `}
         >
           <Bell size={16} className={criticalCount > 0 ? 'animate-bounce-subtle' : ''} />
-          <span>{activeAlerts.length} Refill{activeAlerts.length > 1 ? 's' : ''}</span>
+          <span>{activeAlerts.length} {t('refillUpdates')}</span>
           {criticalCount > 0 && (
             <span className="bg-white/20 text-white text-[10px] px-2 py-0.5 rounded-full font-bold">
-              {criticalCount} urgent
+              {criticalCount} {t('urgent')}
             </span>
           )}
         </button>
@@ -159,7 +161,7 @@ export default function RefillNotification({ customerId, onReorder }) {
             <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100 bg-gray-50/50">
               <div className="flex items-center gap-2">
                 <Pill size={16} className="text-red-500" />
-                <h3 className="text-sm font-semibold text-gray-800">Smart Refill Alerts</h3>
+                <h3 className="text-sm font-semibold text-gray-800">{t('smartUpdates')}</h3>
               </div>
               <div className="flex items-center gap-2">
                 {criticalCount > 0 && (
@@ -189,10 +191,10 @@ export default function RefillNotification({ customerId, onReorder }) {
                       <p className="text-[11px] text-gray-500">{alert.dosage}</p>
                       <p className="text-xs text-gray-600 mt-1 flex items-center gap-1">
                         {alert.days_until_depletion <= 0
-                          ? <><AlertTriangle size={11} className="text-red-400" /> Medicine has run out</>
+                          ? <><AlertTriangle size={11} className="text-red-400" /> {t('thisMedicineLikelyRunOut')}</>
                           : alert.days_until_depletion === 1
-                            ? <><Clock size={11} className="text-amber-400" /> Runs out tomorrow</>
-                            : <><Calendar size={11} className="text-blue-400" /> Runs out in {alert.days_until_depletion} days</>}
+                            ? <><Clock size={11} className="text-amber-400" /> {t('runningOutTomorrow')}</>
+                            : <><Calendar size={11} className="text-blue-400" /> {t('runningOutInDays', { days: alert.days_until_depletion })}</>}
                       </p>
                     </div>
                     <div className="flex flex-col items-end gap-1.5">
@@ -200,13 +202,13 @@ export default function RefillNotification({ customerId, onReorder }) {
                         onClick={() => handleReorder(alert)}
                         className="text-[11px] bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg flex items-center gap-1 transition-colors shadow-sm"
                       >
-                        <ShoppingCart size={11} /> Reorder
+                        <ShoppingCart size={11} /> {t('reorder')}
                       </button>
                       <button
                         onClick={() => dismissAlert(alert.medication_id)}
                         className="text-[10px] text-gray-400 hover:text-gray-600 transition-colors"
                       >
-                        Dismiss
+                        {t('dismiss')}
                       </button>
                     </div>
                   </div>

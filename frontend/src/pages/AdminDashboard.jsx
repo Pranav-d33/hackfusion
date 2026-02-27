@@ -472,9 +472,25 @@ export default function AdminDashboard({ onSwitchToUser, user }) {
                           <td className="px-4 py-2.5 font-medium text-gray-800">{med.product_name || '-'}</td>
                           <td className="px-4 py-2.5 text-gray-500"><span className="px-1.5 py-0.5 bg-gray-100 rounded text-[10px]">{med.package_size || '-'}</span></td>
                           <td className="px-4 py-2.5 text-center">
-                            <div className="inline-flex items-center gap-1.5">
-                              <input key={`stock-${med.id}-${med.stock_quantity}`} type="number" className={`w-16 px-2 py-1 rounded-lg border text-center text-xs ${med.stock_quantity <= 10 ? 'border-red-300 text-red-600' : 'border-gray-200 text-gray-700'}`} defaultValue={med.stock_quantity} onBlur={e => handleUpdateStock(med.id, e.target.value)} />
-                              {med.stock_quantity <= 10 && <span className="text-red-500 text-[9px] font-bold animate-pulse">LOW</span>}
+                            <div className="inline-flex items-center gap-1.5 group relative">
+                              <input
+                                key={`stock-${med.id}-${med.stock_quantity}`}
+                                type="number"
+                                className={`w-16 px-2 py-1 rounded-lg border-2 text-center text-xs transition-colors focus:ring-2 focus:ring-teal-500 focus:outline-none bg-gray-50 hover:bg-white ${med.stock_quantity <= 10 ? 'border-red-300 text-red-600 bg-red-50' : 'border-gray-200 hover:border-teal-300 text-gray-700'}`}
+                                defaultValue={med.stock_quantity}
+                                onBlur={e => handleUpdateStock(med.id, e.target.value)}
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter') {
+                                    handleUpdateStock(med.id, e.target.value);
+                                    e.target.blur();
+                                  }
+                                }}
+                                title="Click to manually edit stock"
+                              />
+                              <div className="absolute -right-4 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none text-gray-400">
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path></svg>
+                              </div>
+                              {med.stock_quantity <= 10 && <span className="text-red-500 text-[9px] font-bold animate-pulse absolute -left-6">LOW</span>}
                             </div>
                           </td>
                           <td className="px-4 py-2.5 text-center text-gray-500">{threshold}</td>

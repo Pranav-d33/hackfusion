@@ -11,12 +11,20 @@ import {
   Clock, Calendar, ShoppingCart, Sparkles, MessageCircle,
   ChevronRight, BellRing, Maximize2, Minimize2,
 } from 'lucide-react';
+import { useLanguage } from '../i18n/LanguageContext';
 
-export default function UpdatesModal({ alerts, timeline, orders = [], loading, onInitiateOrder }) {
+export default function UpdatesModal({ alerts, timeline, orders = [], loading, onInitiateOrder, modalEpoch }) {
+  const { t } = useLanguage();
   const [isOpen, setIsOpen] = useState(false);
   const [zoomed, setZoomed] = useState(false);
   const [dismissedIds, setDismissedIds] = useState(new Set());
   const [expandedOrderId, setExpandedOrderId] = useState(null);
+
+  useEffect(() => {
+    setIsOpen(false);
+    setZoomed(false);
+    setExpandedOrderId(null);
+  }, [modalEpoch]);
 
   // Build update items from alerts + timeline depletions
   const updates = useMemo(() => {
@@ -34,10 +42,10 @@ export default function UpdatesModal({ alerts, timeline, orders = [], loading, o
           dosage: alert.dosage,
           daysLeft: alert.days_until_depletion,
           message: alert.days_until_depletion <= 0
-            ? 'This medicine has likely run out!'
+            ? t('thisMedicineLikelyRunOut')
             : alert.days_until_depletion === 1
-              ? 'Running out tomorrow — consider reordering'
-              : `Running out in ${alert.days_until_depletion} days`,
+              ? t('runningOutTomorrow')
+              : t('runningOutInDays', { days: alert.days_until_depletion }),
           data: alert,
           timestamp: new Date(),
         });
@@ -58,7 +66,7 @@ export default function UpdatesModal({ alerts, timeline, orders = [], loading, o
             title: pred.brand_name,
             dosage: pred.dosage,
             daysLeft: pred.days_until_depletion,
-            message: `AI predicts depletion on ${pred.depletion_date}`,
+            message: t('aiPredictsDepletionOn', { date: pred.depletion_date }),
             data: pred,
             timestamp: new Date(),
           });
@@ -75,10 +83,10 @@ export default function UpdatesModal({ alerts, timeline, orders = [], loading, o
           id: updateId,
           type: 'order',
           urgency: 'soon',
-          title: order.order_id ? `Order #${order.order_id}` : 'Order placed',
+          title: order.order_id ? `Order #${order.order_id}` : t('orderPlaced'),
           dosage: null,
           daysLeft: etaDays ?? 0,
-          message: order.status || (order.estimated_delivery ? `Delivery expected by ${order.estimated_delivery}` : 'Order placed'),
+          message: order.status || (order.estimated_delivery ? t('deliveryExpectedBy', { date: order.estimated_delivery }) : t('orderPlaced')),
           data: order,
           timestamp: order.created_at ? new Date(order.created_at) : new Date(),
         });
@@ -93,7 +101,7 @@ export default function UpdatesModal({ alerts, timeline, orders = [], loading, o
       if (ua !== ub) return ua - ub;
       return (a.daysLeft ?? 999) - (b.daysLeft ?? 999);
     });
-  }, [alerts, timeline, orders, dismissedIds]);
+  }, [alerts, timeline, orders, dismissedIds, t]);
 
   const criticalCount = updates.filter(u => u.urgency === 'critical').length;
   const totalCount = updates.length;
@@ -134,12 +142,12 @@ export default function UpdatesModal({ alerts, timeline, orders = [], loading, o
   const renderUpdatesList = (isZoomedView = false) => (
     <div className={`space-y-2 ${isZoomedView ? 'space-y-3' : ''}`}>
       {updates.length === 0 ? (
-        <div className={`text-center ${isZoomedView ? 'py-16' : 'py-8'}`}>
-          <div className="w-12 h-12 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-3">
-            <CheckCircle size={20} className="text-emerald-400" />
-          </div>
-          <p className="text-sm font-medium text-gray-500">All caught up!</p>
-          <p className="text-xs text-gray-400 mt-1">No pending refill updates right now</p>
+          <div className={`text-center ${isZoomedView ? 'py-16' : 'py-8'}`}>
+            <div className="w-12 h-12 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-3">
+              <CheckCircle size={20} className="text-emerald-400" />
+            </div>
+          <p className="text-sm font-medium text-gray-500">{t('allCaughtUp')}</p>
+          <p className="text-xs text-gray-400 mt-1">{t('noPendingRefillUpdates')}</p>
         </div>
       ) : (
         updates.map(update => {
@@ -205,13 +213,13 @@ export default function UpdatesModal({ alerts, timeline, orders = [], loading, o
                           onClick={() => setExpandedOrderId(isExpanded ? null : update.id)}
                           className={`flex items-center gap-1.5 bg-gray-900 text-white rounded-lg transition-all duration-200 shadow-sm font-medium hover:scale-105 active:scale-95 hover:shadow-md ${isZoomedView ? 'text-xs px-3 py-2' : 'text-[11px] px-2.5 py-1.5'}`}
                         >
-                          <ChevronRight size={isZoomedView ? 13 : 11} className={isExpanded ? 'rotate-90 transition-transform' : ''} /> View details
+                          <ChevronRight size={isZoomedView ? 13 : 11} className={isExpanded ? 'rotate-90 transition-transform' : ''} /> {t('viewDetails')}
                         </button>
                         <button
                           onClick={() => dismiss(update.id)}
                           className={`text-gray-400 hover:text-gray-600 transition-all duration-200 hover:scale-110 active:scale-95 ${isZoomedView ? 'text-xs' : 'text-[10px]'}`}
                         >
-                          Dismiss
+                          {t('dismiss')}
                         </button>
                       </>
                     ) : (
@@ -221,13 +229,13 @@ export default function UpdatesModal({ alerts, timeline, orders = [], loading, o
                           className={`flex items-center gap-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-all duration-200 shadow-sm font-medium hover:scale-105 active:scale-95 hover:shadow-md
                         ${isZoomedView ? 'text-xs px-3 py-2' : 'text-[11px] px-2.5 py-1.5'}`}
                         >
-                          <MessageCircle size={isZoomedView ? 13 : 11} /> Order via Chat
+                          <MessageCircle size={isZoomedView ? 13 : 11} /> {t('orderViaChat')}
                         </button>
                         <button
                           onClick={() => dismiss(update.id)}
                           className={`text-gray-400 hover:text-gray-600 transition-all duration-200 hover:scale-110 active:scale-95 ${isZoomedView ? 'text-xs' : 'text-[10px]'}`}
                         >
-                          Dismiss
+                          {t('dismiss')}
                         </button>
                       </>
                     )}
@@ -243,7 +251,7 @@ export default function UpdatesModal({ alerts, timeline, orders = [], loading, o
                   }`}>
                     <Clock size={10} />
                     <span className="text-[10px] font-bold">
-                      {update.daysLeft <= 0 ? 'Now' : `${update.daysLeft}d`}
+                      {update.daysLeft <= 0 ? t('now') : `${update.daysLeft}d`}
                     </span>
                   </div>
                 </div>
@@ -261,7 +269,7 @@ export default function UpdatesModal({ alerts, timeline, orders = [], loading, o
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="relative p-2.5 text-gray-500 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all duration-200 hover:scale-110 active:scale-95"
-        title="Refill Updates"
+        title={t('refillUpdates')}
       >
         {totalCount > 0 ? (
           <BellRing size={20} className={criticalCount > 0 ? 'text-red-500 animate-bounce-subtle' : ''} />
@@ -289,10 +297,10 @@ export default function UpdatesModal({ alerts, timeline, orders = [], loading, o
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50/50 flex-shrink-0">
               <div className="flex items-center gap-2">
                 <Sparkles size={14} className="text-red-500" />
-                <h3 className="text-xs font-bold text-gray-800">Smart Updates</h3>
+                <h3 className="text-xs font-bold text-gray-800">{t('smartUpdates')}</h3>
                 {criticalCount > 0 && (
                   <span className="text-[9px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full font-bold">
-                    {criticalCount} urgent
+                    {criticalCount} {t('urgent')}
                   </span>
                 )}
               </div>
@@ -300,7 +308,7 @@ export default function UpdatesModal({ alerts, timeline, orders = [], loading, o
                 <button
                   onClick={() => { setZoomed(true); }}
                   className="p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-                  title="Expand"
+                  title={t('expand')}
                 >
                   <Maximize2 size={13} />
                 </button>
@@ -318,7 +326,7 @@ export default function UpdatesModal({ alerts, timeline, orders = [], loading, o
               {loading ? (
                 <div className="py-8 text-center">
                   <div className="w-6 h-6 border-2 border-gray-200 border-t-red-500 rounded-full animate-spin mx-auto mb-2" />
-                  <p className="text-xs text-gray-400">Loading updates…</p>
+                  <p className="text-xs text-gray-400">{t('loadingUpdates')}</p>
                 </div>
               ) : (
                 renderUpdatesList(false)
@@ -330,7 +338,7 @@ export default function UpdatesModal({ alerts, timeline, orders = [], loading, o
 
       {/* Zoomed full-screen modal */}
       {zoomed && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 sm:p-8" onClick={() => { setZoomed(false); setIsOpen(false); }}>
+        <div className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 sm:p-8" onClick={() => { setZoomed(false); setIsOpen(false); }}>
           <div
             className="w-full max-w-lg max-h-[80vh] bg-white rounded-3xl shadow-2xl border border-gray-100 flex flex-col overflow-hidden animate-fade-in-up"
             onClick={e => e.stopPropagation()}
@@ -344,7 +352,7 @@ export default function UpdatesModal({ alerts, timeline, orders = [], loading, o
                 <div>
                   <h2 className="text-sm font-bold text-gray-900">Refill Updates</h2>
                   <p className="text-[11px] text-gray-400">
-                    {totalCount} update{totalCount !== 1 ? 's' : ''} • AI-suggested refills
+                    {totalCount} {t('refillUpdates').toLowerCase()} • {t('aiSuggestedRefills')}
                   </p>
                 </div>
               </div>
@@ -361,7 +369,7 @@ export default function UpdatesModal({ alerts, timeline, orders = [], loading, o
               {loading ? (
                 <div className="py-12 text-center">
                   <div className="w-8 h-8 border-2 border-gray-200 border-t-red-500 rounded-full animate-spin mx-auto mb-3" />
-                  <p className="text-sm text-gray-400">Loading updates…</p>
+                  <p className="text-sm text-gray-400">{t('loadingUpdates')}</p>
                 </div>
               ) : (
                 renderUpdatesList(true)

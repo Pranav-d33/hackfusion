@@ -18,12 +18,14 @@ export function UIProvider({ children }) {
     const [isPrescriptionModalOpen, setPrescriptionModalOpen] = useState(false);
     const [prescriptionMode, setPrescriptionMode] = useState('upload'); // "upload" | "replace"
     const [isTraceOpen, setTraceOpen] = useState(false);
+    const [modalEpoch, setModalEpoch] = useState(0);
 
     const closeAllModals = useCallback(() => {
         setCartOpen(false);
         setOrdersOpen(false);
         setPrescriptionModalOpen(false);
         setTraceOpen(false);
+        setModalEpoch(prev => prev + 1);
     }, []);
 
     /**
@@ -34,27 +36,33 @@ export function UIProvider({ children }) {
     const executeUIAction = useCallback((action) => {
         switch (action) {
             case 'open_cart':
+                closeAllModals();
                 setCartOpen(true);
                 return true;
             case 'open_my_orders':
+                closeAllModals();
                 setOrdersOpen(true);
                 return true;
             case 'close_modal':
                 closeAllModals();
                 return true;
             case 'open_upload_prescription':
+                closeAllModals();
                 setPrescriptionMode('upload');
                 setPrescriptionModalOpen(true);
                 return true;
             case 'trigger_prescription_upload':
+                closeAllModals();
                 setPrescriptionMode('upload');
                 setPrescriptionModalOpen(true);
                 return true;
             case 'trigger_prescription_update':
+                closeAllModals();
                 setPrescriptionMode('replace');
                 setPrescriptionModalOpen(true);
                 return true;
             case 'open_trace':
+                closeAllModals();
                 setTraceOpen(true);
                 return true;
             default:
@@ -69,6 +77,7 @@ export function UIProvider({ children }) {
             isPrescriptionModalOpen, setPrescriptionModalOpen,
             prescriptionMode, setPrescriptionMode,
             isTraceOpen, setTraceOpen,
+            modalEpoch,
             closeAllModals,
             executeUIAction,
         }}>

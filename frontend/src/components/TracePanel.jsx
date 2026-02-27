@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { ArrowRight, ExternalLink } from 'lucide-react';
+import { useLanguage } from '../i18n/LanguageContext';
 
-export default function TracePanel({ trace, latency, traceId, traceUrl, externalOpen, onExternalClose, isVoiceMode }) {
+export default function TracePanel({ trace, latency, traceId, traceUrl, externalOpen, onExternalClose, isVoiceMode, modalEpoch }) {
+    const { t } = useLanguage();
     const [internalOpen, setInternalOpen] = useState(false);
     const isZoomed = externalOpen || internalOpen;
 
@@ -26,16 +29,20 @@ export default function TracePanel({ trace, latency, traceId, traceUrl, external
         }
     }, [trace, isZoomed]);
 
+    useEffect(() => {
+        setInternalOpen(false);
+    }, [modalEpoch]);
+
     return (
         <>
             {/* Zoomed Modal View */}
-            {isZoomed && (
-                <div className={`fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-8 animate-fade-in ${isVoiceMode ? 'z-[60]' : 'z-50'}`}>
-                    <div className="w-full max-w-4xl h-[80vh] bg-[#0D0D1A] rounded-2xl shadow-2xl border border-gray-800/50 flex flex-col overflow-hidden animate-scale-in">
+            {isZoomed && createPortal(
+                <div className={`fixed inset-0 flex items-center ${isVoiceMode ? 'justify-end p-4 pr-6 bg-transparent z-[60]' : 'justify-center p-8 bg-black/80 backdrop-blur-sm z-50'} animate-fade-in`}>
+                    <div className={`w-full bg-[#0D0D1A] rounded-3xl shadow-glass-lg border border-gray-800/50 flex flex-col overflow-hidden ${isVoiceMode ? 'max-w-md animate-slide-in-right h-[calc(100vh-2rem)] my-4' : 'max-w-4xl h-[80vh] animate-scale-in'}`}>
                         <div className="flex items-center justify-between px-5 py-3 bg-[#08081A] border-b border-gray-800/50">
                             <div className="flex items-center gap-3">
                                 <div className="w-2.5 h-2.5 rounded-full bg-mediloon-500 animate-pulse" />
-                                <span className="font-brand font-semibold text-gray-200 tracking-wide">Agent Thought Process</span>
+                                <span className="font-brand font-semibold text-gray-200 tracking-wide">{t('agentThoughtProcess')}</span>
                             </div>
                             <button
                                 onClick={handleClose}
@@ -47,10 +54,11 @@ export default function TracePanel({ trace, latency, traceId, traceUrl, external
                             </button>
                         </div>
                         <div ref={zoomedScrollRef} className="flex-1 overflow-y-auto p-6 space-y-4 scroll-smooth">
-                            {renderTraceContent(trace, traceUrl)}
+                            {renderTraceContent(trace, traceUrl, t)}
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* Normal Panel */}
@@ -62,7 +70,7 @@ export default function TracePanel({ trace, latency, traceId, traceUrl, external
                             <div className="w-2 h-2 rounded-full bg-mediloon-500 animate-pulse" />
                             <div className="absolute inset-0 w-2 h-2 rounded-full bg-mediloon-500 blur-sm opacity-50" />
                         </div>
-                        <span className="font-brand font-semibold text-gray-200 tracking-wide text-xs">Agent Trace</span>
+                        <span className="font-brand font-semibold text-gray-200 tracking-wide text-xs">{t('agentTrace')}</span>
                         {latency && (
                             <span className="text-[10px] font-mono text-accent-emerald bg-accent-emerald/10 px-1.5 py-0.5 rounded-md border border-accent-emerald/20">
                                 {latency}ms
@@ -73,7 +81,7 @@ export default function TracePanel({ trace, latency, traceId, traceUrl, external
                     <button
                         onClick={() => setInternalOpen(true)}
                         className="p-1.5 rounded-lg hover:bg-gray-800 text-gray-500 hover:text-white transition-all duration-200 active:scale-95"
-                        title="Expand trace view"
+                        title={t('expandTraceView')}
                     >
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
@@ -86,14 +94,14 @@ export default function TracePanel({ trace, latency, traceId, traceUrl, external
                     ref={scrollRef}
                     className="flex-1 overflow-y-auto p-3 space-y-3 bg-[#0D0D1A]/50 scroll-smooth"
                 >
-                    {renderTraceContent(trace, traceUrl)}
+                    {renderTraceContent(trace, traceUrl, t)}
                 </div>
             </div>
         </>
     );
 }
 
-function renderTraceContent(trace, traceUrl) {
+function renderTraceContent(trace, traceUrl, t) {
     if (!trace || trace.length === 0) {
         return (
             <div className="h-full flex flex-col items-center justify-center space-y-4 opacity-40 hover:opacity-100 transition-opacity duration-500 group cursor-default">
@@ -105,7 +113,7 @@ function renderTraceContent(trace, traceUrl) {
                     {/* Inner pulse */}
                     <div className="w-2 h-2 rounded-full bg-mediloon-500 animate-pulse shadow-[0_0_15px_rgba(239,68,68,0.5)]" />
                 </div>
-                <p className="text-[10px] font-brand tracking-[0.2em] text-gray-400 uppercase">System Active</p>
+                <p className="text-[10px] font-brand tracking-[0.2em] text-gray-400 uppercase">{t('systemActive')}</p>
             </div>
         );
     }
@@ -165,7 +173,7 @@ function renderTraceContent(trace, traceUrl) {
                     rel="noreferrer"
                     className="block text-center text-xs text-gray-500 hover:text-mediloon-400 mt-4 pb-2 transition-colors font-brand"
                 >
-                    View full trace in Langfuse <ExternalLink size={12} className="inline ml-1" />
+                    {t('viewFullTraceInLangfuse')} <ExternalLink size={12} className="inline ml-1" />
                 </a>
             )}
         </>

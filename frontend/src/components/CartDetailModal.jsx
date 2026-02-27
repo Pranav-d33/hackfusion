@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { ShoppingBag, X, FileText, Trash2 } from 'lucide-react';
+import { useLanguage } from '../i18n/LanguageContext';
 
 const API_BASE = '/api';
 
-export default function CartDetailModal({ isOpen, onClose, cart, sessionId, onCartUpdate, onCheckout }) {
+export default function CartDetailModal({ isOpen, onClose, cart, sessionId, onCartUpdate, onCheckout, isVoiceMode }) {
+    const { t, dir } = useLanguage();
     const [loadingId, setLoadingId] = useState(null);
 
     if (!isOpen) return null;
@@ -51,12 +53,12 @@ export default function CartDetailModal({ isOpen, onClose, cart, sessionId, onCa
     };
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+        <div className={`fixed inset-0 z-50 flex items-center ${isVoiceMode ? 'justify-end p-4 pr-6' : 'justify-center px-4'}`}>
             {/* Backdrop */}
-            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+            <div className={`absolute inset-0 ${isVoiceMode ? 'bg-transparent' : 'bg-black/40 backdrop-blur-sm'}`} onClick={onClose} />
 
             {/* Modal */}
-            <div className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden animate-fade-in-up" style={{ maxHeight: '85vh' }}>
+            <div className={`relative w-full ${isVoiceMode ? 'max-w-md animate-slide-in-right h-[calc(100vh-2rem)] my-4' : 'max-w-2xl animate-fade-in-up'} bg-white rounded-3xl shadow-glass-lg overflow-hidden flex flex-col`} style={{ maxHeight: '85vh' }} dir={dir}>
                 {/* Header */}
                 <div className="p-5 border-b border-gray-100 bg-gradient-to-r from-white to-gray-50 flex items-center justify-between">
                     <div className="flex items-center gap-3">
@@ -64,8 +66,8 @@ export default function CartDetailModal({ isOpen, onClose, cart, sessionId, onCa
                             <ShoppingBag size={20} />
                         </div>
                         <div>
-                            <h2 className="font-bold text-gray-800 text-lg">Your Cart</h2>
-                            <p className="text-xs text-gray-400">{items.length} item(s)</p>
+                            <h2 className="font-bold text-gray-800 text-lg">{t('yourCart')}</h2>
+                            <p className="text-xs text-gray-400">{items.length} {(items.length === 1 ? t('item') : t('items'))}</p>
                         </div>
                     </div>
                     <button
@@ -81,8 +83,8 @@ export default function CartDetailModal({ isOpen, onClose, cart, sessionId, onCa
                     {!hasItems ? (
                         <div className="text-center py-12 text-gray-400">
                             <ShoppingBag size={64} className="mx-auto mb-3 opacity-20" />
-                            <p className="font-medium">Your cart is empty</p>
-                            <p className="text-sm mt-1">Search or ask through voice to add medicines</p>
+                            <p className="font-medium">{t('cartEmpty')}</p>
+                            <p className="text-sm mt-1">{t('searchOrVoiceToAdd')}</p>
                         </div>
                     ) : (
                         items.map((item) => (
@@ -104,9 +106,9 @@ export default function CartDetailModal({ isOpen, onClose, cart, sessionId, onCa
                                     </div>
                                     <p className="text-sm text-gray-500">{item.generic_name} &bull; {item.dosage}</p>
                                     {item.dose && item.dose !== 'As Prescribed' && (
-                                        <p className="text-xs text-blue-600 mt-0.5">Dose: {item.dose}</p>
+                                        <p className="text-xs text-blue-600 mt-0.5">{t('dose')}: {item.dose}</p>
                                     )}
-                                    <p className="text-xs text-gray-400 mt-0.5">&#8377;{item.price}/unit</p>
+                                    <p className="text-xs text-gray-400 mt-0.5">€{item.price}/{t('perUnit')}</p>
                                 </div>
 
                                 {/* Quantity Controls */}
@@ -133,7 +135,7 @@ export default function CartDetailModal({ isOpen, onClose, cart, sessionId, onCa
 
                                 {/* Price & Remove */}
                                 <div className="flex flex-col items-end gap-1 ml-2">
-                                    <span className="text-sm font-bold text-gray-900">&#8377;{(item.price * item.quantity).toFixed(2)}</span>
+                                    <span className="text-sm font-bold text-gray-900">€{(item.price * item.quantity).toFixed(2)}</span>
                                     <button
                                         onClick={() => handleRemove(item.cart_item_id)}
                                         disabled={loadingId === item.cart_item_id}
@@ -152,27 +154,27 @@ export default function CartDetailModal({ isOpen, onClose, cart, sessionId, onCa
                     <div className="p-5 bg-gray-50 border-t border-gray-100 space-y-3">
                         <div className="space-y-1.5">
                             <div className="flex justify-between text-sm text-gray-500">
-                                <span>Subtotal</span>
-                                <span>&#8377;{cart.subtotal?.toFixed(2)}</span>
+                                <span>{t('subtotal')}</span>
+                                <span>€{cart.subtotal?.toFixed(2)}</span>
                             </div>
                             <div className="flex justify-between text-sm text-gray-500">
-                                <span>Tax (10%)</span>
-                                <span>&#8377;{cart.tax?.toFixed(2)}</span>
+                                <span>{t('tax')}</span>
+                                <span>€{cart.tax?.toFixed(2)}</span>
                             </div>
                             <div className="flex justify-between text-sm text-gray-500">
-                                <span>Shipping</span>
-                                <span>{cart.shipping === 0 ? <span className="text-green-600 font-medium">Free</span> : `₹${cart.shipping?.toFixed(2)}`}</span>
+                                <span>{t('shipping')}</span>
+                                <span>{cart.shipping === 0 ? <span className="text-green-600 font-medium">{t('free')}</span> : `€${cart.shipping?.toFixed(2)}`}</span>
                             </div>
                             <div className="flex justify-between text-base font-bold text-gray-900 pt-2 border-t border-gray-200 mt-2">
-                                <span>Total</span>
-                                <span>&#8377;{cart.total?.toFixed(2)}</span>
+                                <span>{t('total')}</span>
+                                <span>€{cart.total?.toFixed(2)}</span>
                             </div>
                         </div>
                         <button
                             onClick={onCheckout}
                             className="w-full py-3.5 bg-gradient-to-r from-red-500 to-rose-600 text-white font-bold rounded-xl shadow-lg shadow-red-200 hover:shadow-red-300 transform active:scale-[0.98] transition-all"
                         >
-                            Proceed to Checkout
+                            {t('proceedToCheckout')}
                         </button>
                     </div>
                 )}

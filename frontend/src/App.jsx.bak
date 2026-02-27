@@ -14,7 +14,6 @@ import LiveOverlay from './components/LiveOverlay';
 import FlyToCartLayer from './components/FlyToCartLayer';
 import MedicineSearch from './components/MedicineSearch';
 import AddressModal from './components/AddressModal';
-import OrderSummaryModal from './components/OrderSummaryModal';
 import CheckoutAnimation from './components/CheckoutAnimation';
 import CartDetailModal from './components/CartDetailModal';
 import PastOrdersModal from './components/PastOrdersModal';
@@ -27,63 +26,12 @@ import LanguageSelector from './components/LanguageSelector';
 import { useUI } from './contexts/UIContext';
 
 const API_BASE = '/api';
-const CHAT_TIMEOUT_MS = 30000;
-const DEFAULT_TTS_RATE = 1.0;
-const SHORT_VOICE_STABLE_MS = 700;
-const SHORT_VOICE_COMMANDS = new Set([
-    // yes / no
-    'yes', 'yeah', 'yep', 'ya', 'ok', 'okay', 'sure',
-    'no', 'nope', 'nah',
-    // numbers
-    '1', 'one', 'won',
-    '2', 'two', 'too', 'to',
-    '3', 'three',
-    '4', 'four', 'for',
-    '5', 'five',
-    '6', 'six',
-    '7', 'seven',
-    '8', 'eight', 'ate',
-    '9', 'nine',
-    '10', 'ten',
-    // Hindi/Hinglish short confirmations
-    'haan', 'han', 'ha', 'hanji', 'ji', 'nahi',
-    'haanji', 'theek', 'thik',
-    // Hindi (Devanagari)
-    'हाँ', 'हां', 'जी', 'नहीं', 'ठीक',
-    'एक', 'दो', 'तीन', 'चार', 'पांच', 'पाँच', 'छह', 'सात', 'आठ', 'नौ', 'दस',
-    // German short confirmations
-    'ja', 'nein', 'sicher', 'klar', 'ok',
-    // German numbers
-    'eins', 'zwei', 'drei', 'vier', 'fünf', 'fuenf', 'sechs', 'sieben', 'acht', 'neun', 'zehn',
-    // Arabic short confirmations
-    'نعم', 'ايوه', 'أيوه', 'لا', 'طيب', 'تمام',
-    // Arabic numbers
-    'واحد', 'اثنين', 'اتنين', 'ثلاثة', 'أربعة', 'اربعة', 'خمسة', 'ستة', 'سبعة', 'ثمانية', 'تسعة', 'عشرة',
-    // Arabic-Indic numerals
-    '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩', '١٠',
-]);
-
-function normalizeShortVoiceCommand(text) {
-    if (!text) return '';
-    return String(text)
-        .toLowerCase()
-        .replace(/[^\p{L}\p{N}\s]/gu, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-}
-
-function isShortVoiceCommand(text) {
-    const normalized = normalizeShortVoiceCommand(text);
-    if (!normalized) return false;
-    const wordCount = normalized.split(' ').length;
-    return wordCount <= 2 && SHORT_VOICE_COMMANDS.has(normalized);
-}
-
 const LANGUAGE_OPTIONS = [
+    { code: null, label: 'Auto (Browser)', sub: 'Detect from your device locale' },
     { code: 'en-US', label: 'English', sub: 'US/International' },
-    { code: 'de-DE', label: 'Deutsch', sub: 'Deutschland' },
-    { code: 'ar-SA', label: 'العربية', sub: 'العربية' },
-    { code: 'hi-IN', label: 'हिन्दी', sub: 'भारत' },
+    { code: 'de-DE', label: 'Deutsch', sub: 'Germany' },
+    { code: 'ar-SA', label: 'العربية', sub: 'العربية (Saudi)' },
+    { code: 'hi-IN', label: 'हिन्दी', sub: 'India' },
 ];
 
 /* ──────────────────────────────────────────
@@ -175,7 +123,7 @@ export default function App() {
     const { t, lang, bcp47, dir, setLang } = useLanguage();
 
     // --- UI Context (agent-controlled navigation) ---
-    const { executeUIAction, isCartOpen, setCartOpen, isOrdersOpen, setOrdersOpen, isPrescriptionModalOpen, setPrescriptionModalOpen, prescriptionMode, isTraceOpen, setTraceOpen, modalEpoch } = useUI();
+    const { executeUIAction, isCartOpen, setCartOpen, isOrdersOpen, setOrdersOpen, isPrescriptionModalOpen, setPrescriptionModalOpen, prescriptionMode, isTraceOpen, setTraceOpen } = useUI();
 
     // --- State ---
     const [messages, setMessages] = useState([{
@@ -210,9 +158,6 @@ export default function App() {
     const [pendingCheckout, setPendingCheckout] = useState(false);
     const [showLoginForCheckout, setShowLoginForCheckout] = useState(false);
     const [orderUpdates, setOrderUpdates] = useState([]);
-    const [showOrderSummary, setShowOrderSummary] = useState(false);
-    const [pendingAddress, setPendingAddress] = useState('');
-    const [pendingOrderData, setPendingOrderData] = useState(null);
 
     // Selection State
     const [selectedMedId, setSelectedMedId] = useState(null);
@@ -220,7 +165,6 @@ export default function App() {
     // Animation State
     const [flyingItems, setFlyingItems] = useState([]);
     const cartRef = useRef(null);
-    const liveModeRef = useRef(false);
 
     // --- Hooks ---
     const {
@@ -242,9 +186,6 @@ export default function App() {
         setPreferredLanguage,
     } = useSpeech();
     const messagesEndRef = useRef(null);
-    const pendingTranscriptQueueRef = useRef([]);
-    const shortVoiceFinalizeTimerRef = useRef(null);
-    const transcriptLiveRef = useRef('');
 
     // Refill predictions hook (used across UI + updates)
     const { timeline: refillTimeline, consumption: refillConsumption, recentOrders, stats: refillStats, alerts: refillAlerts, loading: refillLoading, refresh: refreshRefills } = useRefillPredictions(user?.id);
@@ -302,61 +243,11 @@ export default function App() {
 
     // Handle Transcript from Voice
     useEffect(() => {
-        liveModeRef.current = liveMode;
-    }, [liveMode]);
-
-    const restartListeningIfLive = useCallback((delayMs = 300) => {
-        setTimeout(() => {
-            if (liveModeRef.current) startListening();
-        }, delayMs);
-    }, [startListening]);
-
-    // Voice mode stall recovery: if idle for > 8s, auto-restart listening
-    useEffect(() => {
-        if (!liveMode || isListening || isSpeaking || isLoading) return;
-        const timer = setTimeout(() => {
-            console.warn('[VoiceMode] Stall detected — auto-restarting listening');
-            startListening();
-        }, 8000);
-        return () => clearTimeout(timer);
-    }, [liveMode, isListening, isSpeaking, isLoading, startListening]);
-
-    // Keep short-command detector in sync with latest transcript.
-    useEffect(() => {
-        transcriptLiveRef.current = transcript || '';
-    }, [transcript]);
-
-    // If STT catches only a short command (e.g., "yes", "one"), stabilize briefly then stop listening
-    // so the existing transcript-send flow can submit it reliably.
-    useEffect(() => {
-        if (!liveMode || !isListening || !isShortVoiceCommand(transcript)) {
-            if (shortVoiceFinalizeTimerRef.current) {
-                clearTimeout(shortVoiceFinalizeTimerRef.current);
-                shortVoiceFinalizeTimerRef.current = null;
-            }
-            return;
+        if (transcript && !isListening) {
+            handleSend(transcript);
+            setTranscript('');
         }
-
-        const expected = normalizeShortVoiceCommand(transcript);
-        if (!expected) return;
-
-        if (shortVoiceFinalizeTimerRef.current) {
-            clearTimeout(shortVoiceFinalizeTimerRef.current);
-        }
-        shortVoiceFinalizeTimerRef.current = setTimeout(() => {
-            const latest = normalizeShortVoiceCommand(transcriptLiveRef.current);
-            if (latest === expected && isListening) {
-                stopListening();
-            }
-        }, SHORT_VOICE_STABLE_MS);
-
-        return () => {
-            if (shortVoiceFinalizeTimerRef.current) {
-                clearTimeout(shortVoiceFinalizeTimerRef.current);
-                shortVoiceFinalizeTimerRef.current = null;
-            }
-        };
-    }, [liveMode, isListening, transcript, stopListening]);
+    }, [isListening, transcript]);
 
     const handleFlyToCart = useCallback((startRect) => {
         const id = Date.now();
@@ -367,7 +258,6 @@ export default function App() {
     const toggleLiveMode = () => {
         if (liveMode) {
             setLiveMode(false); stopListening(); stopSpeaking();
-            pendingTranscriptQueueRef.current = [];
         } else {
             setLiveMode(true); startListening();
         }
@@ -401,6 +291,195 @@ export default function App() {
             setTimeout(() => startListening(), 120);
         }
     }, [isListening, setPreferredLanguage, startListening, stopListening, setLang]);
+
+    // Checkout flow: enforce login first (defined before handleSend so it can be referenced)
+    const handleCheckoutFlow = useCallback(() => {
+        if (!user) {
+            setPendingCheckout(true);
+            setShowLoginForCheckout(true);
+            return;
+        }
+        if (!user.profile_completed) {
+            setPendingCheckout(true);
+            setShowProfileModal(true);
+            return;
+        }
+        setShowAddressModal(true);
+    }, [user]);
+
+    const handleSend = useCallback(async (text) => {
+        if (!text.trim() || isLoading) return;
+        const userMsg = { id: Date.now(), text, isUser: true };
+        setMessages(prev => [...prev, userMsg]);
+        setIsLoading(true);
+        try {
+            const response = await fetch(`${API_BASE}/chat`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    session_id: sessionId,
+                    message: text,
+                    source: liveMode ? 'voice' : 'text',
+                    language: bcp47 || detectedLanguage || scriptInfo?.lang || 'en-IN',
+                    customer_id: user?.id,
+                }),
+            });
+            if (!response.ok) throw new Error('API Error');
+            const data = await response.json();
+            if (data.session_id) setSessionId(data.session_id);
+            // Only add a text message if data.message actually has text (UI actions often have empty text)
+            if (data.message) {
+                setMessages(prev => [...prev, {
+                    id: Date.now() + 1,
+                    text: data.message,
+                    isUser: false,
+                    latency: data.latency_ms,
+                }]);
+            }
+
+            // Handle voice response AND ensuring we restart listening
+            if (liveMode) {
+                const msgToSpeak = data.tts_message || data.message;
+                if (msgToSpeak) {
+                    const ttsLangByResponse =
+                        data.language === 'de' ? 'de-DE'
+                            : data.language === 'ar' ? 'ar-SA'
+                                : data.language === 'hi' ? 'hi-IN'
+                                    : null;
+                    const ttsLang = ttsLangByResponse || detectedLanguage || scriptInfo?.lang || 'en-IN';
+                    speak(msgToSpeak, { rate: 1.1, lang: ttsLang, onEnd: () => setTimeout(() => startListening(), 300) });
+                } else {
+                    // No speech needed, but we MUST restart listening so it doesn't get stuck in "Processing..."
+                    setTimeout(() => startListening(), 300);
+                }
+            }
+            // Update candidates — clear them on add/quantity/dose actions, otherwise set from response
+            if (data.action_taken === 'add_to_cart' || data.action_taken === 'ask_quantity' || data.action_taken === 'ask_dose') {
+                setCandidates([]);
+            } else if (data.candidates) {
+                setCandidates(data.candidates);
+            }
+            if (data.cart) setCart(data.cart);
+            if (data.trace) setTrace(data.trace);
+            if (data.latency_ms != null) setLatency(data.latency_ms);
+            if (data.trace_url) setTraceUrl(data.trace_url);
+            if (data.trace_id) setTraceId(data.trace_id);
+            if (data.action_taken === 'checkout_ready') {
+                // Agent signals checkout intent — run the proper login+address flow
+                handleCheckoutFlow();
+            } else if (data.action_taken === 'checkout' && data.order) {
+                setCheckoutOrder(data.order); setShowCheckoutAnim(true);
+                const etaDays = data.order.estimated_delivery ? Math.max(0, Math.round((new Date(data.order.estimated_delivery) - new Date()) / 86400000)) : null;
+                setOrderUpdates(prev => [{
+                    id: `order-${data.order.order_id}`,
+                    order_id: data.order.order_id,
+                    estimated_delivery: data.order.estimated_delivery,
+                    days_left: etaDays,
+                    address: data.order.delivery_address,
+                    total: data.order.total,
+                    items: data.order.items || [],
+                    created_at: new Date().toISOString(),
+                    status: 'Order placed',
+                }, ...prev]);
+                refreshRefills?.();
+                fetchOrderUpdates?.();
+            }
+
+            // NEW: Agent-controlled UI actions (runs alongside existing logic, never replaces it)
+            if (data.ui_action) {
+                executeUIAction(data.ui_action);
+            }
+        } catch (error) {
+            console.error(error);
+            setMessages(prev => [...prev, { id: Date.now() + 1, text: t('sorry'), isUser: false }]);
+        } finally {
+            setIsLoading(false);
+        }
+    }, [sessionId, isLoading, liveMode, speak, startListening, scriptInfo, detectedLanguage, handleCheckoutFlow, user?.id, refreshRefills, executeUIAction]);
+
+    const handleFileUpload = useCallback(async (file) => {
+        if (!file || isLoading) return;
+        setMessages(prev => [...prev, { id: Date.now(), text: `${t('uploading')} ${file.name}...`, isUser: true }]);
+        setIsLoading(true);
+        const formData = new FormData();
+        formData.append('file', file);
+        try {
+            const response = await fetch(`${API_BASE}/upload/prescription`, { method: 'POST', body: formData });
+            const data = await response.json();
+            handleSend(`Please analyze this prescription file: ${data.filepath}`);
+        } catch (error) {
+            console.error(error);
+            setMessages(prev => [...prev, { id: Date.now() + 1, text: t('uploadFailed'), isUser: false }]);
+            setIsLoading(false);
+        }
+    }, [handleSend, isLoading]);
+
+    const handleLogout = () => {
+        if (sessionToken) fetch(`${API_BASE}/auth/logout?session_token=${encodeURIComponent(sessionToken)}`, { method: 'POST' }).catch(() => { });
+        localStorage.removeItem('session_token');
+        setUser(null); setSessionToken(null); setOrderUpdates([]);
+    };
+
+    // Direct add-to-cart via API (bypasses LLM for reliability)
+    const handleDirectAddToCart = useCallback(async (med) => {
+        let sid = sessionId;
+        if (!sid) {
+            try {
+                const initRes = await fetch(`${API_BASE}/chat`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: 'hello', source: 'text' }),
+                });
+                const initData = await initRes.json();
+                if (initData.session_id) {
+                    sid = initData.session_id;
+                    setSessionId(sid);
+                }
+            } catch (err) {
+                console.error('Failed to init session:', err);
+                handleSend(`Add ${med.brand_name}`);
+                return;
+            }
+        }
+        try {
+            const res = await fetch(`${API_BASE}/cart/${sid}/add`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ med_id: med.id, qty: 1 }),
+            });
+            if (res.ok) {
+                const updatedCart = await res.json();
+                setCart(updatedCart);
+                const confirmMsg = `Added ${med.brand_name} to your cart.${updatedCart.warning ? ' ' + updatedCart.warning : ''}`;
+                setMessages(prev => [...prev, {
+                    id: Date.now(),
+                    text: confirmMsg,
+                    isUser: false,
+                }]);
+                // Speak confirmation in voice mode
+                if (liveMode) {
+                    const ttsMsg = `Added ${med.brand_name} to your cart. ${updatedCart.item_count} item${updatedCart.item_count !== 1 ? 's' : ''} total. Add more or say checkout.`;
+                    const ttsLang = bcp47 || detectedLanguage || scriptInfo?.lang || 'en-IN';
+                    speak(ttsMsg, { rate: 1.1, lang: ttsLang, onEnd: () => setTimeout(() => startListening(), 300) });
+                }
+            } else {
+                const failMsg = 'Failed to add item. Please try again.';
+                setMessages(prev => [...prev, { id: Date.now(), text: failMsg, isUser: false }]);
+                if (liveMode) {
+                    const ttsLang = bcp47 || detectedLanguage || scriptInfo?.lang || 'en-IN';
+                    speak(failMsg, { rate: 1.1, lang: ttsLang, onEnd: () => setTimeout(() => startListening(), 300) });
+                }
+            }
+        } catch (err) {
+            console.error('Direct add-to-cart failed:', err);
+            handleSend(`Add ${med.brand_name}`);
+        }
+    }, [sessionId, handleSend, liveMode, speak, startListening]);
+
+    const handleSearchAdd = useCallback((med) => { handleDirectAddToCart(med); setShowSearch(false); }, [handleDirectAddToCart]);
+
+    const handleAddressConfirm = useCallback((address) => { setShowAddressModal(false); handleSend(`Checkout. Deliver to: ${address}`); }, [handleSend]);
+    const handleCartUpdate = useCallback((updatedCart) => { setCart(updatedCart); }, []);
 
     const fetchOrderUpdates = useCallback(async () => {
         if (!user?.id) return;
@@ -440,354 +519,13 @@ export default function App() {
         return () => clearInterval(interval);
     }, [user?.id, fetchOrderUpdates]);
 
-    // Checkout flow: enforce login first (defined before handleSend so it can be referenced)
-    const handleCheckoutFlow = useCallback(() => {
-        executeUIAction('close_modal');
-        setShowCartDetail(false);
-        if (!user) {
-            setPendingCheckout(true);
-            setShowLoginForCheckout(true);
-            return;
-        }
-        if (!user.profile_completed) {
-            setPendingCheckout(true);
-            setShowProfileModal(true);
-            return;
-        }
-        setShowAddressModal(true);
-    }, [user, executeUIAction]);
-
-    const handleSend = useCallback(async (text) => {
-        if (!text.trim() || isLoading) return;
-        const userMsg = { id: Date.now(), text, isUser: true };
-        setMessages(prev => [...prev, userMsg]);
-        setIsLoading(true);
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), CHAT_TIMEOUT_MS);
-        try {
-            const response = await fetch(`${API_BASE}/chat`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                signal: controller.signal,
-                body: JSON.stringify({
-                    session_id: sessionId,
-                    message: text,
-                    source: liveMode ? 'voice' : 'text',
-                    language: bcp47 || detectedLanguage || scriptInfo?.lang || 'en-US',
-                    customer_id: user?.id,
-                }),
-            });
-            if (!response.ok) throw new Error('API Error');
-            const data = await response.json();
-            if (data.session_id) setSessionId(data.session_id);
-            // Only add a text message if data.message actually has text (UI actions often have empty text)
-            if (data.message) {
-                setMessages(prev => [...prev, {
-                    id: Date.now() + 1,
-                    text: data.message,
-                    isUser: false,
-                    latency: data.latency_ms,
-                }]);
-            }
-
-            // Handle voice response AND ensuring we restart listening
-            if (liveMode) {
-                const msgToSpeak = data.tts_message || data.message;
-                if (msgToSpeak) {
-                    const ttsLangByResponse =
-                        data.language === 'de' ? 'de-DE'
-                            : data.language === 'ar' ? 'ar-SA'
-                                : data.language === 'hi' ? 'hi-IN'
-                                    : null;
-                    const ttsLang = bcp47 || ttsLangByResponse || detectedLanguage || scriptInfo?.lang || 'en-US';
-                    speak(msgToSpeak, { rate: DEFAULT_TTS_RATE, lang: ttsLang, onEnd: () => restartListeningIfLive(300) });
-                } else {
-                    // No speech needed, but we MUST restart listening so it doesn't get stuck in "Processing..."
-                    restartListeningIfLive(300);
-                }
-            }
-            // Update candidates — clear them on add/quantity/dose actions, otherwise set from response
-            if (data.action_taken === 'add_to_cart' || data.action_taken === 'ask_quantity' || data.action_taken === 'ask_dose') {
-                setCandidates([]);
-            } else if (data.candidates) {
-                setCandidates(data.candidates);
-            }
-            if (data.cart) setCart(data.cart);
-            if (data.trace) setTrace(data.trace);
-            if (data.latency_ms != null) setLatency(data.latency_ms);
-            if (data.trace_url) setTraceUrl(data.trace_url);
-            if (data.trace_id) setTraceId(data.trace_id);
-            if (data.action_taken === 'checkout_ready') {
-                // Agent signals checkout intent — run the proper login+address flow
-                handleCheckoutFlow();
-            } else if (data.action_taken === 'checkout' && data.order) {
-                // Stash order data and show summary modal for confirmation
-                setPendingOrderData(data.order);
-                setPendingAddress(data.order.delivery_address || '');
-                setShowOrderSummary(true);
-            }
-
-            // NEW: Agent-controlled UI actions (runs alongside existing logic, never replaces it)
-            if (data.ui_action) {
-                // Close local-only overlays before opening context-driven panel
-                setShowSearch(false);
-                setShowAddressModal(false);
-                setShowOrderSummary(false);
-                setShowCartDetail(false);
-                setShowVoiceSettings(false);
-                setShowProfileModal(false);
-                setShowVoiceIntroPopup(false);
-                setShowLogin(false);
-                setShowLoginForCheckout(false);
-                if (data.ui_action === 'close_modal') setPendingCheckout(false);
-                if (data.ui_action === 'open_my_orders' && !user) {
-                    executeUIAction('close_modal');
-                    setShowLogin(true);
-                } else {
-                    executeUIAction(data.ui_action);
-                }
-            }
-        } catch (error) {
-            console.error(error);
-            const errorMsg = error?.name === 'AbortError'
-                ? t('timeoutTryAgain')
-                : t('sorry');
-            setMessages(prev => [...prev, { id: Date.now() + 1, text: errorMsg, isUser: false }]);
-            // CRITICAL: In voice mode, always restart listening after errors
-            if (liveMode) {
-                speak(errorMsg, {
-                    rate: DEFAULT_TTS_RATE,
-                    lang: bcp47 || detectedLanguage || scriptInfo?.lang || 'en-US',
-                    onEnd: () => restartListeningIfLive(300),
-                });
-            }
-        } finally {
-            clearTimeout(timeoutId);
-            setIsLoading(false);
-        }
-    }, [sessionId, isLoading, liveMode, speak, scriptInfo, detectedLanguage, bcp47, handleCheckoutFlow, user, user?.id, refreshRefills, executeUIAction, restartListeningIfLive, t]);
-
-    useEffect(() => {
-        if (transcript && !isListening) {
-            if (isLoading) {
-                // Queue transcripts while processing so we don't drop rapid utterances.
-                pendingTranscriptQueueRef.current.push(transcript);
-                if (pendingTranscriptQueueRef.current.length > 6) {
-                    pendingTranscriptQueueRef.current.shift();
-                }
-                setTranscript('');
-            } else {
-                handleSend(transcript);
-                setTranscript('');
-            }
-        }
-    }, [isListening, transcript, isLoading, handleSend, setTranscript]);
-
-    // Process queued voice transcript when loading finishes
-    useEffect(() => {
-        if (!isLoading && pendingTranscriptQueueRef.current.length > 0) {
-            const nextTranscript = pendingTranscriptQueueRef.current.shift();
-            if (nextTranscript) handleSend(nextTranscript);
-        }
-    }, [isLoading, handleSend]);
-
-    const handleFileUpload = useCallback(async (file) => {
-        if (!file || isLoading) return;
-        setMessages(prev => [...prev, { id: Date.now(), text: `${t('uploading')} ${file.name}...`, isUser: true }]);
-        setIsLoading(true);
-        const formData = new FormData();
-        formData.append('file', file);
-        try {
-            const response = await fetch(`${API_BASE}/upload/prescription`, { method: 'POST', body: formData });
-            const data = await response.json();
-            handleSend(`Please analyze this prescription file: ${data.filepath}`);
-        } catch (error) {
-            console.error(error);
-            setMessages(prev => [...prev, { id: Date.now() + 1, text: t('uploadFailed'), isUser: false }]);
-            setIsLoading(false);
-        }
-    }, [handleSend, isLoading]);
-
-    const handleLogout = () => {
-        if (sessionToken) fetch(`${API_BASE}/auth/logout?session_token=${encodeURIComponent(sessionToken)}`, { method: 'POST' }).catch(() => { });
-        localStorage.removeItem('session_token');
-        setUser(null); setSessionToken(null); setOrderUpdates([]);
-    };
-
-    // Direct add-to-cart via API (bypasses LLM for reliability)
-    const handleDirectAddToCart = useCallback(async (med) => {
-        let sid = sessionId;
-        if (!sid) {
-            try {
-                const initRes = await fetch(`${API_BASE}/chat`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        message: 'hello',
-                        source: 'text',
-                        language: bcp47 || 'en-US',
-                        customer_id: user?.id,
-                    }),
-                });
-                const initData = await initRes.json();
-                if (initData.session_id) {
-                    sid = initData.session_id;
-                    setSessionId(sid);
-                }
-            } catch (err) {
-                console.error('Failed to init session:', err);
-                handleSend(`Add ${med.brand_name}`);
-                return;
-            }
-        }
-        try {
-            const baseLang = (bcp47 || detectedLanguage || scriptInfo?.lang || 'en-US').toLowerCase();
-            const isGerman = baseLang.startsWith('de');
-            const isArabic = baseLang.startsWith('ar');
-            const isHindi = baseLang.startsWith('hi');
-
-            const res = await fetch(`${API_BASE}/cart/${sid}/add`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ med_id: med.id, qty: 1 }),
-            });
-            if (res.ok) {
-                const updatedCart = await res.json();
-                setCart(updatedCart);
-                const confirmMsg = isGerman
-                    ? `${med.brand_name} wurde zu deinem Warenkorb hinzugefügt.${updatedCart.warning ? ` ${updatedCart.warning}` : ''}`
-                    : isArabic
-                        ? `تمت إضافة ${med.brand_name} إلى سلة التسوق.${updatedCart.warning ? ` ${updatedCart.warning}` : ''}`
-                        : isHindi
-                            ? `${med.brand_name} को आपके कार्ट में जोड़ दिया गया है।${updatedCart.warning ? ` ${updatedCart.warning}` : ''}`
-                            : `Added ${med.brand_name} to your cart.${updatedCart.warning ? ' ' + updatedCart.warning : ''}`;
-                setMessages(prev => [...prev, {
-                    id: Date.now(),
-                    text: confirmMsg,
-                    isUser: false,
-                }]);
-                // Speak confirmation in voice mode
-                if (liveMode) {
-                    const ttsMsg = isGerman
-                        ? `${med.brand_name} wurde hinzugefügt. Jetzt sind ${updatedCart.item_count} Artikel im Warenkorb. Möchtest du mehr hinzufügen oder zur Kasse gehen?`
-                        : isArabic
-                            ? `تمت إضافة ${med.brand_name}. يوجد الآن ${updatedCart.item_count} منتج في السلة. هل تريد إضافة المزيد أم المتابعة للدفع؟`
-                            : isHindi
-                                ? `${med.brand_name} कार्ट में जोड़ दिया गया है। अब कार्ट में ${updatedCart.item_count} आइटम हैं। क्या आप और जोड़ना चाहेंगे या चेकआउट करेंगे?`
-                                : `Added ${med.brand_name} to your cart. ${updatedCart.item_count} item${updatedCart.item_count !== 1 ? 's' : ''} total. Add more or say checkout.`;
-                    const ttsLang = bcp47 || detectedLanguage || scriptInfo?.lang || 'en-US';
-                    speak(ttsMsg, { rate: DEFAULT_TTS_RATE, lang: ttsLang, onEnd: () => restartListeningIfLive(300) });
-                }
-            } else {
-                let failMsg = isGerman
-                    ? 'Artikel konnte nicht hinzugefügt werden. Bitte versuche es erneut.'
-                    : isArabic
-                        ? 'تعذر إضافة المنتج. يرجى المحاولة مرة أخرى.'
-                        : isHindi
-                            ? 'आइटम जोड़ना संभव नहीं हुआ। कृपया फिर से प्रयास करें।'
-                            : 'Failed to add item. Please try again.';
-                try {
-                    const err = await res.json();
-                    if (err?.detail && typeof err.detail === 'string') {
-                        failMsg = err.detail;
-                    }
-                } catch (_) { }
-                setMessages(prev => [...prev, { id: Date.now(), text: failMsg, isUser: false }]);
-                if (liveMode) {
-                    const ttsLang = bcp47 || detectedLanguage || scriptInfo?.lang || 'en-US';
-                    speak(failMsg, { rate: DEFAULT_TTS_RATE, lang: ttsLang, onEnd: () => restartListeningIfLive(300) });
-                }
-            }
-        } catch (err) {
-            console.error('Direct add-to-cart failed:', err);
-            handleSend(`Add ${med.brand_name}`);
-        }
-    }, [sessionId, handleSend, liveMode, speak, bcp47, detectedLanguage, scriptInfo, restartListeningIfLive, user?.id]);
-
-    const handleSearchAdd = useCallback((med) => { handleDirectAddToCart(med); setShowSearch(false); }, [handleDirectAddToCart]);
-
-    const handleAddressConfirm = useCallback((address) => {
-        setShowAddressModal(false);
-        setPendingAddress(address);
-        setShowOrderSummary(true);
-    }, []);
-
-    const handleOrderConfirm = useCallback(() => {
-        setShowOrderSummary(false);
-        if (pendingOrderData) {
-            // Order already placed by backend (chat flow) — show animation and record update
-            setCheckoutOrder(pendingOrderData);
-            setShowCheckoutAnim(true);
-            const etaDays = pendingOrderData.estimated_delivery ? Math.max(0, Math.round((new Date(pendingOrderData.estimated_delivery) - new Date()) / 86400000)) : null;
-            setOrderUpdates(prev => [{
-                id: `order-${pendingOrderData.order_id}`,
-                order_id: pendingOrderData.order_id,
-                estimated_delivery: pendingOrderData.estimated_delivery,
-                days_left: etaDays,
-                address: pendingOrderData.delivery_address,
-                total: pendingOrderData.total,
-                items: pendingOrderData.items || [],
-                created_at: new Date().toISOString(),
-                status: 'Order placed',
-            }, ...prev]);
-            refreshRefills?.();
-            fetchOrderUpdates?.();
-            setPendingOrderData(null);
-        } else {
-            // Address modal flow — send checkout message to backend
-            handleSend(`Checkout. Deliver to: ${pendingAddress}`);
-        }
-    }, [handleSend, pendingAddress, pendingOrderData, refreshRefills, fetchOrderUpdates]);
-
-    const handleOrderSummaryBack = useCallback(() => {
-        setShowOrderSummary(false);
-        if (pendingOrderData) {
-            // Chat flow — order already placed, no going back to address
-            // Just close the summary (order is already confirmed on backend)
-            setPendingOrderData(null);
-        } else {
-            setShowAddressModal(true);
-        }
-    }, [pendingOrderData]);
-    const handleCartUpdate = useCallback((updatedCart) => { setCart(updatedCart); }, []);
-    const handleRemoveCartItem = useCallback(async (cartItemId) => {
-        if (!sessionId || !cartItemId) return;
-        try {
-            const res = await fetch(`${API_BASE}/cart/${sessionId}/item/${cartItemId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ quantity: 0 }),
-            });
-            if (!res.ok) throw new Error('Failed to remove cart item');
-            const updatedCart = await res.json();
-            setCart(updatedCart);
-        } catch (err) {
-            console.error('Failed to remove cart item:', err);
-            setMessages(prev => [...prev, { id: Date.now(), text: t('sorry'), isUser: false }]);
-        }
-    }, [sessionId, t]);
-    const handleClearCart = useCallback(async () => {
-        if (!sessionId) {
-            setCart({ items: [], item_count: 0 });
-            return;
-        }
-        try {
-            const res = await fetch(`${API_BASE}/cart/${sessionId}`, { method: 'DELETE' });
-            if (!res.ok) throw new Error('Failed to clear cart');
-            const data = await res.json();
-            setCart(data?.cart || { items: [], item_count: 0 });
-        } catch (err) {
-            console.error('Failed to clear cart:', err);
-        }
-    }, [sessionId]);
-
     // --- Render ---
     if (viewMode === 'admin') {
         return <AdminDashboard user={user} onSwitchToUser={() => setViewMode('user')} />;
     }
 
     const hasCartItems = cart?.items?.length > 0;
-    const isAnyModalOpen = isCartOpen || showCartDetail || isOrdersOpen || showAddressModal || showOrderSummary || showSearch || isPrescriptionModalOpen || showProfileModal || showVoiceSettings || isTraceOpen;
+    const isAnyModalOpen = isCartOpen || showCartDetail || isOrdersOpen || showAddressModal || showSearch || isPrescriptionModalOpen || showProfileModal || showVoiceSettings || isTraceOpen;
 
     return (
         <div className="relative min-h-screen bg-surface-snow flex flex-col font-body selection:bg-mediloon-100 overflow-x-hidden">
@@ -859,7 +597,7 @@ export default function App() {
             {/* ═══════════════════════════════════
                 2. MAIN LAYOUT — 3 Column Grid
                ═══════════════════════════════════ */}
-            <main className={`max-w-[98rem] mx-auto w-full px-4 py-3 grid grid-cols-1 lg:grid-cols-[340px_1fr_380px] gap-4 transition-all duration-500 lg:h-[calc(100vh-5.25rem)] lg:overflow-hidden overflow-y-auto ${liveMode && !isAnyModalOpen ? 'blur-md scale-95 opacity-50 pointer-events-none' : ''}`}>
+            <main className={`max-w-[98rem] mx-auto w-full px-4 py-3 grid grid-cols-1 lg:grid-cols-[340px_1fr_380px] gap-4 transition-all duration-500 lg:h-[calc(100vh-5.25rem)] lg:overflow-hidden overflow-y-auto ${liveMode ? 'blur-md scale-95 opacity-50 pointer-events-none' : ''}`}>
 
                 {/* ─── LEFT COLUMN: Trace ─── */}
                 <aside className={`flex flex-col gap-3 order-2 lg:order-1 lg:h-full`}>
@@ -872,7 +610,6 @@ export default function App() {
                             externalOpen={isTraceOpen}
                             onExternalClose={() => setTraceOpen(false)}
                             isVoiceMode={liveMode}
-                            modalEpoch={modalEpoch}
                         />
 
                         {/* AI Timeline moved to PastOrdersModal */}
@@ -936,14 +673,14 @@ export default function App() {
                                 <button
                                     onClick={toggleLiveMode}
                                     disabled={isLoading}
-                                    className={`relative flex-shrink-0 group p-2 -m-2 lg:p-3 lg:-m-3 rounded-[1.4rem] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mediloon-300 focus-visible:ring-offset-2 transition-all duration-300 ${liveMode ? 'scale-110' : 'hover:scale-105'}`}
+                                    className={`relative flex-shrink-0 group transition-all duration-300 ${liveMode ? 'scale-110' : 'hover:scale-105'}`}
                                     title={t('enterVoiceMode')}
                                 >
                                     {/* Glow rings */}
                                     <div className={`absolute inset-0 rounded-2xl bg-mediloon-500/15 transition-all duration-500 ${liveMode ? 'scale-[1.8] animate-ping opacity-30' : 'scale-125 opacity-0 group-hover:opacity-40 group-hover:scale-[1.6]'}`} />
 
                                     {/* Button body — pill with mic + waveform */}
-                                    <div className={`relative h-12 px-3 lg:h-14 lg:px-4 rounded-2xl flex items-center gap-2.5 shadow-lg transition-all duration-300 ${liveMode
+                                    <div className={`relative h-12 px-3 rounded-2xl flex items-center gap-2 shadow-lg transition-all duration-300 ${liveMode
                                         ? 'bg-gradient-to-r from-mediloon-600 to-mediloon-700 shadow-mediloon-300 shadow-xl'
                                         : 'bg-gradient-to-r from-mediloon-500 to-mediloon-600 shadow-mediloon-200 group-hover:shadow-xl group-hover:shadow-mediloon-300'}`}>
                                         {/* Mic icon */}
@@ -993,7 +730,6 @@ export default function App() {
                                 externalOpen={isOrdersOpen}
                                 onExternalClose={() => setOrdersOpen(false)}
                                 isVoiceMode={liveMode}
-                                modalEpoch={modalEpoch}
                             />
                         </div>
                     )}
@@ -1020,9 +756,9 @@ export default function App() {
                         <Cart
                             cart={cart}
                             sessionId={sessionId}
-                            onRemove={handleRemoveCartItem}
+                            onRemove={(id) => handleSend("Remove item")}
                             onCheckout={handleCheckoutFlow}
-                            onClear={handleClearCart}
+                            onClear={() => setCart({ items: [], item_count: 0 })}
                             onCartUpdate={handleCartUpdate}
                         />
                     </div>
@@ -1047,7 +783,6 @@ export default function App() {
                                     loading={refillLoading}
                                     onInitiateOrder={(text) => handleSend(text)}
                                     inline={true}
-                                    modalEpoch={modalEpoch}
                                 />
                             </div>
                             {refillStats && (
@@ -1077,7 +812,6 @@ export default function App() {
                 onClose={toggleLiveMode}
                 isListening={isListening}
                 isSpeaking={isSpeaking}
-                isLoading={isLoading}
                 transcript={transcript}
                 messages={messages}
                 onUpload={handleFileUpload}
@@ -1089,7 +823,6 @@ export default function App() {
                 activeLanguage={manualLanguage || detectedLanguage}
                 onSelectLanguage={handleLanguageSelect}
                 isAnyModalOpen={isAnyModalOpen}
-                onRetryListening={startListening}
                 onSelectCandidate={(med) => {
                     setSelectedMedId(med.id);
                     handleDirectAddToCart(med);
@@ -1188,7 +921,6 @@ export default function App() {
             <MedicineSearch isOpen={showSearch} onClose={() => setShowSearch(false)} onAddToCart={handleSearchAdd} sessionId={sessionId} />
             <CartDetailModal isOpen={showCartDetail || isCartOpen} onClose={() => { setShowCartDetail(false); setCartOpen(false); }} cart={cart} sessionId={sessionId} onCartUpdate={handleCartUpdate} onCheckout={() => { setShowCartDetail(false); setCartOpen(false); handleCheckoutFlow(); }} isVoiceMode={liveMode} />
             <AddressModal isOpen={showAddressModal} onClose={() => setShowAddressModal(false)} onConfirm={handleAddressConfirm} cart={cart} user={user} isVoiceMode={liveMode} />
-            <OrderSummaryModal isOpen={showOrderSummary} onClose={() => setShowOrderSummary(false)} onConfirm={handleOrderConfirm} onBack={handleOrderSummaryBack} cart={cart} address={pendingAddress} isVoiceMode={liveMode} />
             <CheckoutAnimation isOpen={showCheckoutAnim} order={checkoutOrder} onClose={() => setShowCheckoutAnim(false)} />
             <FlyToCartLayer items={flyingItems} cartRef={cartRef} />
 

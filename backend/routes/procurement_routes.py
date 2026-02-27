@@ -74,8 +74,13 @@ async def generate_orders(urgency: str = "warning"):
     
     try:
         orders = await auto_generate_procurement_orders(urgency_threshold=urgency)
+        
+        message = f"Generated {len(orders)} procurement orders."
+        if len(orders) == 0:
+            message = "No new orders needed. All low-stock items already have pending orders."
+
         return {
-            "message": f"Generated {len(orders)} procurement orders",
+            "message": message,
             "orders": orders
         }
     except Exception as e:
