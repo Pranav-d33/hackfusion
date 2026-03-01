@@ -39,6 +39,7 @@ def init_langfuse() -> bool:
             public_key=LANGFUSE_PUBLIC_KEY,
             secret_key=LANGFUSE_SECRET_KEY,
             host=LANGFUSE_HOST,
+            timeout=15,
         )
         _enabled = True
         print("✅ Langfuse initialized successfully (v3 SDK)")

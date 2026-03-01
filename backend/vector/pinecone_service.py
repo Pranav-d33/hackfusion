@@ -66,7 +66,7 @@ async def index_medications():
     products = await execute_query("""
         SELECT
             pc.id, pc.product_name, pc.pzn, pc.package_size,
-            pc.description, pc.base_price_eur,
+            pc.description, pc.base_price_eur, pc.rx_required,
             COALESCE(lst_name.translated_text, pc.product_name) as product_name_en,
             COALESCE(lst_desc.translated_text, '') as description_en
         FROM product_catalog pc
@@ -97,7 +97,7 @@ async def index_medications():
             "generic_name": prod.get('product_name_en') or prod['product_name'],
             "product_name": prod['product_name'],
             "dosage": prod['package_size'] or "",
-            "rx_required": False,
+            "rx_required": bool(prod.get('rx_required', False)),
             "pzn": str(prod['pzn'] or ""),
         })
 
@@ -142,7 +142,7 @@ async def search_medications(query: str, top_k: int = 5) -> List[Dict[str, Any]]
                     "form": p['package_size'] or "unit",
                     "pzn": p['pzn'],
                     "price": p['base_price_eur'],
-                    "rx_required": False,
+                    "rx_required": bool(p.get('rx_required', False)),
                     "stock_quantity": p['stock_quantity'],
                     "score": hit.get('_score', 0),
                     "similarity": hit.get('_score', 0),
@@ -162,7 +162,7 @@ async def fallback_sql_search(query: str, top_k: int = 5) -> List[Dict[str, Any]
     results = await execute_query("""
         SELECT DISTINCT
             pc.id, pc.product_name, pc.pzn, pc.package_size,
-            pc.description, pc.base_price_eur,
+            pc.description, pc.base_price_eur, pc.rx_required,
             COALESCE(inv.stock_quantity, 0) as stock_quantity
         FROM product_catalog pc
         LEFT JOIN inventory_items inv ON pc.id = inv.product_catalog_id
@@ -187,7 +187,7 @@ async def fallback_sql_search(query: str, top_k: int = 5) -> List[Dict[str, Any]
             "form": r['package_size'] or "unit",
             "pzn": r['pzn'],
             "price": r['base_price_eur'],
-            "rx_required": False,
+            "rx_required": bool(r.get('rx_required', False)),
             "stock_quantity": r['stock_quantity'],
         }
         for r in results

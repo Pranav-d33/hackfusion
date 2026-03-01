@@ -32,7 +32,7 @@ async def _build_index():
     products = await execute_query("""
         SELECT
             pc.id, pc.product_name, pc.pzn, pc.package_size,
-            pc.description, pc.base_price_eur,
+            pc.description, pc.base_price_eur, pc.rx_required,
             COALESCE(lst_name.translated_text, pc.product_name) as product_name_en,
             COALESCE(lst_desc.translated_text, '') as description_en
         FROM product_catalog pc
@@ -70,7 +70,7 @@ async def _build_index():
             "form": prod['package_size'] or "unit",
             "pzn": prod['pzn'],
             "price": prod['base_price_eur'],
-            "rx_required": False,
+            "rx_required": bool(prod.get('rx_required', False)),
             "search_terms": search_terms,
         }
 

@@ -10,6 +10,7 @@ planning in one step.
 from typing import Dict, Any, Optional
 import time
 import uuid
+import re
 import sys
 sys.path.insert(0, str(__file__).rsplit("/", 2)[0])
 
@@ -253,6 +254,24 @@ _L10N = {
         "de": "Ich kann dir dabei helfen. Nenne bitte den Medikamentennamen oder das Symptom.",
         "ar": "يمكنني مساعدتك. من فضلك اذكر اسم الدواء أو العرض الذي تبحث عنه.",
         "hi": "मैं आपकी मदद कर सकता हूँ। कृपया दवा का नाम या लक्षण बताएं।",
+    },
+    "rx_upload_or_remove": {
+        "en": "{med} requires a valid prescription. To proceed you can:\n1. **Upload your prescription** (say \"upload prescription\" or use the upload button)\n2. **Remove {med} from your cart** and continue with other items\n\nWhich would you prefer?",
+        "de": "{med} erfordert ein gültiges Rezept. Um fortzufahren, kannst du:\n1. **Dein Rezept hochladen** (sage \"Rezept hochladen\" oder nutze den Upload-Button)\n2. **{med} aus dem Warenkorb entfernen** und mit anderen Artikeln fortfahren\n\nWas möchtest du tun?",
+        "ar": "{med} يتطلب وصفة طبية صالحة. للمتابعة يمكنك:\n1. **رفع الوصفة الطبية** (قل \"ارفع الوصفة\" أو استخدم زر الرفع)\n2. **إزالة {med} من سلة التسوق** والمتابعة مع العناصر الأخرى\n\nماذا تفضل؟",
+        "hi": "{med} के लिए वैध प्रिस्क्रिप्शन ज़रूरी है। आगे बढ़ने के लिए आप:\n1. **प्रिस्क्रिप्शन अपलोड करें** (\"प्रिस्क्रिप्शन अपलोड\" बोलें या अपलोड बटन दबाएं)\n2. **{med} को कार्ट से हटाएं** और बाकी आइटम के साथ आगे बढ़ें\n\nआप क्या करना चाहेंगे?",
+    },
+    "rx_checkout_blocked": {
+        "en": "Your cart contains prescription-only medicine(s): {meds}. Before checkout, please either:\n1. **Upload your prescription** for verification\n2. **Remove the prescription items** from your cart\n\nYou cannot proceed to checkout until this is resolved.",
+        "de": "Dein Warenkorb enthält verschreibungspflichtige(s) Medikament(e): {meds}. Vor dem Checkout musst du:\n1. **Dein Rezept hochladen** zur Verifizierung\n2. **Die verschreibungspflichtigen Artikel entfernen**\n\nDu kannst nicht zur Kasse gehen, bis dies erledigt ist.",
+        "ar": "سلة التسوق تحتوي على أدوية تحتاج وصفة طبية: {meds}. قبل الدفع، يرجى:\n1. **رفع الوصفة الطبية** للتحقق منها\n2. **إزالة الأدوية التي تحتاج وصفة** من السلة\n\nلا يمكنك المتابعة للدفع حتى يتم حل هذا الأمر.",
+        "hi": "आपके कार्ट में प्रिस्क्रिप्शन वाली दवाइयाँ हैं: {meds}. चेकआउट से पहले कृपया:\n1. **प्रिस्क्रिप्शन अपलोड करें** सत्यापन के लिए\n2. **प्रिस्क्रिप्शन वाले आइटम हटाएं** कार्ट से\n\nजब तक यह हल नहीं होता, आप चेकआउट नहीं कर सकते।",
+    },
+    "rx_ask_upload": {
+        "en": "{med} requires a prescription. Please upload your prescription image so I can verify it. Say \"upload prescription\" or use the upload button.",
+        "de": "{med} ist verschreibungspflichtig. Bitte lade dein Rezept hoch, damit ich es überprüfen kann. Sage \"Rezept hochladen\" oder nutze den Upload-Button.",
+        "ar": "{med} يحتاج وصفة طبية. يرجى رفع صورة الوصفة حتى أتمكن من التحقق منها. قل \"ارفع الوصفة\" أو استخدم زر الرفع.",
+        "hi": "{med} के लिए प्रिस्क्रिप्शन ज़रूरी है। कृपया अपने प्रिस्क्रिप्शन की फोटो अपलोड करें ताकि मैं सत्यापित कर सकूँ। \"प्रिस्क्रिप्शन अपलोड\" बोलें या अपलोड बटन दबाएं।",
     },
 }
 
@@ -883,6 +902,8 @@ def get_session_state(session_id: str) -> Dict[str, Any]:
             "last_action": None,
             "turn_count": 0,
             "conversation_history": [],
+            "search_cache": {},
+            "rx_verified_med_ids": set(),
         }
     return _conversation_states[session_id]
 
@@ -985,7 +1006,37 @@ async def process_message(
             "latency_ms": int((time.time() - start_time) * 1000),
         }
 
-    # ── Step 1.5: UI navigation fast-path (no LLM needed) ───────────
+    # ── Step 1.5a: Prescription file fast-path (bypass LLM) ─────────
+    _rx_match = re.match(r"(?i)please analyze this prescription file:\s*(.+)", user_input)
+    if _rx_match:
+        file_path = _rx_match.group(1).strip()
+        log_trace(session_id, "prescription_intercept", {"file_path": file_path})
+        rx_result = await _handle_prescription_upload(
+            session_id, {"file_path": file_path}, state
+        )
+        # Add to conversation history
+        history = state.setdefault("conversation_history", [])
+        history.append({"role": "user", "content": user_input})
+        history.append({"role": "assistant", "content": rx_result.get("message", "")})
+        if len(history) > 20:
+            state["conversation_history"] = history[-20:]
+        flush()
+        return {
+            "session_id": session_id,
+            "message": rx_result.get("message", ""),
+            "tts_message": rx_result.get("tts_message", rx_result.get("message", "")),
+            "language": _detect_user_lang(user_input, state),
+            "candidates": rx_result.get("candidates", []),
+            "cart": rx_result.get("cart", await get_cart(session_id)),
+            "action_taken": rx_result.get("action_taken", "prescription_processed"),
+            "needs_input": True,
+            "trace": get_trace(session_id),
+            "trace_id": trace_id,
+            "trace_url": trace_url,
+            "latency_ms": int((time.time() - start_time) * 1000),
+        }
+
+    # ── Step 1.5b: UI navigation fast-path (no LLM needed) ───────────
     ui_candidate = _detect_ui_action_intent(user_input)
     if ui_candidate:
         validated = validate_ui_action(ui_candidate).get("action")
@@ -1146,10 +1197,24 @@ async def execute_action(
         "add_to_cart", "vector_search", "lookup_by_indication", 
         "get_inventory", "get_tier1_alternatives", "remove_from_cart",
         "remove_item", "delete_from_cart",
+        "upload_prescription", "analyze_prescription", "ocr",
+        "process_prescription", "scan_prescription",
     ]
+    _prescription_tool_aliases = {
+        "analyze_prescription", "ocr", "process_prescription", "scan_prescription",
+    }
     if action in legacy_tool_actions:
-        plan["tool"] = "remove_from_cart" if action in {"remove_item", "delete_from_cart"} else action
+        if action in _prescription_tool_aliases:
+            plan["tool"] = "upload_prescription"
+        elif action in {"remove_item", "delete_from_cart"}:
+            plan["tool"] = "remove_from_cart"
+        else:
+            plan["tool"] = action
         action = "tool_call"
+
+    # Also catch hallucinated tool names inside tool_call
+    if action == "tool_call" and plan.get("tool") in _prescription_tool_aliases:
+        plan["tool"] = "upload_prescription"
         
     # ── tool_call ───────────────────────────────────────────────────
     if action == "tool_call":
@@ -1187,6 +1252,20 @@ async def execute_action(
                 or state.get("pending_rx_check")
                 or (state.get("candidates", [{}])[0] if state.get("candidates") else {})
             ) or med
+        med_id = med.get("id")
+        rx_verified_ids = state.get("rx_verified_med_ids", set())
+        # If this specific medicine is already prescription-verified, skip the gate
+        if med_id and med_id in rx_verified_ids:
+            # Redirect to add_to_cart since RX is already verified for this med
+            plan = dict(plan)
+            plan["action"] = "tool_call"
+            plan["tool"] = "add_to_cart"
+            plan["tool_args"] = {
+                "med_id": med_id,
+                "qty": plan.get("quantity") or 1,
+                "dose": plan.get("dose"),
+            }
+            return await execute_tool_call(session_id, plan, state, lang, user_input=user_input)
         update_session_state(session_id, {
             "pending_rx_check": med or None,
             "selected_medication": med or None,
@@ -1195,13 +1274,15 @@ async def execute_action(
             "collected_quantity": plan.get("quantity", 1),
             "collected_dose": plan.get("dose"),
         })
-        default_msg = _localize("ask_rx", lang, med=med.get("brand_name", "This medication"))
+        # Ask user to upload prescription — don't just ask "do you have one?"
+        default_msg = _localize("rx_ask_upload", lang, med=med.get("brand_name", "This medication"))
         msg = _prefer_llm_text(plan.get("message"), default_msg, lang, force_localized)
-        tts = _prefer_llm_tts(plan.get("tts_message"), plan.get("message"), msg, lang, force_localized)
+        tts = _prefer_llm_tts(plan.get("tts_message"), plan.get("message"), default_msg, lang, force_localized)
         return {
             "message": msg,
             "tts_message": tts,
             "action_taken": "ask_rx",
+            "ui_action": "open_upload_prescription",
             "needs_input": True,
         }
 
@@ -1261,6 +1342,35 @@ async def execute_action(
 
     # ── checkout / confirm_checkout ──────────────────────────────────
     if action in ("checkout", "confirm_checkout"):
+        # ── RX GATE: Block checkout if cart has unverified prescription items ──
+        cart_data = await get_cart(session_id)
+        cart_items = cart_data.get("items", [])
+        rx_verified_ids = state.get("rx_verified_med_ids", set())
+        if cart_items:
+            # Check each cart item individually for unverified RX requirement
+            unverified_rx_items = []
+            for item in cart_items:
+                item_med_id = item.get("medication_id") or item.get("product_catalog_id")
+                # Look up the actual product to check rx_required
+                if item_med_id:
+                    item_details = await get_medication_details(item_med_id)
+                    if item_details and item_details.get("rx_required"):
+                        if item_med_id not in rx_verified_ids:
+                            unverified_rx_items.append(
+                                item.get("brand_name") or item.get("product_name") or item_details.get("brand_name", "Unknown")
+                            )
+            if unverified_rx_items:
+                rx_meds_str = ", ".join(unverified_rx_items)
+                block_msg = _localize("rx_checkout_blocked", lang, meds=rx_meds_str)
+                return {
+                    "message": block_msg,
+                    "tts_message": block_msg,
+                    "cart": cart_data,
+                    "action_taken": "checkout_rx_blocked",
+                    "ui_action": "open_upload_prescription",
+                    "needs_input": True,
+                }
+
         # Search ALL recent conversation history for a delivery address
         delivery_address = state.get("pending_checkout_address")
         history = state.get("conversation_history", [])
@@ -1434,9 +1544,13 @@ async def execute_tool_call(
                 }
                 return await execute_tool_call(session_id, plan, state, lang, user_input=user_input)
 
-        results = await lookup_by_indication(indication)
+        results = state.get("search_cache", {}).get(f"ind:{indication}")
         if not results:
-            results = await vector_search(indication)
+            results = await lookup_by_indication(indication)
+            if not results:
+                results = await vector_search(indication)
+            if results:
+                state.setdefault("search_cache", {})[f"ind:{indication}"] = results
         if not results:
             fallback_msg = _localize("lookup_empty", lang, indication=indication)
             msg = _prefer_llm_text(plan.get("message"), fallback_msg, lang, force_localized)
@@ -1495,9 +1609,13 @@ async def execute_tool_call(
                 }
                 return await execute_tool_call(session_id, plan, state, lang, user_input=user_input)
 
-        results = await vector_search(name)
-        if not results and name:
-            results = await lookup_by_indication(name)
+        results = state.get("search_cache", {}).get(f"vec:{name}")
+        if not results:
+            results = await vector_search(name)
+            if not results and name:
+                results = await lookup_by_indication(name)
+            if results:
+                state.setdefault("search_cache", {})[f"vec:{name}"] = results
         if not results:
             fallback_default = _localize("search_empty", lang, name=name)
             fallback_msg = _prefer_llm_text(plan.get("message"), fallback_default, lang, force_localized)
@@ -1572,7 +1690,7 @@ async def execute_tool_call(
                     lang,
                     med=med["brand_name"],
                     dosage=med.get("dosage", ""),
-                    price=float(med.get("price", 0)),
+                    price=float(med.get("price") or 0),
                 )
                 msg = _prefer_llm_text(plan.get("message"), default_msg, lang, force_localized)
                 return {
@@ -1591,7 +1709,7 @@ async def execute_tool_call(
                     lang,
                     med=med["brand_name"],
                     dosage=med.get("dosage", ""),
-                    price=float(med.get("price", 0)),
+                    price=float(med.get("price") or 0),
                 )
                 msg = _prefer_llm_text(plan.get("message"), default_msg, lang, force_localized)
                 return {
@@ -1679,10 +1797,11 @@ async def execute_tool_call(
                     "action_taken": "add_blocked",
                 }
 
-        # Require explicit RX confirmation for RX meds unless already verified in-session.
+        # Require explicit RX confirmation for RX meds unless this specific med has been verified.
+        rx_verified_ids = state.get("rx_verified_med_ids", set())
         rx_confirmed = (
             not med.get("rx_required", False)
-            or bool(state.get("rx_verified"))
+            or med_id in rx_verified_ids
         )
         validation = validate_add_to_cart(med, rx_confirmed=rx_confirmed, rx_bypass=False)
 
@@ -1690,11 +1809,26 @@ async def execute_tool_call(
             validation_msg = validation.get("message") or _localize("add_not_found", lang)
             reason = validation.get("reason")
             if reason == "rx_required":
+                # RX block — tell the user to upload prescription or remove the item
+                update_session_state(session_id, {
+                    "pending_rx_check": med,
+                    "selected_medication": med,
+                })
                 validation_msg = _localize(
-                    "rx_required_block",
+                    "rx_upload_or_remove",
                     lang,
                     med=med.get("brand_name", "This medication"),
                 )
+                return {
+                    "message": validation_msg,
+                    "tts_message": _localize(
+                        "rx_ask_upload", lang,
+                        med=med.get("brand_name", "This medication"),
+                    ),
+                    "action_taken": "rx_upload_required",
+                    "ui_action": "open_upload_prescription",
+                    "needs_input": True,
+                }
             elif reason == "out_of_stock":
                 validation_msg = _localize(
                     "out_of_stock",
@@ -1913,7 +2047,13 @@ async def _handle_prescription_upload(
     session_id: str, args: Dict[str, Any], state: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Handle prescription image upload and OCR → cart or verify flow."""
-    image_path = args.get("file_path", "mock_prescription.jpg")
+    image_path = (
+        args.get("file_path")
+        or args.get("filepath")
+        or args.get("image_path")
+        or args.get("path")
+        or "mock_prescription.jpg"
+    )
 
     from services.ocr_service import extract_text_from_image, parse_prescription_text
 
@@ -1921,13 +2061,17 @@ async def _handle_prescription_upload(
     if "error" in ocr_result:
         return {"message": f"Failed to read prescription: {ocr_result['error']}", "action_taken": "upload_failed"}
 
-    parsed_rx = await parse_prescription_text(ocr_result["text"])
+    parsed_rx = await parse_prescription_text(ocr_result)
     meds_found = parsed_rx.get("medications", [])
     unknown_items = parsed_rx.get("unknown_items", [])
+    disease = parsed_rx.get("disease_or_illness")
 
     if not meds_found and not unknown_items:
+        msg = "Couldn't identify any medicines from the prescription. Try again or type them manually."
+        if disease:
+            msg += f"\nNote: recognized condition as {disease}."
         return {
-            "message": "Couldn't identify any medicines from the prescription. Try again or type them manually.",
+            "message": msg,
             "action_taken": "upload_empty",
         }
 
@@ -1935,40 +2079,108 @@ async def _handle_prescription_upload(
 
     if cart["item_count"] == 0:
         # Scan-to-cart mode
-        from tools.cart_tools import search_medications as _search
-        added, oos, unknown = [], [], list(unknown_items)
+        from tools.query_tools import vector_search as _search, get_tier1_alternatives
+        added, oos, unknown = [], [], []
+        # Normalize unknown_items: may be dicts (new format) or strings (legacy)
+        for ui in unknown_items:
+            if isinstance(ui, dict):
+                label = ui.get("name", "")
+                dosage = ui.get("dosage", "")
+                unknown.append(f"{label} {dosage}".strip() if dosage else label)
+            else:
+                unknown.append(str(ui))
+
+        # Cap to prevent timeout on overly broad OCR matches
+        meds_found = meds_found[:10]
         for med in meds_found:
             query = f"{med['brand_name']} {med.get('dosage','')}"
             results = await _search(query)
             match = results[0] if results else None
             if match and match.get("stock_quantity", 0) > 0:
                 await add_to_cart(session_id, match["id"], 1)
-                added.append(match["brand_name"])
+                searched = med.get("searched_name") or med["brand_name"]
+                added.append(f"{match['brand_name']} (from: {searched})" if searched.lower() != match['brand_name'].lower() else match['brand_name'])
+                # Track this medicine as RX-verified (scan-to-cart is prescription-sourced)
+                verified_ids = state.get("rx_verified_med_ids", set())
+                verified_ids.add(match["id"])
+                update_session_state(session_id, {"rx_verified_med_ids": verified_ids})
             elif match:
-                alts = await _search(match.get("active_ingredient", ""), limit=3)
-                alts = [a for a in alts if a["id"] != match["id"] and a.get("stock_quantity", 0) > 0]
+                alts = await get_tier1_alternatives(match["id"])
+                alts = [a for a in alts if a["id"] != match["id"] and a.get("stock_quantity", 0) > 0][:3]
                 oos.append({"requested": match["brand_name"], "alternatives": alts})
             else:
-                unknown.append(med["brand_name"])
+                searched = med.get("searched_name") or med["brand_name"]
+                unknown.append(searched)
 
         parts = []
+        if disease:
+            parts.append(f"📋 Identified condition: **{disease}**")
+
+        llm_count = parsed_rx.get("llm_extracted_count", 0)
+        if llm_count:
+            parts.append(f"🔎 Extracted **{llm_count}** medicine(s) from prescription.")
+
         if added:
-            parts.append(f"Added to cart: {', '.join(added)}.")
+            parts.append(f"✅ Added to cart: {', '.join(added)}.")
         for o in oos:
             alt_names = [a["brand_name"] for a in o["alternatives"]]
-            parts.append(f"{o['requested']} is out of stock." + (f" Alternatives: {', '.join(alt_names)}." if alt_names else ""))
+            parts.append(f"⚠️ {o['requested']} is out of stock." + (f" Alternatives: {', '.join(alt_names)}." if alt_names else ""))
         if unknown:
-            parts.append(f"Could not find: {', '.join(unknown)}.")
+            parts.append(f"❌ Not found in catalog: {', '.join(unknown)}. You can try searching by generic name or ask me to find alternatives.")
         if added:
-            update_session_state(session_id, {"rx_verified": True, "pending_rx_check": None})
+            update_session_state(session_id, {"pending_rx_check": None})
         return {"message": "\n".join(parts) or "No items found.", "action_taken": "scan_to_cart_processed"}
     else:
-        # Verify existing cart
+        # Verify existing cart — also check against pending_rx_check medicine
         from agents.safety_agent import validate_prescription
         validation = await validate_prescription(parsed_rx, cart["items"])
+
+        # Also check if the prescription covers the pending_rx_check medicine
+        pending_rx_med = state.get("pending_rx_check")
+        pending_rx_covered = False
+        if pending_rx_med:
+            pending_name = (pending_rx_med.get("brand_name") or "").lower()
+            pending_generic = (pending_rx_med.get("generic_name") or "").lower()
+            # Build set of all medicine names found in the prescription
+            prescribed_names = set()
+            for m in parsed_rx.get("medications", []):
+                prescribed_names.add((m.get("brand_name") or "").lower())
+                prescribed_names.add((m.get("generic_name") or "").lower())
+                prescribed_names.add((m.get("searched_name") or "").lower())
+            # Check partial/substring matches too (e.g. "goodra" in "Goodra 500mg")
+            for pname in prescribed_names:
+                if pname and pending_name and (pending_name in pname or pname in pending_name):
+                    pending_rx_covered = True
+                    break
+                if pname and pending_generic and (pending_generic in pname or pname in pending_generic):
+                    pending_rx_covered = True
+                    break
+
+        verified_ids = state.get("rx_verified_med_ids", set())
+
         if validation["valid"]:
-            update_session_state(session_id, {"rx_verified": True, "pending_rx_check": None})
-            return {"message": f"Prescription verified! Items approved.", "action_taken": "upload_verified_success"}
+            # Mark all RX cart items as verified
+            for item in cart["items"]:
+                item_med_id = item.get("medication_id") or item.get("product_catalog_id")
+                if item_med_id:
+                    verified_ids.add(item_med_id)
+
+        if pending_rx_covered and pending_rx_med:
+            pending_id = pending_rx_med.get("id")
+            if pending_id:
+                verified_ids.add(pending_id)
+
+        update_session_state(session_id, {"rx_verified_med_ids": verified_ids})
+
+        if validation["valid"] or pending_rx_covered:
+            update_session_state(session_id, {"pending_rx_check": None})
+            msg = "✅ Prescription verified! "
+            if pending_rx_covered and pending_rx_med:
+                med_name = pending_rx_med.get("brand_name", "The medicine")
+                msg += f"{med_name} has been confirmed on your prescription. You can now add it to your cart."
+            else:
+                msg += "All RX items approved."
+            return {"message": msg, "action_taken": "upload_verified_success"}
         return {"message": validation["message"], "action_taken": "upload_verified_failed"}
 
 

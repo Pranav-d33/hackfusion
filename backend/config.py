@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 
 # Load environment variables from the .env file in the project root
 env_path = Path(__file__).parent.parent / ".env"
-load_dotenv(env_path)
+load_dotenv(env_path, override=True)
 
 # Base paths
 BASE_DIR = Path(__file__).parent.parent
@@ -30,16 +30,16 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
 # Model Configuration — Unified LLM-first ordering agent
 # OpenRouter models: only used if Groq is unavailable
-NLU_MODEL = os.getenv("NLU_MODEL", "google/gemma-3-27b-it:free")
+NLU_MODEL = os.getenv("NLU_MODEL", "openrouter/auto")
 # Fallback models: tried in order if primary returns 429 / timeout
 NLU_FALLBACK_MODELS = [
     m.strip() for m in os.getenv(
         "NLU_FALLBACK_MODELS",
-        "meta-llama/llama-3.3-70b-instruct:free,qwen/qwen3-4b:free,nvidia/nemotron-nano-9b-v2:free"
+        "meta-llama/llama-3.1-8b-instruct,openai/gpt-4o-mini"
     ).split(",") if m.strip()
 ]
 # Legacy — kept for backward compat but no longer used separately
-PLANNER_MODEL = os.getenv("PLANNER_MODEL", "google/gemini-2.0-flash-exp:free")
+PLANNER_MODEL = os.getenv("PLANNER_MODEL", "openrouter/auto")
 
 # Embedding Model (local)
 EMBEDDING_MODEL = "all-MiniLM-L6-v2"
@@ -75,6 +75,12 @@ RX_BYPASS_PHRASE = os.getenv("RX_BYPASS_PHRASE", "override rx")
 RX_REQUIRED_KEYWORDS = [
     k.strip().lower() for k in os.getenv(
         "RX_REQUIRED_KEYWORDS",
-        "amoxicillin,azithromycin,ciprofloxacin,doxycycline,metformin,ramipril,atorvastatin,levothyroxine"
+        "amoxicillin,azithromycin,ciprofloxacin,doxycycline,metformin,ramipril,atorvastatin,levothyroxine,goodra"
     ).split(",") if k.strip()
 ]
+# SMTP Configuration (for Gmail)
+SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USER = os.getenv("SMTP_USER", "")
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", SMTP_USER)

@@ -5,7 +5,7 @@
  *   - Bottom: Active + Past orders (scrollable list)
  * Tooltip-safe: timeline section uses overflow-visible so hover cards render.
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
   History, X, Pill, Calendar, Clock,
   Package, ChevronDown, ChevronUp, ShoppingBag,
@@ -55,6 +55,15 @@ export default function PastOrdersModal({ orders, activeOrders, timeline, stats,
   };
   const [expandedDate, setExpandedDate] = useState(null);
   const [expandedActiveOrder, setExpandedActiveOrder] = useState(null);
+  const [hoveredPred, setHoveredPred] = useState(null);
+  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+
+  const handleDotMouseEnter = useCallback((e, pred) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setTooltipPos({ x: rect.left + rect.width / 2, y: rect.top });
+    setHoveredPred(pred);
+  }, []);
+  const handleDotMouseLeave = useCallback(() => setHoveredPred(null), []);
 
   useEffect(() => {
     setInternalOpen(false);
@@ -116,8 +125,8 @@ export default function PastOrdersModal({ orders, activeOrders, timeline, stats,
                   <Activity size={20} className="text-white" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold text-gray-900">{t('myOrdersRefills')}</h2>
-                  <p className="text-xs text-gray-400">
+                  <h2 className="text-xl font-bold text-gray-900">{t('myOrdersRefills')}</h2>
+                  <p className="text-sm text-gray-400">
                     {activeCount > 0 ? `${activeCount} ${t('active').toLowerCase()} · ` : ''}{orderCount} {t('pastOrders').toLowerCase()} · {timelineCount} {t('tracked')}
                   </p>
                 </div>
@@ -134,8 +143,8 @@ export default function PastOrdersModal({ orders, activeOrders, timeline, stats,
               <div className="px-6 pt-5 pb-4">
                 <div className="flex items-center gap-2 mb-3">
                   <TrendingUp size={18} className="text-blue-500" />
-                  <h3 className="text-sm font-bold uppercase tracking-wider text-gray-500">{t('refillPredictions')}</h3>
-                  <span className="text-xs text-gray-400 ml-1">{t('aiMedicationTimeline')}</span>
+                  <h3 className="text-base font-bold uppercase tracking-wider text-gray-500">{t('refillPredictions')}</h3>
+                  <span className="text-sm text-gray-400 ml-1">{t('aiMedicationTimeline')}</span>
                 </div>
 
                 {/* Timeline Track — overflow visible for tooltips */}
@@ -151,10 +160,43 @@ export default function PastOrdersModal({ orders, activeOrders, timeline, stats,
                   </div>
                 ) : (
                   <div className="space-y-3">
+                    {/* Fixed-position tooltip rendered outside scroll container */}
+                    {hoveredPred && (() => {
+                      const cfg = getUrgency(hoveredPred.urgency);
+                      const TOOLTIP_W = 240;
+                      const TOOLTIP_H = 170;
+                      let tx = tooltipPos.x - TOOLTIP_W / 2;
+                      let ty = tooltipPos.y - TOOLTIP_H - 12;
+                      // clamp to viewport
+                      tx = Math.max(8, Math.min(tx, window.innerWidth - TOOLTIP_W - 8));
+                      ty = Math.max(8, ty);
+                      return (
+                        <div
+                          style={{ position: 'fixed', left: tx, top: ty, width: TOOLTIP_W, zIndex: 9999, pointerEvents: 'none' }}
+                          className="bg-white rounded-xl shadow-2xl border border-gray-100 p-4"
+                        >
+                          <p className="font-bold text-gray-900 text-base">{hoveredPred.brand_name}</p>
+                          <p className="text-xs text-gray-500 mt-0.5">{hoveredPred.dosage}</p>
+                          <div className="flex items-center gap-2 mt-2">
+                            <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${cfg.badge}`}>{getDaysLabel(hoveredPred.days_until_depletion, t)}</span>
+                            {hoveredPred.frequency_label && (
+                              <span className="text-xs text-gray-500 flex items-center gap-1">
+                                <TrendingUp size={12} /> {hoveredPred.frequency_label}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-gray-400 mt-2 flex items-center gap-1">
+                            <ShoppingCart size={11} /> {t('reorder')} in cart to order
+                          </p>
+                          {/* Arrow */}
+                          <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-3 h-3 bg-white border-r border-b border-gray-100 rotate-45" />
+                        </div>
+                      );
+                    })()}
                     {/* Visual Track */}
-                    <div className="relative pt-16 pb-2" style={{ overflow: 'visible' }}>
+                    <div className="relative pt-6 pb-2">
                       {/* Scale labels */}
-                      <div className="absolute top-1 left-0 right-0 flex justify-between text-xs text-gray-400 px-2 uppercase tracking-widest font-medium">
+                      <div className="absolute top-0 left-0 right-0 flex justify-between text-xs text-gray-400 px-2 uppercase tracking-widest font-medium">
                         <span>{t('today')}</span><span>1 wk</span><span>2 wk</span><span>3 wk</span><span>4 wk</span>
                       </div>
 
@@ -170,32 +212,14 @@ export default function PastOrdersModal({ orders, activeOrders, timeline, stats,
                           return (
                             <div
                               key={i}
-                              className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 group"
+                              className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2"
                               style={{ left: `${left}%`, zIndex: 20 }}
+                              onMouseEnter={(e) => handleDotMouseEnter(e, pred)}
+                              onMouseLeave={handleDotMouseLeave}
+                              onClick={() => onReorder?.(pred)}
                             >
-                              <div className={`w-9 h-9 rounded-full ${cfg.dot} flex items-center justify-center shadow-lg cursor-pointer transition-transform group-hover:scale-125 border-2 border-white`}>
+                              <div className={`w-9 h-9 rounded-full ${cfg.dot} flex items-center justify-center shadow-lg cursor-pointer transition-transform hover:scale-125 border-2 border-white`}>
                                 <Pill size={14} className="text-white" />
-                              </div>
-                              {/* Hover tooltip — positioned ABOVE, overflow visible */}
-                              <div className="hidden group-hover:block absolute bottom-full left-1/2 -translate-x-1/2 mb-3 bg-white rounded-xl shadow-2xl border border-gray-100 p-4 min-w-[220px] z-[100]">
-                                <p className="font-bold text-gray-900 text-base">{pred.brand_name}</p>
-                                <p className="text-xs text-gray-500 mt-0.5">{pred.dosage}</p>
-                                <div className="flex items-center gap-2 mt-2">
-                                  <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${cfg.badge}`}>{getDaysLabel(pred.days_until_depletion, t)}</span>
-                                  {pred.frequency_label && (
-                                    <span className="text-xs text-gray-500 flex items-center gap-1">
-                                      <TrendingUp size={12} /> {pred.frequency_label}
-                                    </span>
-                                  )}
-                                </div>
-                                <button
-                                  onClick={() => onReorder?.(pred)}
-                                  className="mt-4 w-full text-sm bg-red-500 hover:bg-red-600 text-white py-2 rounded-xl flex items-center justify-center gap-1.5 transition-colors font-semibold"
-                                >
-                                  <ShoppingCart size={14} /> {t('reorder')}
-                                </button>
-                                {/* Arrow */}
-                                <div className="absolute top-full left-1/2 -translate-x-1/2 w-3 h-3 bg-white border-r border-b border-gray-100 rotate-45 -mt-1.5" />
                               </div>
                             </div>
                           );
@@ -204,7 +228,7 @@ export default function PastOrdersModal({ orders, activeOrders, timeline, stats,
                     </div>
 
                     {/* Legend */}
-                    <div className="flex justify-center gap-5 text-xs text-gray-500 font-medium">
+                    <div className="flex justify-center gap-5 text-sm text-gray-500 font-medium">
                       {[
                         { color: 'bg-red-500', label: t('criticalDays') },
                         { color: 'bg-amber-500', label: t('soonDays') },
@@ -227,8 +251,8 @@ export default function PastOrdersModal({ orders, activeOrders, timeline, stats,
                                 <Pill size={13} className="text-white" />
                               </div>
                               <div className="flex-1 min-w-0">
-                                <p className="text-sm font-semibold text-gray-800 truncate">{pred.brand_name}</p>
-                                <p className="text-xs text-gray-500">{pred.dosage}</p>
+                                <p className="text-base font-semibold text-gray-800 truncate">{pred.brand_name}</p>
+                                <p className="text-sm text-gray-500">{pred.dosage}</p>
                               </div>
                               <span className={`text-xs px-2.5 py-1 rounded-full font-semibold flex-shrink-0 ${cfg.badge}`}>
                                 {getDaysLabel(pred.days_until_depletion, t)}
@@ -249,13 +273,13 @@ export default function PastOrdersModal({ orders, activeOrders, timeline, stats,
               <div className="px-6 pt-4 pb-6 space-y-4">
                 <div className="flex items-center gap-2 mb-2">
                   <History size={18} className="text-amber-500" />
-                  <h3 className="text-sm font-bold uppercase tracking-wider text-gray-500">{t('orderHistory')}</h3>
+                  <h3 className="text-base font-bold uppercase tracking-wider text-gray-500">{t('orderHistory')}</h3>
                 </div>
 
                 {/* Active Orders */}
                 {activeCount > 0 && (
                   <div className="space-y-3">
-                    <p className="text-xs font-bold uppercase tracking-wider text-green-600 flex items-center gap-1.5 px-1 mb-1">
+                    <p className="text-sm font-bold uppercase tracking-wider text-green-600 flex items-center gap-1.5 px-1 mb-1">
                       <span className="flex h-2.5 w-2.5 rounded-full bg-green-500 animate-pulse" />
                       {t('active')} ({activeCount})
                     </p>
@@ -270,12 +294,12 @@ export default function PastOrdersModal({ orders, activeOrders, timeline, stats,
                             <div className="flex items-center gap-3">
                               <Package size={16} className="text-green-600" />
                               <div className="text-left">
-                                <p className="text-sm font-semibold text-gray-800">Order #{order.order_id}</p>
-                                <p className="text-xs text-green-700">{order.status || t('confirmed')}{order.estimated_delivery ? ` · ${t('etaShort')} ${order.estimated_delivery}` : ''}</p>
+                                <p className="text-base font-semibold text-gray-800">Order #{order.order_id}</p>
+                                <p className="text-sm text-green-700">{order.status || t('confirmed')}{order.estimated_delivery ? ` · ${t('etaShort')} ${order.estimated_delivery}` : ''}</p>
                               </div>
                             </div>
                             <div className="flex items-center gap-3">
-                              {order.total != null && <span className="text-xs font-bold text-gray-600">€{Number(order.total).toFixed(2)}</span>}
+                              {order.total != null && <span className="text-sm font-bold text-gray-600">€{Number(order.total).toFixed(2)}</span>}
                               {isExp ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
                             </div>
                           </button>
@@ -284,12 +308,12 @@ export default function PastOrdersModal({ orders, activeOrders, timeline, stats,
                               {(order.items || []).map((item, i) => (
                                 <div key={i} className="flex items-center gap-3 px-5 py-3">
                                   <Pill size={14} className="text-green-500 flex-shrink-0" />
-                                  <span className="text-sm text-gray-700 flex-1 truncate font-medium">{item.brand_name}</span>
-                                  <span className="text-xs text-gray-500 font-medium">×{item.quantity}</span>
-                                  <button onClick={() => onReorder?.({ brand_name: item.brand_name })} className="text-xs text-red-500 font-semibold hover:text-red-700 bg-white/50 px-2.5 py-1 rounded-lg">{t('reorder')}</button>
+                                  <span className="text-base text-gray-700 flex-1 truncate font-medium">{item.brand_name}</span>
+                                  <span className="text-sm text-gray-500 font-medium">×{item.quantity}</span>
+                                  <button onClick={() => onReorder?.({ brand_name: item.brand_name })} className="text-sm text-red-500 font-semibold hover:text-red-700 bg-white/50 px-2.5 py-1.5 rounded-lg">{t('reorder')}</button>
                                 </div>
                               ))}
-                              {order.address && <p className="px-5 py-3 text-xs text-gray-500 border-t border-green-50/50">📍 {t('deliverTo')}: {order.address}</p>}
+                              {order.address && <p className="px-5 py-3 text-sm text-gray-500 border-t border-green-50/50">📍 {t('deliverTo')}: {order.address}</p>}
                             </div>
                           )}
                         </div>
@@ -302,7 +326,7 @@ export default function PastOrdersModal({ orders, activeOrders, timeline, stats,
                 {activeCount > 0 && orderCount > 0 && (
                   <div className="flex items-center gap-3 px-1 py-1">
                     <div className="flex-1 h-px bg-gray-100" />
-                    <p className="text-xs font-bold uppercase tracking-wider text-gray-400">{t('pastOrders')}</p>
+                    <p className="text-sm font-bold uppercase tracking-wider text-gray-400">{t('pastOrders')}</p>
                     <div className="flex-1 h-px bg-gray-100" />
                   </div>
                 )}
@@ -330,14 +354,14 @@ export default function PastOrdersModal({ orders, activeOrders, timeline, stats,
                           <div className="flex items-center gap-3">
                             <Calendar size={16} className="text-red-400" />
                             <div className="text-left">
-                              <p className="text-sm font-semibold text-gray-800">{formatDate(date, bcp47 || 'en-US')}</p>
-                              <p className="text-xs text-gray-500 font-medium">{items.length} {items.length > 1 ? t('items') : t('item')}</p>
+                              <p className="text-base font-semibold text-gray-800">{formatDate(date, bcp47 || 'en-US')}</p>
+                              <p className="text-sm text-gray-500 font-medium">{items.length} {items.length > 1 ? t('items') : t('item')}</p>
                             </div>
                           </div>
                           <div className="flex items-center gap-3">
                             <div className="hidden sm:flex gap-1.5">
                               {items.slice(0, 2).map((it, i) => (
-                                <span key={i} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full truncate max-w-[90px] font-medium">{it.brand_name}</span>
+                                <span key={i} className="text-sm bg-gray-100 text-gray-600 px-2.5 py-0.5 rounded-full truncate max-w-[100px] font-medium">{it.brand_name}</span>
                               ))}
                             </div>
                             {isExp ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
@@ -349,15 +373,15 @@ export default function PastOrdersModal({ orders, activeOrders, timeline, stats,
                               <div key={i} className="flex items-center gap-3 px-5 py-3.5 hover:bg-gray-50/30 transition-colors">
                                 <Pill size={14} className="text-red-400 flex-shrink-0" />
                                 <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-semibold text-gray-800 truncate">{item.brand_name}</p>
-                                  <p className="text-xs text-gray-500 font-medium">{item.dosage} · {t('qty')}: {item.quantity}</p>
+                                  <p className="text-base font-semibold text-gray-800 truncate">{item.brand_name}</p>
+                                  <p className="text-sm text-gray-500 font-medium">{item.dosage} · {t('qty')}: {item.quantity}</p>
                                 </div>
                                 {item.dosage_frequency && (
-                                  <span className="text-xs text-gray-500 flex items-center gap-1.5 bg-gray-50 px-2.5 py-1 rounded-lg">
-                                    <Clock size={12} /> {item.dosage_frequency}
+                                  <span className="text-sm text-gray-500 flex items-center gap-1.5 bg-gray-50 px-2.5 py-1.5 rounded-lg">
+                                    <Clock size={13} /> {item.dosage_frequency}
                                   </span>
                                 )}
-                                <button onClick={() => onReorder?.({ brand_name: item.brand_name })} className="text-xs text-red-500 hover:text-red-700 font-semibold bg-red-50 hover:bg-red-100 px-2.5 py-1 rounded-lg transition-colors ml-2">{t('reorder')}</button>
+                                <button onClick={() => onReorder?.({ brand_name: item.brand_name })} className="text-sm text-red-500 hover:text-red-700 font-semibold bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-colors ml-2">{t('reorder')}</button>
                               </div>
                             ))}
                           </div>

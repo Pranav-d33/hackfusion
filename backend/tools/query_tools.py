@@ -79,11 +79,14 @@ SYMPTOM_PRODUCT_MAP = {
 def _resolve_rx_required(raw_rx: Any, product_name: str | None) -> bool:
     """
     Resolve rx_required from schema if available; otherwise use keyword fallback.
+    - If the DB has an explicit value (True/1 or False/0), honour it.
+    - If the DB value is None (missing), fall back to keyword matching.
     """
     if not RX_ENFORCEMENT_ENABLED:
         return False
     if raw_rx is not None:
         return bool(raw_rx)
+    # Keyword fallback only when DB has no value at all
     return is_rx_required_by_keyword(product_name)
 
 
@@ -111,7 +114,7 @@ async def lookup_by_indication(indication: str) -> List[Dict[str, Any]]:
             rows = await execute_query("""
                 SELECT DISTINCT
                     pc.id, pc.product_name, pc.pzn, pc.package_size,
-                    pc.description, pc.base_price_eur,
+                    pc.description, pc.base_price_eur, pc.rx_required,
                     COALESCE(inv.stock_quantity, 0) as stock_quantity
                 FROM product_catalog pc
                 LEFT JOIN inventory_items inv ON pc.id = inv.product_catalog_id
@@ -142,7 +145,7 @@ async def lookup_by_indication(indication: str) -> List[Dict[str, Any]]:
     results = await execute_query("""
         SELECT DISTINCT
             pc.id, pc.product_name, pc.pzn, pc.package_size,
-            pc.description, pc.base_price_eur,
+            pc.description, pc.base_price_eur, pc.rx_required,
             COALESCE(inv.stock_quantity, 0) as stock_quantity,
             COALESCE(lst_name.translated_text, pc.product_name) as product_name_en,
             COALESCE(lst_desc.translated_text, pc.description) as description_en
@@ -261,7 +264,7 @@ async def vector_search(name: str, top_k: int = 3) -> List[Dict[str, Any]]:
         results = await execute_query("""
             SELECT DISTINCT
                 pc.id, pc.product_name, pc.pzn, pc.package_size,
-                pc.description, pc.base_price_eur,
+                pc.description, pc.base_price_eur, pc.rx_required,
                 COALESCE(inv.stock_quantity, 0) as stock_quantity,
                 COALESCE(lst_name.translated_text, pc.product_name) as product_name_en
             FROM product_catalog pc
@@ -318,7 +321,7 @@ async def get_inventory(med_id: int) -> Dict[str, Any]:
         Inventory info with stock quantity
     """
     result = await execute_query("""
-        SELECT pc.id, pc.product_name, pc.base_price_eur,
+        SELECT pc.id, pc.product_name, pc.base_price_eur, pc.rx_required,
                COALESCE(inv.stock_quantity, 0) as stock_quantity
         FROM product_catalog pc
         LEFT JOIN inventory_items inv ON pc.id = inv.product_catalog_id
@@ -349,7 +352,7 @@ async def get_rx_flag(med_id: int) -> Dict[str, Any]:
         RX requirement info
     """
     result = await execute_query(
-        "SELECT id, product_name FROM product_catalog WHERE id = ?",
+        "SELECT id, product_name, rx_required FROM product_catalog WHERE id = ?",
         (med_id,)
     )
 
@@ -429,7 +432,7 @@ async def get_tier1_alternatives(med_id: int) -> List[Dict[str, Any]]:
 
     alternatives = await execute_query("""
         SELECT
-            pc.id, pc.product_name, pc.package_size, pc.base_price_eur,
+            pc.id, pc.product_name, pc.package_size, pc.base_price_eur, pc.rx_required,
             COALESCE(inv.stock_quantity, 0) as stock_quantity
         FROM product_catalog pc
         LEFT JOIN inventory_items inv ON pc.id = inv.product_catalog_id

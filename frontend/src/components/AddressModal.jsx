@@ -87,12 +87,12 @@ export default function AddressModal({ isOpen, onClose, onConfirm, cart, user, i
         }`;
 
     return (
-        <div className={`fixed inset-0 z-50 flex items-center ${isVoiceMode ? 'justify-end p-4 pr-6' : 'justify-center px-4'}`}>
+        <div className={`fixed inset-0 z-50 flex ${isVoiceMode ? 'items-end md:items-center justify-end p-0 md:p-4 md:pr-6' : 'items-end md:items-center justify-center p-0 md:px-4'}`}>
             {/* Backdrop */}
             <div className={`absolute inset-0 ${isVoiceMode ? 'bg-black/20 backdrop-blur-sm' : 'bg-black/40 backdrop-blur-sm'}`} onClick={onClose} />
 
             {/* Modal */}
-            <div className={`relative w-full ${isVoiceMode ? 'max-w-md animate-slide-in-right h-[calc(100vh-2rem)] my-4' : 'max-w-lg animate-fade-in-up max-h-[90vh]'} bg-white rounded-3xl shadow-glass-lg overflow-hidden flex flex-col`} dir={dir}>
+            <div className={`relative w-full ${isVoiceMode ? 'md:max-w-md animate-slide-up md:animate-slide-in-right h-[85vh] md:h-[calc(100vh-2rem)] md:my-4 rounded-t-3xl md:rounded-3xl' : 'md:max-w-lg animate-slide-up md:animate-fade-in-up md:max-h-[90vh] rounded-t-3xl md:rounded-3xl max-h-[90vh]'} bg-white shadow-glass-lg overflow-hidden flex flex-col`} dir={dir}>
                 {/* Header */}
                 <div className="p-5 border-b border-gray-100 bg-gradient-to-r from-white to-gray-50 flex-shrink-0">
                     <div className="flex items-center gap-3">

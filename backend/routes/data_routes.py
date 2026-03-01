@@ -100,25 +100,39 @@ async def export_orders(format: str = "json") -> Response:
         SELECT
             co.id as order_id,
             c.external_patient_id as customer_id,
+            c.name as customer_name,
+            c.email as customer_email,
+            c.address,
+            c.city,
+            c.state,
+            c.postal_code,
+            c.phone,
             c.age as customer_age,
             c.gender as customer_gender,
             co.purchase_date,
+            co.created_at as order_created_at,
+            co.total_price_eur as order_total_eur,
+            co.dosage_frequency,
+            co.dosage_frequency_norm,
+            co.prescription_required,
             coi.quantity,
             coi.line_total_eur,
-            pc.product_name,
-            co.dosage_frequency
+            COALESCE(pc.product_name, coi.raw_product_name) as product_name
         FROM customer_orders co
         JOIN customers c ON co.customer_id = c.id
         JOIN customer_order_items coi ON co.id = coi.order_id
         LEFT JOIN product_catalog pc ON coi.product_catalog_id = pc.id
-        ORDER BY co.purchase_date DESC
+        ORDER BY co.purchase_date DESC, co.created_at DESC
     """)
 
     if format == "csv":
         output = io.StringIO()
         writer = csv.DictWriter(output, fieldnames=[
-            'order_id', 'customer_id', 'customer_age', 'customer_gender',
-            'purchase_date', 'product_name', 'quantity', 'line_total_eur', 'dosage_frequency'
+            'order_id', 'customer_id', 'customer_name', 'customer_email',
+            'address', 'city', 'state', 'postal_code', 'phone',
+            'customer_age', 'customer_gender', 'purchase_date', 'order_created_at',
+            'order_total_eur', 'quantity', 'line_total_eur', 'product_name',
+            'dosage_frequency', 'dosage_frequency_norm', 'prescription_required'
         ])
         writer.writeheader()
         for row in orders:

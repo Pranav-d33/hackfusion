@@ -7,8 +7,8 @@ export default {
     theme: {
         extend: {
             fontFamily: {
-                'brand': ['Outfit', 'sans-serif'],
-                'body': ['DM Sans', 'Noto Sans Devanagari', 'Noto Sans Tamil', 'Noto Sans Telugu', 'Noto Sans Bengali', 'sans-serif'],
+                'brand': ['Inter', 'sans-serif'],
+                'body': ['Roboto', 'Noto Sans Devanagari', 'Noto Sans Tamil', 'Noto Sans Telugu', 'Noto Sans Bengali', 'sans-serif'],
                 'mono': ['JetBrains Mono', 'monospace'],
             },
             colors: {
@@ -59,11 +59,17 @@ export default {
                 'glow-red': '0 0 20px rgba(220, 38, 38, 0.3)',
                 'glow-red-lg': '0 0 40px rgba(220, 38, 38, 0.4)',
                 'glow-red-sm': '0 0 10px rgba(220, 38, 38, 0.2)',
-                'glass': '0 8px 32px rgba(0, 0, 0, 0.08)',
-                'glass-lg': '0 16px 48px rgba(0, 0, 0, 0.12)',
-                'lift': '0 4px 20px rgba(0, 0, 0, 0.06)',
-                'lift-lg': '0 8px 30px rgba(0, 0, 0, 0.1)',
-                'inner-glow': 'inset 0 1px 0 rgba(255,255,255,0.1)',
+                'sm': '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
+                DEFAULT: '0 1px 3px 0 rgba(0, 0, 0, 0.02), 0 1px 2px -1px rgba(0, 0, 0, 0.02)',
+                'md': '0 4px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px -2px rgba(0, 0, 0, 0.02)',
+                'lg': '0 10px 15px -3px rgba(0, 0, 0, 0.02), 0 4px 6px -4px rgba(0, 0, 0, 0.02)',
+                'xl': '0 20px 25px -5px rgba(0, 0, 0, 0.02), 0 8px 10px -6px rgba(0, 0, 0, 0.02)',
+                '2xl': '0 25px 50px -12px rgba(0, 0, 0, 0.04)',
+                'glass': '0 4px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px -2px rgba(0, 0, 0, 0.02), 0 10px 15px -3px rgba(0, 0, 0, 0.02)',
+                'glass-lg': '0 10px 15px -3px rgba(0, 0, 0, 0.02), 0 4px 6px -4px rgba(0, 0, 0, 0.02), 0 20px 25px -5px rgba(0, 0, 0, 0.03)',
+                'lift': '0 10px 15px -3px rgba(0, 0, 0, 0.03), 0 4px 6px -4px rgba(0, 0, 0, 0.03)',
+                'lift-lg': '0 20px 25px -5px rgba(0, 0, 0, 0.04), 0 8px 10px -6px rgba(0, 0, 0, 0.04)',
+                'inner-glow': 'inset 0 1px 0 rgba(255,255,255,0.4)',
             },
             animation: {
                 'float': 'float 6s ease-in-out infinite',

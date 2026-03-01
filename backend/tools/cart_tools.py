@@ -12,6 +12,7 @@ sys.path.insert(0, str(__file__).rsplit('/', 2)[0])
 
 from db.database import execute_query, execute_write
 from config import MAX_ORDER_TOTAL_UNITS, MAX_ORDER_SUBTOTAL_EUR, MAX_ORDER_LINE_QTY
+from tools.query_tools import _resolve_rx_required
 
 
 def _estimate_delivery_date(days: int = 3) -> str:
@@ -167,7 +168,7 @@ async def get_cart(session_id: str) -> Dict[str, Any]:
             pc.package_size as form,
             'unit' as unit_type,
             COALESCE(pc.base_price_eur, 0) as price,
-            0 as rx_required
+            pc.rx_required as rx_required
         FROM cart c
         JOIN product_catalog pc ON c.product_catalog_id = pc.id
         WHERE c.session_id = ?
@@ -187,7 +188,7 @@ async def get_cart(session_id: str) -> Dict[str, Any]:
             "unit_type": item['unit_type'],
             "price": item['price'] or 0,
             "item_total": (item['price'] or 0) * int(item['quantity']),
-            "rx_required": bool(item['rx_required']),
+            "rx_required": _resolve_rx_required(item.get('rx_required'), item.get('brand_name')),
         }
         for item in items
     ]
@@ -462,7 +463,7 @@ async def checkout(session_id: str, customer_id: int = None, delivery_address: s
 
     await clear_cart(session_id)
 
-    return {
+    order_data = {
         "order_id": order_id,
         "customer_order_id": customer_order_id,
         "status": "confirmed",
@@ -481,6 +482,12 @@ async def checkout(session_id: str, customer_id: int = None, delivery_address: s
         "inventory_updated": True,
         "purchase_history_saved": customer_order_id is not None,
     }
+
+    import asyncio
+    from utils.mail_utils import send_order_confirmation_email
+    asyncio.create_task(send_order_confirmation_email(order_data))
+
+    return order_data
 
 
 async def trigger_warehouse_fulfillment(

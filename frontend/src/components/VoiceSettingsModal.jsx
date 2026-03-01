@@ -30,13 +30,13 @@ export default function VoiceSettingsModal({ isOpen, onClose, voices, currentVoi
     // Group voices by language for better UX
     const groupedVoices = voices.reduce((acc, voice) => {
         let langCode = voice.lang || '';
-            if (!langCode) {
-                if (voice.name.toLowerCase().includes('english') && voice.name.toLowerCase().includes('india')) {
-                    langCode = 'en-US';
-                } else if (voice.name.toLowerCase().includes('english')) {
-                    langCode = 'en-US';
-                } else {
-                    langCode = 'unknown';
+        if (!langCode) {
+            if (voice.name.toLowerCase().includes('english') && voice.name.toLowerCase().includes('india')) {
+                langCode = 'en-US';
+            } else if (voice.name.toLowerCase().includes('english')) {
+                langCode = 'en-US';
+            } else {
+                langCode = 'unknown';
             }
         }
         langCode = langCode.replace('_', '-');
@@ -59,7 +59,7 @@ export default function VoiceSettingsModal({ isOpen, onClose, voices, currentVoi
     });
 
     return (
-        <div className={`fixed inset-0 z-[60] flex items-center ${isVoiceMode ? 'justify-end pr-8' : 'justify-center p-4'}`}>
+        <div className={`fixed inset-0 z-[60] flex ${isVoiceMode ? 'items-end md:items-center justify-end pr-0 md:pr-8' : 'items-end md:items-center justify-center p-0 md:p-4'}`}>
             {/* Backdrop */}
             <div
                 className={`absolute inset-0 ${isVoiceMode ? 'bg-black/10' : 'bg-black/40 backdrop-blur-sm'} transition-opacity`}
@@ -67,9 +67,9 @@ export default function VoiceSettingsModal({ isOpen, onClose, voices, currentVoi
             />
 
             {/* Modal */}
-            <div className={`relative bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden ${isVoiceMode ? 'animate-slide-in-right' : 'animate-scale-in'}`}>
+            <div className={`relative bg-white rounded-t-3xl md:rounded-2xl shadow-xl w-full md:max-w-md overflow-hidden ${isVoiceMode ? 'animate-slide-up md:animate-slide-in-right' : 'animate-slide-up md:animate-scale-in'}`}>
                 {/* Header */}
-                <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+                <div className="px-5 md:px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
                     <h2 className="text-lg font-brand font-bold text-gray-800">{t('voiceSettings')}</h2>
                     <button
                         onClick={onClose}
@@ -82,7 +82,7 @@ export default function VoiceSettingsModal({ isOpen, onClose, voices, currentVoi
                 </div>
 
                 {/* Content */}
-                <div className="p-6 max-h-[60vh] overflow-y-auto">
+                <div className="p-4 md:p-6 max-h-[60vh] md:max-h-[60vh] overflow-y-auto">
                     <div className="mb-6">
                         <label className="block text-sm font-semibold text-gray-700 mb-2">{t('previewText')}</label>
                         <input
@@ -162,10 +162,10 @@ export default function VoiceSettingsModal({ isOpen, onClose, voices, currentVoi
                 </div>
 
                 {/* Footer */}
-                <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50 flex justify-end">
+                <div className="px-5 md:px-6 py-4 border-t border-gray-100 bg-gray-50/50 flex justify-end">
                     <button
                         onClick={onClose}
-                        className="px-5 py-2 bg-gray-800 text-white text-sm font-semibold rounded-xl hover:bg-gray-900 transition-colors shadow-lg shadow-gray-200"
+                        className="w-full md:w-auto px-5 py-3 md:py-2 bg-gray-800 text-white text-sm font-semibold rounded-xl hover:bg-gray-900 transition-colors shadow-lg shadow-gray-200"
                     >
                         {t('done')}
                     </button>

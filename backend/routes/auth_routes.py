@@ -2,11 +2,13 @@
 Authentication Routes
 User registration, login, and profile management.
 """
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Header
 from pydantic import BaseModel, EmailStr
 from typing import Optional, Dict, Any
 import hashlib
-import secrets
+import os
+import jwt
+from datetime import datetime, timedelta
 import sys
 sys.path.insert(0, str(__file__).rsplit('/', 2)[0])
 
@@ -78,6 +80,28 @@ class AuthResponse(BaseModel):
     message: str
 
 
+# ============ JWT Helper Functions ============
+
+JWT_SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "mediloon_super_secret_jwt_key_2026")
+JWT_ALGORITHM = os.environ.get("JWT_ALGORITHM", "HS256")
+ACCESS_TOKEN_EXPIRE_DAYS = 30
+
+def create_access_token(data: dict) -> str:
+    """Create a new JWT access token."""
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(days=ACCESS_TOKEN_EXPIRE_DAYS)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
+    return encoded_jwt
+
+def decode_access_token(token: str) -> Optional[dict]:
+    """Decode and verify a JWT access token."""
+    try:
+        decoded_data = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
+        return decoded_data
+    except pyjwt.PyJWTError:
+        return None
+
 # ============ Helper Functions ============
 
 def hash_password(password: str) -> str:
@@ -87,19 +111,38 @@ def hash_password(password: str) -> str:
     return hashlib.sha256(f"{salt}{password}".encode()).hexdigest()
 
 
-def generate_session_token() -> str:
-    """Generate a secure session token."""
-    return secrets.token_urlsafe(32)
+def get_token_from_header(authorization: Optional[str] = Header(None)) -> Optional[str]:
+    """Extract token from Authorization header (Bearer token) or return None."""
+    if not authorization or not authorization.startswith("Bearer "):
+        return None
+    return authorization.split(" ")[1]
 
+async def get_user_by_token(session_token: str = None, authorization: Optional[str] = Header(None)) -> Optional[Dict[str, Any]]:
+    """Get user from JWT token."""
+    
+    # Check header first, then fallback to query param (for backwards compatibility during transition)
+    token = get_token_from_header(authorization)
+    if not token:
+        token = session_token
+        
+    if not token:
+        return None
+        
+    # Decode JWT
+    try:
+        payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
+        user_id = payload.get("sub")
+        if user_id is None:
+            return None
+    except jwt.PyJWTError:
+        return None
 
-async def get_user_by_token(session_token: str) -> Optional[Dict[str, Any]]:
-    """Get user from session token."""
+    # Fetch user from DB
     result = await execute_query("""
-        SELECT c.id, c.name, c.email, c.phone, c.age, c.gender, c.address, c.city, c.state, c.postal_code, c.country, c.notification_enabled, c.profile_completed
-        FROM customers c
-        JOIN user_sessions s ON c.id = s.user_id
-        WHERE s.session_token = ? AND (s.expires_at IS NULL OR s.expires_at > datetime('now'))
-    """, (session_token,))
+        SELECT id, name, email, phone, age, gender, address, city, state, postal_code, country, notification_enabled, profile_completed
+        FROM customers
+        WHERE id = ?
+    """, (user_id,))
     
     if result:
         return dict(result[0])
@@ -130,12 +173,14 @@ async def register(request: RegisterRequest):
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
     """, (request.name, request.email.lower(), request.phone, request.age, request.gender, request.address, request.city, request.state, request.postal_code, request.country or 'Germany', password_hash, 1 if profile_completed else 0))
     
-    # Create session
-    session_token = generate_session_token()
-    await execute_write("""
-        INSERT INTO user_sessions (user_id, session_token, expires_at)
-        VALUES (?, ?, datetime('now', '+30 days'))
-    """, (user_id, session_token))
+    # Create session (JWT)
+    session_token = create_access_token(data={"sub": str(user_id)})
+    
+    # Note: We no longer insert into user_sessions as JWT is stateless
+    # await execute_write("""
+    #     INSERT INTO user_sessions (user_id, session_token, expires_at)
+    #     VALUES (?, ?, datetime('now', '+30 days'))
+    # """, (user_id, session_token))
     
     return AuthResponse(
         user=UserResponse(
@@ -175,12 +220,14 @@ async def login(request: LoginRequest):
     
     user = result[0]
     
-    # Create new session
-    session_token = generate_session_token()
-    await execute_write("""
-        INSERT INTO user_sessions (user_id, session_token, expires_at)
-        VALUES (?, ?, datetime('now', '+30 days'))
-    """, (user['id'], session_token))
+    # Create new session (JWT)
+    session_token = create_access_token(data={"sub": str(user['id'])})
+    
+    # Note: We no longer insert into user_sessions as JWT is stateless
+    # await execute_write("""
+    #     INSERT INTO user_sessions (user_id, session_token, expires_at)
+    #     VALUES (?, ?, datetime('now', '+30 days'))
+    # """, (user['id'], session_token))
     
     return AuthResponse(
         user=UserResponse(
@@ -204,20 +251,24 @@ async def login(request: LoginRequest):
 
 
 @router.post("/logout")
-async def logout(session_token: str):
-    """Logout user and invalidate session."""
-    await execute_write(
-        "DELETE FROM user_sessions WHERE session_token = ?",
-        (session_token,)
-    )
+async def logout(session_token: Optional[str] = None, authorization: Optional[str] = Header(None)):
+    """Logout user (Client side should discard JWT)."""
+    # In a stateless JWT system, logout is handled client-side by discarding the token.
+    # Optionally, we could implement a token blacklist here if needed.
+    
+    # For backwards compatibility with old sessions, we still delete from DB if it exists
+    token = get_token_from_header(authorization) or session_token
+    if token:
+        await execute_write(
+            "DELETE FROM user_sessions WHERE session_token = ?",
+            (token,)
+        )
     return {"status": "logged_out", "message": "Successfully logged out"}
 
 
 @router.get("/me", response_model=UserResponse)
-async def get_profile(session_token: str):
+async def get_profile(user: dict = Depends(get_user_by_token)):
     """Get current user profile."""
-    user = await get_user_by_token(session_token)
-    
     if not user:
         raise HTTPException(status_code=401, detail="Invalid or expired session")
     
@@ -225,10 +276,8 @@ async def get_profile(session_token: str):
 
 
 @router.put("/me", response_model=UserResponse)
-async def update_profile(session_token: str, request: UpdateProfileRequest):
+async def update_profile(request: UpdateProfileRequest, user: dict = Depends(get_user_by_token)):
     """Update user profile."""
-    user = await get_user_by_token(session_token)
-    
     if not user:
         raise HTTPException(status_code=401, detail="Invalid or expired session")
     
@@ -288,15 +337,31 @@ async def update_profile(session_token: str, request: UpdateProfileRequest):
         )
     
     # Get updated user
-    updated = await get_user_by_token(session_token)
-    return UserResponse(**updated)
+    updated = await execute_query("SELECT * FROM customers WHERE id = ?", (user['id'],))
+    updated_user = dict(updated[0]) if updated else user
+    
+    # We need to map `password_hash` out of the dict, but we already have a UserResponse model
+    # Let's clean the dict to match the model
+    return UserResponse(
+        id=updated_user['id'],
+        name=updated_user['name'],
+        email=updated_user['email'],
+        phone=updated_user['phone'],
+        age=updated_user.get('age'),
+        gender=updated_user.get('gender'),
+        address=updated_user.get('address'),
+        city=updated_user.get('city'),
+        state=updated_user.get('state'),
+        postal_code=updated_user.get('postal_code'),
+        country=updated_user.get('country'),
+        notification_enabled=bool(updated_user.get('notification_enabled', True)),
+        profile_completed=bool(updated_user.get('profile_completed', False)),
+    )
 
 
 @router.get("/validate")
-async def validate_session(session_token: str):
+async def validate_session(user: dict = Depends(get_user_by_token)):
     """Validate if session token is still valid."""
-    user = await get_user_by_token(session_token)
-    
     if user:
         return {"valid": True, "user_id": user['id']}
     

@@ -33,6 +33,7 @@ class ProductCreate(BaseModel):
     package_size: Optional[str] = None
     description: Optional[str] = None
     base_price_eur: Optional[float] = None
+    rx_required: Optional[bool] = False
 
 
 class ProductUpdate(BaseModel):
@@ -41,6 +42,7 @@ class ProductUpdate(BaseModel):
     package_size: Optional[str] = None
     description: Optional[str] = None
     base_price_eur: Optional[float] = None
+    rx_required: Optional[bool] = None
 
 
 class InventoryUpdate(BaseModel):
@@ -56,7 +58,7 @@ async def list_medications():
         SELECT
             pc.id, pc.product_name, pc.external_product_id,
             pc.pzn, pc.package_size, pc.description,
-            pc.base_price_eur, pc.default_language,
+            pc.base_price_eur, pc.default_language, pc.rx_required,
             COALESCE(inv.stock_quantity, 0) as stock_quantity,
             COALESCE(inv.reorder_threshold, 0) as reorder_threshold,
             COALESCE(inv.reorder_quantity, 0) as reorder_quantity,
@@ -99,9 +101,9 @@ async def create_medication(prod: ProductCreate):
     """Create a new product."""
     prod_id = await execute_write("""
         INSERT INTO product_catalog
-        (product_name, pzn, package_size, description, base_price_eur)
-        VALUES (?, ?, ?, ?, ?)
-    """, (prod.product_name, prod.pzn, prod.package_size, prod.description, prod.base_price_eur))
+        (product_name, pzn, package_size, description, base_price_eur, rx_required)
+        VALUES (?, ?, ?, ?, ?, ?)
+    """, (prod.product_name, prod.pzn, prod.package_size, prod.description, prod.base_price_eur, prod.rx_required))
 
     # Create inventory entry
     await execute_write(

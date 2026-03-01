@@ -19,3 +19,4 @@ pinecone>=5.0.0
 
 # Observability
 langfuse>=2.0.0
+PyJWT>=2.8.0

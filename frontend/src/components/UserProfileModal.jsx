@@ -29,10 +29,11 @@ export default function UserProfileModal({ user, sessionToken, onUpdate, onSkip,
         setError(null);
 
         try {
-            const response = await fetch(`/api/auth/me?session_token=${encodeURIComponent(sessionToken)}`, {
+            const response = await fetch('/api/auth/me', {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${sessionToken}`
                 },
                 body: JSON.stringify({
                     ...formData,
@@ -61,9 +62,9 @@ export default function UserProfileModal({ user, sessionToken, onUpdate, onSkip,
     };
 
     return (
-        <div className={`fixed inset-0 z-50 flex items-center ${isVoiceMode ? 'justify-end pr-8 bg-black/10' : 'justify-center p-4 bg-black/50'}`}>
-            <div className={`bg-white rounded-2xl w-full ${isVoiceMode ? 'max-w-md animate-slide-in-right' : 'max-w-2xl animate-scale-in'} overflow-hidden shadow-xl max-h-[90vh] overflow-y-auto`} dir={dir}>
-                <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between sticky top-0 bg-white z-10">
+        <div className={`fixed inset-0 z-50 flex ${isVoiceMode ? 'items-end md:items-center justify-end p-0 md:pr-8 bg-black/10' : 'items-end md:items-center justify-center p-0 md:p-4 bg-black/50'}`}>
+            <div className={`bg-white rounded-t-3xl md:rounded-2xl w-full ${isVoiceMode ? 'md:max-w-md animate-slide-up md:animate-slide-in-right h-[85vh] md:h-auto' : 'md:max-w-2xl animate-slide-up md:animate-scale-in max-h-[90vh]'} overflow-hidden shadow-xl overflow-y-auto`} dir={dir}>
+                <div className="px-4 md:px-6 py-3 md:py-4 border-b border-gray-200 flex items-center justify-between sticky top-0 bg-white z-10">
                     <div>
                         <h2 className="text-xl font-bold text-gray-900">{t('completeYourProfile')}</h2>
                         <p className="text-sm text-gray-500">{t('helpUsServeBetterOptional')}</p>
@@ -78,7 +79,7 @@ export default function UserProfileModal({ user, sessionToken, onUpdate, onSkip,
                     </button>
                 </div>
 
-                <div className="p-6">
+                <div className="p-4 md:p-6">
                     {error && (
                         <div className="mb-4 bg-red-50 text-red-600 p-3 rounded-lg text-sm flex items-center gap-2">
                             <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -238,8 +239,8 @@ export default function UserProfileModal({ user, sessionToken, onUpdate, onSkip,
                                 type="submit"
                                 disabled={loading}
                                 className={`flex-1 py-3 rounded-lg font-bold text-white transition-all transform active:scale-95 ${loading
-                                        ? 'bg-gray-400 cursor-not-allowed'
-                                        : 'bg-mediloon-red hover:bg-red-700 shadow-lg hover:shadow-xl'
+                                    ? 'bg-gray-400 cursor-not-allowed'
+                                    : 'bg-mediloon-red hover:bg-red-700 shadow-lg hover:shadow-xl'
                                     }`}
                             >
                                 {loading ? (

@@ -223,6 +223,7 @@ CREATE TABLE IF NOT EXISTS product_catalog (
 	default_language TEXT NOT NULL DEFAULT 'de',
 	translation_quality_score REAL,
 	source_record_id INTEGER,
+	rx_required BOOLEAN DEFAULT 0,
 	created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	updated_at TIMESTAMP,
 	FOREIGN KEY (source_record_id) REFERENCES products_export_records(id) ON DELETE SET NULL

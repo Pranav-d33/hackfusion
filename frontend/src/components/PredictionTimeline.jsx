@@ -3,7 +3,7 @@
  * Visual, transparent medication depletion calendar with
  * consumption-learned data. Matches Mediloon white-glass UI.
  */
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   Calendar, Pill, ShoppingCart, TrendingUp,
   Clock, AlertTriangle, ChevronDown, ChevronUp,
@@ -13,6 +13,15 @@ import {
 export default function PredictionTimeline({ timeline, stats, onReorder, loading }) {
   const [expandedId, setExpandedId] = useState(null);
   const [viewMode, setViewMode] = useState('timeline'); // 'timeline' | 'list'
+  const [hoveredPred, setHoveredPred] = useState(null);
+  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+
+  const handleDotMouseEnter = useCallback((e, pred) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setTooltipPos({ x: rect.left + rect.width / 2, y: rect.top });
+    setHoveredPred(pred);
+  }, []);
+  const handleDotMouseLeave = useCallback(() => setHoveredPred(null), []);
 
   const getUrgencyConfig = (urgency) => {
     switch (urgency) {
@@ -117,13 +126,46 @@ export default function PredictionTimeline({ timeline, stats, onReorder, loading
       {/* ===== Timeline View ===== */}
       {viewMode === 'timeline' && (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
+          {/* Fixed-position tooltip portal */}
+          {hoveredPred && (() => {
+            const cfg = getUrgencyConfig(hoveredPred.urgency);
+            const TOOLTIP_W = 230;
+            const TOOLTIP_H = 165;
+            let tx = tooltipPos.x - TOOLTIP_W / 2;
+            let ty = tooltipPos.y - TOOLTIP_H - 12;
+            tx = Math.max(8, Math.min(tx, window.innerWidth - TOOLTIP_W - 8));
+            ty = Math.max(8, ty);
+            return (
+              <div
+                style={{ position: 'fixed', left: tx, top: ty, width: TOOLTIP_W, zIndex: 9999, pointerEvents: 'none' }}
+                className="bg-white rounded-xl shadow-2xl border border-gray-100 p-4"
+              >
+                <p className="font-bold text-gray-900 text-base">{hoveredPred.brand_name}</p>
+                <p className="text-xs text-gray-400 mt-0.5">{hoveredPred.dosage}</p>
+                <div className="flex items-center gap-1.5 mt-2">
+                  <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${cfg.badge}`}>{getDaysLabel(hoveredPred.days_until_depletion)}</span>
+                </div>
+                {hoveredPred.frequency_label && (
+                  <p className="text-xs text-gray-400 mt-1.5 flex items-center gap-1">
+                    <TrendingUp size={11} /> {hoveredPred.frequency_label} buyer
+                  </p>
+                )}
+                <p className="text-xs text-gray-400 mt-2 flex items-center gap-1">
+                  <ShoppingCart size={11} /> Click dot to reorder
+                </p>
+                {/* Arrow */}
+                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-1/2 w-3 h-3 bg-white border-r border-b border-gray-100 rotate-45" />
+              </div>
+            );
+          })()}
+
           {/* Scale */}
-          <div className="flex justify-between text-[10px] text-gray-400 px-1 uppercase tracking-widest">
+          <div className="flex justify-between text-xs text-gray-400 px-1 uppercase tracking-widest">
             <span>Today</span><span>1 wk</span><span>2 wk</span><span>3 wk</span><span>4 wk</span>
           </div>
 
           {/* Track */}
-          <div className="relative h-14 rounded-xl overflow-hidden bg-gradient-to-r from-red-50 via-amber-50 to-emerald-50 border border-gray-100">
+          <div className="relative h-14 rounded-xl bg-gradient-to-r from-red-50 via-amber-50 to-emerald-50 border border-gray-100">
             {/* Zone markers */}
             <div className="absolute inset-y-0 left-0 w-[10%] bg-red-100/60 rounded-l-xl" />
             <div className="absolute inset-y-0 left-[10%] w-[15%] bg-amber-100/40" />
@@ -135,30 +177,14 @@ export default function PredictionTimeline({ timeline, stats, onReorder, loading
               return (
                 <div
                   key={i}
-                  className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 group z-10"
-                  style={{ left: `${left}%` }}
+                  className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2"
+                  style={{ left: `${left}%`, zIndex: 20 }}
+                  onMouseEnter={(e) => handleDotMouseEnter(e, pred)}
+                  onMouseLeave={handleDotMouseLeave}
+                  onClick={() => onReorder?.(pred)}
                 >
-                  <div className={`w-8 h-8 rounded-full ${cfg.dot} flex items-center justify-center shadow-md cursor-pointer transition-transform group-hover:scale-125 border-2 border-white`}>
+                  <div className={`w-8 h-8 rounded-full ${cfg.dot} flex items-center justify-center shadow-md cursor-pointer transition-transform hover:scale-125 border-2 border-white`}>
                     <Pill size={14} className="text-white" />
-                  </div>
-                  {/* Hover tooltip */}
-                  <div className="hidden group-hover:block absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-white rounded-lg shadow-xl border border-gray-100 p-3 min-w-[180px] z-50">
-                    <p className="font-semibold text-gray-900 text-sm">{pred.brand_name}</p>
-                    <p className="text-[11px] text-gray-400">{pred.dosage}</p>
-                    <div className="flex items-center gap-1.5 mt-1.5">
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${cfg.badge}`}>{getDaysLabel(pred.days_until_depletion)}</span>
-                    </div>
-                    {pred.frequency_label && (
-                      <p className="text-[10px] text-gray-400 mt-1.5 flex items-center gap-1">
-                        <TrendingUp size={10} /> {pred.frequency_label} buyer
-                      </p>
-                    )}
-                    <button
-                      onClick={() => onReorder?.(pred)}
-                      className="mt-2 w-full text-xs bg-red-500 hover:bg-red-600 text-white py-1.5 rounded-lg flex items-center justify-center gap-1 transition-colors"
-                    >
-                      <ShoppingCart size={12} /> Reorder
-                    </button>
                   </div>
                 </div>
               );
@@ -166,7 +192,7 @@ export default function PredictionTimeline({ timeline, stats, onReorder, loading
           </div>
 
           {/* Legend */}
-          <div className="flex justify-center gap-5 text-[11px] text-gray-400">
+          <div className="flex justify-center gap-5 text-xs text-gray-500">
             {[
               { color: 'bg-red-500', label: 'Critical (0-3d)' },
               { color: 'bg-amber-500', label: 'Soon (4-7d)' },

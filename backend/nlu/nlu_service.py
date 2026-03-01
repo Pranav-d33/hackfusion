@@ -193,7 +193,21 @@ async def parse_input(user_input: str, conversation_state: dict = None) -> Dict[
         return enhance_nlu_result(result, user_input)
     
     # TIER 2: LLM CASCADE — try primary model, then fallbacks on 429
-    models_to_try = [NLU_MODEL] + NLU_FALLBACK_MODELS
+    models_to_try = [NLU_MODEL] + NLU_FALLBACK_MODELS + ["openrouter/auto"]
+    # De-duplicate and skip obvious vision/VL models for text-only NLU calls
+    cleaned_models = []
+    seen_models = set()
+    for model in models_to_try:
+        m = (model or "").strip()
+        if not m or m in seen_models:
+            continue
+        lm = m.lower()
+        if any(tag in lm for tag in ["vision", "-vl", "/vl", "multimodal"]):
+            print(f"NLU skipping text-incompatible model: {m}")
+            continue
+        seen_models.add(m)
+        cleaned_models.append(m)
+    models_to_try = cleaned_models
     
     try:
         # Build multi-turn messages with conversation history

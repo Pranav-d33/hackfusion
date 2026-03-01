@@ -62,13 +62,20 @@
 /* --- Component Layer --- */
 @layer components {
 
-    /* Glass Card */
+    /* Base Cards */
     .glass-card {
-        @apply bg-white/80 backdrop-blur-xl border border-white/60 rounded-3xl shadow-glass;
+        @apply bg-white/80 backdrop-blur-xl rounded-[1.8rem] shadow-glass relative overflow-hidden transition-all duration-300 ease-out;
+    }
+
+    .glass-card::before {
+        content: '';
+        @apply absolute inset-0 rounded-[1.8rem] pointer-events-none;
+        /* Replaced explicit border logic with a very subtle inner glow */
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
     }
 
     .glass-card-solid {
-        @apply bg-white border border-surface-fog/50 rounded-3xl shadow-glass;
+        @apply bg-white rounded-3xl shadow-sm relative overflow-hidden transition-all duration-300 ease-out;
     }
 
     /* Feature Badge */
@@ -103,15 +110,15 @@
 
     /* Premium Button Styles */
     .btn-primary {
-        @apply px-6 py-3 bg-mediloon-600 text-white font-brand font-bold rounded-2xl shadow-lg shadow-mediloon-200 hover:shadow-xl hover:shadow-mediloon-300 hover:bg-mediloon-700 active:scale-[0.97] transition-all duration-200 ease-out;
+        @apply px-6 py-3 bg-mediloon-600 text-white font-brand font-bold rounded-2xl shadow-md hover:shadow-lg active:scale-[0.97] transition-all duration-300 ease-out;
     }
 
     .btn-secondary {
-        @apply px-6 py-3 bg-white text-mediloon-600 font-brand font-semibold rounded-2xl border-2 border-mediloon-200 hover:border-mediloon-400 hover:bg-mediloon-50 active:scale-[0.97] transition-all duration-200 ease-out;
+        @apply px-6 py-3 bg-white text-mediloon-600 font-brand font-semibold rounded-2xl shadow-sm hover:shadow-md hover:bg-mediloon-50 active:scale-[0.97] transition-all duration-300 ease-out;
     }
 
     .btn-ghost {
-        @apply px-4 py-2 text-ink-muted font-body font-medium rounded-xl hover:bg-surface-cloud hover:text-ink-primary active:scale-[0.97] transition-all duration-200;
+        @apply px-4 py-2 text-ink-muted font-body font-medium rounded-xl hover:bg-surface-cloud hover:text-ink-primary hover:shadow-sm active:scale-[0.97] transition-all duration-300 ease-out;
     }
 
     /* Hover lift */

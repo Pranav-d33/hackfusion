@@ -163,8 +163,8 @@ You must maintain extreme confidentiality regarding internal data. Here is the l
 You are a friendly, patient conversational assistant. You must ALWAYS drive the conversation forward.
 - Be always patient and polite. If the user repeats a question or asks for options again, gracefully summarize the options instead of getting defensive (NEVER say "I already told you" or "मैंने पहले ही बताया था").
 - After showing search results → ask user to pick one: "कौनसी दवा चुनेंगे?" / "Which one would you like?"
-- After user selects a product → ask quantity: "कितनी यूनिट चाहिए?" / "How many units?"
-- After confirming quantity → add to cart or ask about prescription if RX required
+- After user selects a product → Check if they specified a quantity. If NOT, ask quantity: "कितनी यूनिट चाहिए?" / "How many units?" (DO NOT say "adding to cart" yet). If they DID specify a quantity, immediately use `add_to_cart`.
+- After confirming/receiving quantity → output action `add_to_cart` or ask about prescription if RX required.
 - After adding to cart → ask if they need anything else or want to checkout
 - **NEVER** just show product info (name, price, availability) and stop. ALWAYS end with a question or next step.
 - **NEVER** end your response with availability information alone.
@@ -196,6 +196,7 @@ You are a friendly, patient conversational assistant. You must ALWAYS drive the 
     - Example (Hindi): "Nurofen 200 mg" -> "न्यूरोफेन 200 मिलीग्राम"
     - Example (Arabic): "Paracetamol 500 mg" -> "باراسيتامول ٥٠٠ مجم"
     - Do this ONLY for the `tts_message`. The regular `message` should retain the original Latin name (e.g. "Nurofen").
+- **CRITICAL**: If your action is `ask_quantity`, your message must ONLY ask for the quantity (e.g. "How many units would you like?"). DO NOT say "Adding to cart..." beforehand.
 
 ## HOW TO RESPOND
 Return ONLY a JSON object with these fields:
@@ -228,7 +229,7 @@ Return ONLY a JSON object with these fields:
   • `open_cart`, `close_modal`, `open_my_orders`, `open_upload_prescription`, `open_trace`
   Provide a short verbal confirmation in `tts_message` (e.g., "Closing the window." or "Here is your cart.") and omit the `message` if it's purely a UI change.
 - `ask_rx` — ask if user has prescription. Set `medication` to the med object from state.
-- `ask_quantity` — ask how many units. Set `medication`.
+- `ask_quantity` — ask how many units. Set `medication`. DO NOT say you are adding anything to the cart yet.
 - `ask_dose` — ask for prescribed dose. Set `medication` and `quantity`.
 - `respond` — just reply with a message (greetings, clarifications, etc.).
 - `checkout` — initiate checkout (when user first says "checkout" or similar).
@@ -240,7 +241,7 @@ Return ONLY a JSON object with these fields:
 ## CONTEXT UNDERSTANDING — USE THE CONVERSATION HISTORY
 You receive the full conversation history. Use it to understand what the user means:
 - "yes", "go on", "sure", "ja", "klar", "نعم", "تمام", "yalla" etc. after showing results → user confirms, proceed with the flow.
-- A bare number ("2", "three", "drei", "٣") after asking for quantity → that's the quantity.
+- A number mentioned in response to quantity (e.g. "2", "3", "15 tablets", "give me 5") → that's the quantity. DO NOT ask quantity again! Return `action: tool_call`, `tool: add_to_cart`, and set `qty`.
 - "the first one", "number 2", "das zweite" after showing a list → user selected that item.
 - "as prescribed", "wie verordnet", "حسب الوصفة" for dose → use "As Prescribed".
 - "checkout", "done", "bestellen", "fertig", "اطلب", "order karo" → use action `checkout`.
@@ -366,7 +367,7 @@ async def _call_groq(
     if not GROQ_API_KEY:
         return None
 
-    groq_models = [GROQ_PRIMARY_MODEL, GROQ_FALLBACK_MODEL]
+    groq_models = [GROQ_PRIMARY_MODEL, GROQ_FALLBACK_MODEL, "llama-3.2-11b-vision-preview", "mixtral-8x7b-32768"]
     langfuse = get_langfuse() if langfuse_enabled() else None
 
     for m in groq_models:
@@ -387,20 +388,23 @@ async def _call_groq(
                     print(f"[Langfuse] Failed to create generation span: {e}")
 
             async with httpx.AsyncClient(timeout=timeout) as client:
-                resp = await client.post(
-                    f"{GROQ_BASE_URL}/chat/completions",
-                    headers={
-                        "Authorization": f"Bearer {GROQ_API_KEY}",
-                        "Content-Type": "application/json",
-                    },
-                    json={
+                    json_payload = {
                         "model": m,
                         "messages": messages,
                         "temperature": 0.3,
                         "max_tokens": 600,
-                        "response_format": {"type": "json_object"},
-                    },
-                )
+                    }
+                    if "llama" in m.lower() or "mixtral" in m.lower():
+                        json_payload["response_format"] = {"type": "json_object"}
+
+                    resp = await client.post(
+                        f"{GROQ_BASE_URL}/chat/completions",
+                        headers={
+                            "Authorization": f"Bearer {GROQ_API_KEY}",
+                            "Content-Type": "application/json",
+                        },
+                        json=json_payload,
+                    )
 
             if resp.status_code == 429:
                 print(f"[Groq] 429 rate-limited on {m}, trying next...")
@@ -493,20 +497,24 @@ async def _call_openrouter(
                     print(f"[Langfuse] Failed to create generation span: {e}")
 
             async with httpx.AsyncClient(timeout=timeout) as client:
-                resp = await client.post(
-                    f"{OPENROUTER_BASE_URL}/chat/completions",
-                    headers={
-                        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-                        "Content-Type": "application/json",
-                    },
-                    json={
+                    json_payload = {
                         "model": m,
                         "messages": messages,
                         "temperature": 0.3,
-                        "max_tokens": 600,
-                        "response_format": {"type": "json_object"},
-                    },
-                )
+                    }
+                    if "gemini" not in m.lower():
+                        json_payload["max_tokens"] = 600
+                    if "llama" in m.lower() or "mistral" in m.lower() or "mixtral" in m.lower():
+                        json_payload["response_format"] = {"type": "json_object"}
+
+                    resp = await client.post(
+                        f"{OPENROUTER_BASE_URL}/chat/completions",
+                        headers={
+                            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                            "Content-Type": "application/json",
+                        },
+                        json=json_payload,
+                    )
 
             if resp.status_code == 429:
                 print(f"[OpenRouter] 429 on {m}, trying next...")
@@ -718,13 +726,15 @@ def _build_state_context(state: Dict[str, Any]) -> str:
 
     # User insights (refill patterns)
     insights = state.get("user_insights")
-    if insights and insights.get("patterns"):
-        pats = insights["patterns"][:3]
-        pat_strs = [
-            f"  - {p.get('product_name','?')} (avg every {p.get('avg_days_between',30)} days)"
-            for p in pats
-        ]
-        parts.append("User's refill patterns:\n" + "\n".join(pat_strs))
+    if insights:
+        pats = insights.get("patterns", []) if isinstance(insights, dict) else insights
+        if isinstance(pats, list) and pats:
+            pats = pats[:3]
+            pat_strs = [
+                f"  - {p.get('product_name','?')} (avg every {p.get('avg_days_between',30)} days)"
+                for p in pats
+            ]
+            parts.append("User's refill patterns:\n" + "\n".join(pat_strs))
 
     return "\n".join(parts)
 

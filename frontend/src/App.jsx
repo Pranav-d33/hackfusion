@@ -27,7 +27,8 @@ import LanguageSelector from './components/LanguageSelector';
 import { useUI } from './contexts/UIContext';
 
 const API_BASE = '/api';
-const CHAT_TIMEOUT_MS = 30000;
+const CHAT_TIMEOUT_MS = 60000;
+const OCR_CHAT_TIMEOUT_MS = 180000; // 3 min for prescription OCR analysis
 const DEFAULT_TTS_RATE = 1.0;
 const SHORT_VOICE_STABLE_MS = 700;
 const SHORT_VOICE_COMMANDS = new Set([
@@ -249,14 +250,18 @@ export default function App() {
     // Refill predictions hook (used across UI + updates)
     const { timeline: refillTimeline, consumption: refillConsumption, recentOrders, stats: refillStats, alerts: refillAlerts, loading: refillLoading, refresh: refreshRefills } = useRefillPredictions(user?.id);
 
-    // --- Effects ---
+    // Effects
     useEffect(() => {
         const token = localStorage.getItem('session_token');
         if (!token) return;
         let active = true;
         const restoreSession = async () => {
             try {
-                const response = await fetch(`${API_BASE}/auth/me?session_token=${encodeURIComponent(token)}`);
+                const response = await fetch(`${API_BASE}/auth/me`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
                 if (!response.ok) throw new Error('Session has expired');
                 const profile = await response.json();
                 if (!active) return;
@@ -310,6 +315,25 @@ export default function App() {
             if (liveModeRef.current) startListening();
         }, delayMs);
     }, [startListening]);
+
+    // Pause voice agent while auth/profile modals are active
+    const isAuthModalOpen = showLogin || showLoginForCheckout || showProfileModal;
+    const voicePausedByAuthRef = useRef(false);
+
+    useEffect(() => {
+        if (isAuthModalOpen) {
+            if (isListening || isSpeaking || liveMode) {
+                stopListening();
+                stopSpeaking();
+                voicePausedByAuthRef.current = true;
+            }
+        } else if (voicePausedByAuthRef.current) {
+            voicePausedByAuthRef.current = false;
+            if (liveMode) {
+                restartListeningIfLive(500);
+            }
+        }
+    }, [isAuthModalOpen, isListening, isSpeaking, liveMode, stopListening, stopSpeaking, restartListeningIfLive]);
 
     // Voice mode stall recovery: if idle for > 8s, auto-restart listening
     useEffect(() => {
@@ -440,6 +464,9 @@ export default function App() {
         return () => clearInterval(interval);
     }, [user?.id, fetchOrderUpdates]);
 
+    // Ref to allow handleCheckoutFlow to trigger a chat message (defined before handleSend)
+    const pendingCheckoutChatRef = useRef(null);
+
     // Checkout flow: enforce login first (defined before handleSend so it can be referenced)
     const handleCheckoutFlow = useCallback(() => {
         executeUIAction('close_modal');
@@ -454,8 +481,16 @@ export default function App() {
             setShowProfileModal(true);
             return;
         }
+        // RX gate: check if cart has unverified prescription items
+        const rxItems = (cart?.items || []).filter(item => item.rx_required);
+        if (rxItems.length > 0) {
+            // Queue a checkout message to be sent through the chat pipeline
+            // This will trigger the backend RX validation gate
+            pendingCheckoutChatRef.current = 'checkout';
+            return;
+        }
         setShowAddressModal(true);
-    }, [user, executeUIAction]);
+    }, [user, executeUIAction, cart]);
 
     const handleSend = useCallback(async (text) => {
         if (!text.trim() || isLoading) return;
@@ -463,7 +498,8 @@ export default function App() {
         setMessages(prev => [...prev, userMsg]);
         setIsLoading(true);
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), CHAT_TIMEOUT_MS);
+        const isOCR = text.toLowerCase().includes('prescription file');
+        const timeoutId = setTimeout(() => controller.abort(), isOCR ? OCR_CHAT_TIMEOUT_MS : CHAT_TIMEOUT_MS);
         try {
             const response = await fetch(`${API_BASE}/chat`, {
                 method: 'POST',
@@ -520,6 +556,10 @@ export default function App() {
             if (data.action_taken === 'checkout_ready') {
                 // Agent signals checkout intent — run the proper login+address flow
                 handleCheckoutFlow();
+            } else if (data.action_taken === 'checkout_rx_blocked' || data.action_taken === 'rx_upload_required') {
+                // Cart has unverified prescription items — do NOT proceed to checkout
+                // The backend already sent ui_action: open_upload_prescription
+                // which will be handled below in the ui_action block
             } else if (data.action_taken === 'checkout' && data.order) {
                 // Stash order data and show summary modal for confirmation
                 setPendingOrderData(data.order);
@@ -567,6 +607,14 @@ export default function App() {
         }
     }, [sessionId, isLoading, liveMode, speak, scriptInfo, detectedLanguage, bcp47, handleCheckoutFlow, user, user?.id, refreshRefills, executeUIAction, restartListeningIfLive, t]);
 
+    // Flush any queued checkout chat message from handleCheckoutFlow
+    useEffect(() => {
+        if (pendingCheckoutChatRef.current && !isLoading) {
+            const msg = pendingCheckoutChatRef.current;
+            pendingCheckoutChatRef.current = null;
+            handleSend(msg);
+        }
+    }, [isLoading, handleSend]);
     useEffect(() => {
         if (transcript && !isListening) {
             if (isLoading) {
@@ -598,7 +646,10 @@ export default function App() {
         const formData = new FormData();
         formData.append('file', file);
         try {
-            const response = await fetch(`${API_BASE}/upload/prescription`, { method: 'POST', body: formData });
+            const uploadController = new AbortController();
+            const uploadTimeout = setTimeout(() => uploadController.abort(), 30000);
+            const response = await fetch(`${API_BASE}/upload/prescription`, { method: 'POST', body: formData, signal: uploadController.signal });
+            clearTimeout(uploadTimeout);
             const data = await response.json();
             handleSend(`Please analyze this prescription file: ${data.filepath}`);
         } catch (error) {
@@ -609,7 +660,14 @@ export default function App() {
     }, [handleSend, isLoading]);
 
     const handleLogout = () => {
-        if (sessionToken) fetch(`${API_BASE}/auth/logout?session_token=${encodeURIComponent(sessionToken)}`, { method: 'POST' }).catch(() => { });
+        if (sessionToken) {
+            fetch(`${API_BASE}/auth/logout`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${sessionToken}`
+                }
+            }).catch(() => { });
+        }
         localStorage.removeItem('session_token');
         setUser(null); setSessionToken(null); setOrderUpdates([]);
     };
@@ -799,16 +857,16 @@ export default function App() {
                 {/* Red accent line */}
                 <div className="h-1 bg-gradient-to-r from-mediloon-500 via-mediloon-600 to-mediloon-500" />
                 <div className="bg-white/90 backdrop-blur-xl border-b border-surface-fog/50">
-                    <div className="max-w-[95rem] mx-auto px-5 h-16 flex items-center justify-between">
+                    <div className="max-w-[95rem] mx-auto px-3 md:px-5 h-14 md:h-16 flex items-center justify-between">
                         {/* Logo */}
                         <img
                             src="/mediloon-logo.webp"
                             alt="Mediloon Logo"
-                            className="w-40 h-40 object-contain ml-2 pointer-events-none"
+                            className="w-32 h-32 md:w-40 md:h-40 object-contain ml-1 md:ml-2 pointer-events-none"
                         />
 
                         {/* Nav Actions */}
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1 md:gap-2">
                             {/* Language Selector */}
                             <LanguageSelector />
 
@@ -849,7 +907,7 @@ export default function App() {
                                     <button onClick={handleLogout} className="text-xs font-brand font-semibold text-mediloon-500 hover:text-mediloon-700 hover:underline ml-1 transition-colors">{t('logout')}</button>
                                 </div>
                             ) : (
-                                <button onClick={() => setShowLogin(true)} className="btn-primary ml-2 text-sm py-2 px-5">{t('signIn')}</button>
+                                <button onClick={() => setShowLogin(true)} className="btn-primary ml-1 md:ml-2 text-xs md:text-sm py-1.5 px-3 md:py-2 md:px-5">{t('signIn')}</button>
                             )}
                         </div>
                     </div>
@@ -859,7 +917,7 @@ export default function App() {
             {/* ═══════════════════════════════════
                 2. MAIN LAYOUT — 3 Column Grid
                ═══════════════════════════════════ */}
-            <main className={`max-w-[98rem] mx-auto w-full px-4 py-3 grid grid-cols-1 lg:grid-cols-[340px_1fr_380px] gap-4 transition-all duration-500 lg:h-[calc(100vh-5.25rem)] lg:overflow-hidden overflow-y-auto ${liveMode && !isAnyModalOpen ? 'blur-md scale-95 opacity-50 pointer-events-none' : ''}`}>
+            <main className={`max-w-[98rem] mx-auto w-full px-2 py-2 md:px-4 md:py-3 grid grid-cols-1 lg:grid-cols-[340px_1fr_380px] gap-3 md:gap-4 transition-all duration-500 h-[calc(100vh-[3.5rem])] md:h-[calc(100vh-[4rem])] lg:h-[calc(100vh-5.25rem)] overflow-y-auto lg:overflow-hidden ${liveMode && !isAnyModalOpen ? 'blur-md scale-95 opacity-50 pointer-events-none' : ''}`}>
 
                 {/* ─── LEFT COLUMN: Trace ─── */}
                 <aside className={`flex flex-col gap-3 order-2 lg:order-1 lg:h-full`}>
@@ -883,8 +941,7 @@ export default function App() {
                 {/* ─── CENTER COLUMN: Chat Interface ─── */}
                 <section className="flex flex-col gap-3 order-1 lg:order-2 lg:h-full min-h-0 overflow-hidden">
 
-                    {/* Feature Highlights (shown to everyone) */}
-                    <FeatureCards />
+                    {/* Feature Highlights (removed to favor the new inline boxes) */}
 
 
 
@@ -911,7 +968,41 @@ export default function App() {
                     {/* Chat Container */}
                     <div className="flex-1 min-h-0 glass-card-solid flex flex-col overflow-hidden relative">
                         {/* Chat Messages */}
-                        <div className="flex-1 overflow-y-auto p-6 space-y-5 scroll-smooth">
+                        <div className="flex-1 overflow-y-auto p-3 md:p-6 space-y-4 md:space-y-5 scroll-smooth">
+                            {messages.length <= 1 && (
+                                <div className="flex flex-col gap-4 mb-6 w-full max-w-2xl mx-auto mt-4">
+                                    <div className="text-center mb-2 animate-fade-in-up" style={{ animationDelay: '0.1s', animationFillMode: 'both' }}>
+                                        <h3 className="text-[28px] font-brand font-bold text-gray-800 mb-1 tracking-tight">How can I help you?</h3>
+                                        <p className="text-[15px] font-body text-gray-500 font-medium">Type a message or tap the microphone to start</p>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <div className="glass-card flex flex-col items-center text-center p-5 hover-lift hover:border-red-200 hover:shadow-lg transition-all duration-300 animate-fade-in-up group" style={{ animationDelay: '0.2s', animationFillMode: 'both' }}>
+                                            <div className="w-12 h-12 rounded-2xl bg-red-50 text-red-500 flex items-center justify-center shadow-inner mb-3 group-hover:bg-red-500 group-hover:text-white transition-colors duration-300">
+                                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
+                                            </div>
+                                            <h4 className="text-gray-800 font-brand font-bold text-lg mb-1.5 tracking-tight">Voice Ordering</h4>
+                                            <p className="text-gray-500 text-[13px] font-body leading-snug">Just speak naturally — our AI understands medicines in any language</p>
+                                        </div>
+
+                                        <div className="glass-card flex flex-col items-center text-center p-5 hover-lift hover:border-blue-200 hover:shadow-lg transition-all duration-300 animate-fade-in-up group" style={{ animationDelay: '0.3s', animationFillMode: 'both' }}>
+                                            <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-500 flex items-center justify-center shadow-inner mb-3 group-hover:bg-blue-500 group-hover:text-white transition-colors duration-300">
+                                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                                            </div>
+                                            <h4 className="text-gray-800 font-brand font-bold text-lg mb-1.5 tracking-tight">Smart Refills</h4>
+                                            <p className="text-gray-500 text-[13px] font-body leading-snug">AI predicts when you'll run out and reminds you to reorder</p>
+                                        </div>
+
+                                        <div className="glass-card flex flex-col items-center text-center p-5 hover-lift hover:border-emerald-200 hover:shadow-lg transition-all duration-300 animate-fade-in-up group" style={{ animationDelay: '0.4s', animationFillMode: 'both' }}>
+                                            <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-500 flex items-center justify-center shadow-inner mb-3 group-hover:bg-emerald-500 group-hover:text-white transition-colors duration-300">
+                                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                            </div>
+                                            <h4 className="text-gray-800 font-brand font-bold text-lg mb-1.5 tracking-tight">Prescription OCR</h4>
+                                            <p className="text-gray-500 text-[13px] font-body leading-snug">Snap a photo of your prescription and we'll handle the rest</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                             {messages.map((msg) => (
                                 <ChatMessage key={msg.id} message={msg.text} isUser={msg.isUser} latency={msg.latency} />
                             ))}
@@ -920,7 +1011,7 @@ export default function App() {
                         </div>
 
                         {/* Input Area */}
-                        <div className="p-4 bg-white/80 backdrop-blur-sm border-t border-surface-fog/50">
+                        <div className="p-2 md:p-4 bg-white/80 backdrop-blur-sm border-t border-surface-fog/50">
                             {candidates.length > 0 && (
                                 <div className="mb-4">
                                     <ResultsList

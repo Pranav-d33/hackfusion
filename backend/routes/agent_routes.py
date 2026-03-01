@@ -200,10 +200,14 @@ async def direct_add_to_cart(session_id: str, request: AddToCartRequest):
     if not med:
         raise HTTPException(status_code=404, detail=_direct_add_error("not_found", preferred_lang))
 
-    rx_verified = bool(state.get("rx_verified"))
+    rx_verified_ids = state.get("rx_verified_med_ids", set())
+    rx_confirmed_for_this_med = (
+        not med.get("rx_required", False)
+        or request.med_id in rx_verified_ids
+    )
     validation = validate_add_to_cart(
         med,
-        rx_confirmed=rx_verified,
+        rx_confirmed=rx_confirmed_for_this_med,
         rx_bypass=False,
     )
     if not validation.get("allowed"):
