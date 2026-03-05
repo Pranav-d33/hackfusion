@@ -12,7 +12,14 @@ load_dotenv(env_path, override=True)
 
 # Base paths
 BASE_DIR = Path(__file__).parent.parent
-DATA_DIR = BASE_DIR / "data"
+
+# On Vercel, the project directory is read-only; use /tmp for writable data
+IS_VERCEL = os.getenv("VERCEL", "") == "1"
+if IS_VERCEL:
+    DATA_DIR = Path("/tmp/data")
+else:
+    DATA_DIR = BASE_DIR / "data"
+
 DB_PATH = DATA_DIR / "mediloon.db"
 CHROMA_PATH = DATA_DIR / "chroma_db"
 
@@ -59,9 +66,19 @@ LANGFUSE_HOST = os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com")
 # Server Config
 API_HOST = os.getenv("API_HOST", "0.0.0.0")
 API_PORT = int(os.getenv("API_PORT", "8000"))
-CORS_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"]
+
+# CORS: local dev + Vercel deployment URL
+_cors = ["http://localhost:5173", "http://127.0.0.1:5173"]
+_vercel_url = os.getenv("VERCEL_URL", "")
+if _vercel_url:
+    _cors.append(f"https://{_vercel_url}")
+_vercel_project_url = os.getenv("VERCEL_PROJECT_PRODUCTION_URL", "")
+if _vercel_project_url:
+    _cors.append(f"https://{_vercel_project_url}")
+CORS_ORIGINS = _cors
 
 # Ordering limits (backend-enforced across voice/text/UI)
+MAX_ORDER_ITEMS = int(os.getenv("MAX_ORDER_ITEMS", "20"))          # max distinct medicine types per order
 MAX_ORDER_TOTAL_UNITS = int(os.getenv("MAX_ORDER_TOTAL_UNITS", "30"))
 MAX_ORDER_SUBTOTAL_EUR = float(os.getenv("MAX_ORDER_SUBTOTAL_EUR", "500"))
 MAX_ORDER_LINE_QTY = int(os.getenv("MAX_ORDER_LINE_QTY", "10"))

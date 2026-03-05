@@ -1,5 +1,6 @@
 # Mediloon Backend - Vercel Deployment
-# Pinecone (cloud vector DB) + OpenRouter (cloud LLM)
+# This file is used by Vercel's Python runtime to install dependencies.
+# It mirrors backend/requirements.txt
 
 # Web framework
 fastapi>=0.109.0
