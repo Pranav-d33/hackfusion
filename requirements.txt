@@ -15,8 +15,7 @@ python-dotenv>=1.0.0
 # HTTP client
 httpx>=0.26.0
 
-# Data ingestion (Excel seed data)
-pandas>=2.1.0
+# Data ingestion (Excel seed data — lightweight, no pandas)
 openpyxl>=3.1.0
 
 # Validation (EmailStr in auth routes)

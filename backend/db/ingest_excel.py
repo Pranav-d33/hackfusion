@@ -2,10 +2,13 @@
 Stage 1 + 2: Excel Ingestion Pipeline
 Reads raw Excel workbooks into the raw layer, populates curated tables,
 and generates i18n keys for translatable fields.
+
+Uses openpyxl directly (lightweight) instead of pandas (heavy ~150MB).
 """
 import asyncio
 import hashlib
 import json
+import math
 import os
 import sys
 import uuid
@@ -13,7 +16,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-import pandas as pd
+from openpyxl import load_workbook
 
 # Ensure backend is on path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -26,6 +29,15 @@ ORDERS_FILE   = BASE_DIR / "Consumer Order History 1.xlsx"
 
 # ── Helpers ─────────────────────────────────────────────────
 
+def _is_empty(val: Any) -> bool:
+    """Check if a value is None or NaN."""
+    if val is None:
+        return True
+    if isinstance(val, float) and math.isnan(val):
+        return True
+    return False
+
+
 def _sha256(path: Path) -> str:
     h = hashlib.sha256()
     with open(path, "rb") as f:
@@ -35,7 +47,7 @@ def _sha256(path: Path) -> str:
 
 
 def _cell_type(val: Any) -> str:
-    if val is None or (isinstance(val, float) and pd.isna(val)):
+    if _is_empty(val):
         return "empty"
     if isinstance(val, bool):
         return "boolean"
@@ -44,8 +56,6 @@ def _cell_type(val: Any) -> str:
     if isinstance(val, float):
         return "number"
     if isinstance(val, datetime):
-        return "datetime"
-    if isinstance(val, pd.Timestamp):
         return "datetime"
     return "string"
 
@@ -69,9 +79,8 @@ def _cell_values(val: Any) -> Dict[str, Any]:
         out["value_number"] = float(val)
         out["value_text"] = str(val)
     elif vtype == "datetime":
-        dt = val if isinstance(val, datetime) else val.to_pydatetime()
-        out["value_datetime"] = dt.isoformat()
-        out["value_text"] = dt.isoformat()
+        out["value_datetime"] = val.isoformat()
+        out["value_text"] = val.isoformat()
     else:
         out["value_text"] = str(val)
     return out
@@ -79,9 +88,9 @@ def _cell_values(val: Any) -> Dict[str, Any]:
 
 def _safe(val: Any) -> Any:
     """Make a value JSON-safe."""
-    if val is None or (isinstance(val, float) and pd.isna(val)):
+    if _is_empty(val):
         return None
-    if isinstance(val, (pd.Timestamp, datetime)):
+    if isinstance(val, datetime):
         return val.isoformat()
     return val
 
@@ -89,6 +98,17 @@ def _safe(val: Any) -> Any:
 def _i18n_key(namespace: str, entity_id: Any, field: str) -> str:
     """Generate a stable i18n key, e.g. product.16066.name"""
     return f"{namespace}.{entity_id}.{field}"
+
+
+def _read_sheet_rows(file_path: Path, sheet_name: str) -> List[List[Any]]:
+    """Read all rows from an Excel sheet using openpyxl. Returns list of row-lists."""
+    wb = load_workbook(file_path, read_only=True, data_only=True)
+    ws = wb[sheet_name]
+    rows = []
+    for row in ws.iter_rows():
+        rows.append([cell.value for cell in row])
+    wb.close()
+    return rows
 
 
 # ── Stage 1: Raw ingestion ──────────────────────────────────
@@ -206,37 +226,59 @@ async def ingest_products(run_id: int) -> Tuple[int, int]:
         return 0, 0
 
     wb_id = await _register_workbook(run_id, PRODUCTS_FILE, "de")
-    df = pd.read_excel(PRODUCTS_FILE, sheet_name="Products")
-    headers = df.columns.tolist()
-    nrows, ncols = df.shape
+    all_rows = _read_sheet_rows(PRODUCTS_FILE, "Products")
+
+    if not all_rows:
+        return wb_id, 0
+
+    # First row is the header
+    headers = [str(v) if v is not None else f"col_{i}" for i, v in enumerate(all_rows[0])]
+    data_rows = all_rows[1:]
+    nrows = len(data_rows)
+    ncols = len(headers)
 
     sh_id = await _register_sheet(wb_id, "Products", 0, nrows, ncols, 0)
 
     # Raw header row
     await _insert_row(sh_id, 0, "header", headers)
     for ci, h in enumerate(headers):
-        await _insert_cell(sh_id, 0, ci, chr(65 + ci), None, h)
+        await _insert_cell(sh_id, 0, ci, chr(65 + ci) if ci < 26 else f"C{ci}", None, h)
+
+    # Build a header-name-to-index map (lowercase for flexible lookup)
+    hdr_map = {str(h).lower(): i for i, h in enumerate(headers)}
 
     inserted = 0
-    for ri, row in df.iterrows():
-        row_idx = int(ri) + 1  # 0 is header
-        vals = row.tolist()
+    for ri, vals in enumerate(data_rows):
+        row_idx = ri + 1  # 0 is header
+
+        # Pad vals to match header length
+        while len(vals) < ncols:
+            vals.append(None)
 
         # Raw layer
         await _insert_row(sh_id, row_idx, "data", vals)
         for ci, val in enumerate(vals):
             await _insert_cell(
-                sh_id, row_idx, ci, chr(65 + ci),
+                sh_id, row_idx, ci,
+                chr(65 + ci) if ci < 26 else f"C{ci}",
                 str(headers[ci]) if ci < len(headers) else None, val,
             )
 
-        # Curated layer
-        pid = int(row.get("product id", 0))
-        pname = str(row.get("product name", ""))
-        pzn = int(row["pzn"]) if pd.notna(row.get("pzn")) else None
-        price = float(row["price rec"]) if pd.notna(row.get("price rec")) else None
-        pkg = str(row.get("package size", "")) if pd.notna(row.get("package size")) else None
-        desc = str(row.get("descriptions", "")) if pd.notna(row.get("descriptions")) else None
+        # Curated layer — look up columns by header name
+        def _col(name: str, default=None):
+            idx = hdr_map.get(name.lower())
+            if idx is not None and idx < len(vals) and not _is_empty(vals[idx]):
+                return vals[idx]
+            return default
+
+        pid = int(_col("product id", 0))
+        pname = str(_col("product name", ""))
+        pzn_raw = _col("pzn")
+        pzn = int(pzn_raw) if pzn_raw is not None else None
+        price_raw = _col("price rec")
+        price = float(price_raw) if price_raw is not None else None
+        pkg = str(_col("package size", "")) if _col("package size") is not None else None
+        desc = str(_col("descriptions", "")) if _col("descriptions") is not None else None
 
         # i18n keys
         name_key = _i18n_key("product", pid, "name")
@@ -246,7 +288,7 @@ async def ingest_products(run_id: int) -> Tuple[int, int]:
         if desc:
             await _register_i18n_key("product", desc_key, "de", desc)
 
-        raw_json = json.dumps({str(headers[i]): _safe(v) for i, v in enumerate(vals)}, ensure_ascii=False)
+        raw_json = json.dumps({str(headers[i]): _safe(v) for i, v in enumerate(vals) if i < len(headers)}, ensure_ascii=False)
 
         try:
             await execute_write(
@@ -286,9 +328,10 @@ async def ingest_orders(run_id: int) -> Tuple[int, int]:
 
     wb_id = await _register_workbook(run_id, ORDERS_FILE, "de")
 
-    # Read raw — no header, because the file has title/subtitle rows
-    df_raw = pd.read_excel(ORDERS_FILE, sheet_name="Sheet1", header=None)
-    nrows, ncols = df_raw.shape
+    # Read raw — all rows as-is
+    all_rows = _read_sheet_rows(ORDERS_FILE, "Sheet1")
+    nrows = len(all_rows)
+    ncols = max(len(r) for r in all_rows) if all_rows else 0
 
     # Detect layout: row 0 = title, row 2 = subtitle, row 4 = header, rows 5+ = data
     TITLE_ROW = 0
@@ -296,13 +339,14 @@ async def ingest_orders(run_id: int) -> Tuple[int, int]:
     HEADER_ROW = 4
     DATA_START = 5
 
-    headers = [str(v) if pd.notna(v) else f"col_{i}" for i, v in enumerate(df_raw.iloc[HEADER_ROW])]
+    header_vals = all_rows[HEADER_ROW] if HEADER_ROW < nrows else []
+    headers = [str(v) if not _is_empty(v) else f"col_{i}" for i, v in enumerate(header_vals)]
 
     sh_id = await _register_sheet(wb_id, "Sheet1", 0, nrows, ncols, HEADER_ROW)
 
     # Store sheet metadata
-    title_text = str(df_raw.iloc[TITLE_ROW, 0]) if pd.notna(df_raw.iloc[TITLE_ROW, 0]) else None
-    subtitle_text = str(df_raw.iloc[SUBTITLE_ROW, 0]) if pd.notna(df_raw.iloc[SUBTITLE_ROW, 0]) else None
+    title_text = str(all_rows[TITLE_ROW][0]) if TITLE_ROW < nrows and all_rows[TITLE_ROW] and not _is_empty(all_rows[TITLE_ROW][0]) else None
+    subtitle_text = str(all_rows[SUBTITLE_ROW][0]) if SUBTITLE_ROW < nrows and all_rows[SUBTITLE_ROW] and not _is_empty(all_rows[SUBTITLE_ROW][0]) else None
     await execute_write(
         """INSERT INTO consumer_order_history_sheet_metadata
            (workbook_id, sheet_id, title_text, subtitle_text, header_row_index, header_json)
@@ -313,8 +357,12 @@ async def ingest_orders(run_id: int) -> Tuple[int, int]:
 
     # Raw: ingest ALL rows (title, blank, header, data)
     for ri in range(nrows):
-        vals = df_raw.iloc[ri].tolist()
-        non_null = [v for v in vals if pd.notna(v)]
+        vals = all_rows[ri]
+        # Pad to ncols
+        while len(vals) < ncols:
+            vals.append(None)
+
+        non_null = [v for v in vals if not _is_empty(v)]
         if ri == TITLE_ROW:
             kind = "title"
         elif ri == SUBTITLE_ROW:
@@ -329,18 +377,22 @@ async def ingest_orders(run_id: int) -> Tuple[int, int]:
         await _insert_row(sh_id, ri, kind, vals)
         for ci, val in enumerate(vals):
             hdr = headers[ci] if ci < len(headers) and ri >= DATA_START else None
-            await _insert_cell(sh_id, ri, ci, chr(65 + ci), hdr, val)
+            await _insert_cell(sh_id, ri, ci, chr(65 + ci) if ci < 26 else f"C{ci}", hdr, val)
 
     # Curated: data rows only
     inserted = 0
     for ri in range(DATA_START, nrows):
-        vals = df_raw.iloc[ri].tolist()
-        non_null = [v for v in vals if pd.notna(v)]
+        vals = all_rows[ri]
+        # Pad to ncols
+        while len(vals) < ncols:
+            vals.append(None)
+
+        non_null = [v for v in vals if not _is_empty(v)]
         if len(non_null) == 0:
             continue  # skip blank rows
 
         def _get(col_idx: int) -> Any:
-            return vals[col_idx] if col_idx < len(vals) and pd.notna(vals[col_idx]) else None
+            return vals[col_idx] if col_idx < len(vals) and not _is_empty(vals[col_idx]) else None
 
         patient_id = str(_get(0)) if _get(0) else None
         if not patient_id:
@@ -353,7 +405,7 @@ async def ingest_orders(run_id: int) -> Tuple[int, int]:
         purchase_date_raw = _get(3)
         purchase_date = None
         if purchase_date_raw is not None:
-            if isinstance(purchase_date_raw, (datetime, pd.Timestamp)):
+            if isinstance(purchase_date_raw, datetime):
                 purchase_date = purchase_date_raw.strftime("%Y-%m-%d")
             else:
                 purchase_date = str(purchase_date_raw)
