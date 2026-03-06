@@ -325,7 +325,11 @@ export default function App() {
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     };
-    useEffect(() => { scrollToBottom(); }, [messages, isLoading]);
+    useEffect(() => {
+        if (messages.length > 1 || isLoading) {
+            scrollToBottom();
+        }
+    }, [messages, isLoading]);
 
     // Handle Transcript from Voice
     useEffect(() => {
@@ -901,9 +905,9 @@ export default function App() {
             {/* ═══════════════════════════════════
                  1. FLOATING HEADER — Apple Glass
                 ═══════════════════════════════════ */}
-            <header className={`fixed top-4 left-4 right-4 md:left-1/2 md:-translate-x-1/2 md:w-full md:max-w-4xl z-50 transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] ${liveMode ? 'opacity-0 -translate-y-full' : 'opacity-100'}`}>
-                <div className="bg-white/60 backdrop-blur-3xl border border-white/50 shadow-apple-lg rounded-[2rem] px-4 md:px-6 h-14 md:h-16 flex items-center justify-between">
-                    <div className="max-w-[95rem] mx-auto px-3 md:px-6 h-12 md:h-14 flex items-center justify-between">
+            <header className={`fixed top-2 md:top-4 left-3 md:left-4 right-3 md:right-4 md:left-1/2 md:-translate-x-1/2 md:w-full md:max-w-4xl z-50 transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] ${liveMode ? 'opacity-0 -translate-y-full' : 'opacity-100'}`}>
+                <div className="bg-white/60 backdrop-blur-3xl border border-white/50 shadow-apple-lg rounded-full md:rounded-[2rem] px-2 md:px-6 h-14 md:h-16 flex items-center justify-between">
+                    <div className="max-w-[95rem] mx-auto px-2 md:px-6 h-12 md:h-14 flex items-center justify-between w-full">
                         {/* Logo + Tagline */}
                         <div className="flex items-center gap-2.5 md:gap-3">
                             <div className="w-8 h-8 md:w-9 md:h-9 bg-mediloon-600 rounded-[10px] flex items-center justify-center">
@@ -1082,7 +1086,7 @@ export default function App() {
 
                 {/* ─── CENTER CHAT STREAM ─── */}
                 <section className="absolute inset-0 z-20 flex flex-col lg:px-[400px] overflow-hidden">
-                    <div className="flex-1 w-full max-w-3xl mx-auto h-full overflow-y-auto pt-28 pb-40 px-4 md:px-8 scroll-smooth scrollbar-hide mask-gradient-to-b flex flex-col">
+                    <div className="flex-1 w-full max-w-3xl mx-auto h-full overflow-y-auto pt-24 md:pt-28 pb-32 md:pb-40 px-3 sm:px-4 md:px-8 scroll-smooth scrollbar-hide mask-gradient-to-b flex flex-col">
 
                         {/* Feature Highlights (removed to favor the new inline boxes) */}
 
@@ -1204,8 +1208,8 @@ export default function App() {
                 </section>
 
                 {/* ─── DYNAMIC DOCK (Input Area) ─── */}
-                <div className={`fixed bottom-6 left-4 right-4 md:left-1/2 md:-translate-x-1/2 md:w-full md:max-w-2xl z-40 pointer-events-auto transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] ${liveMode ? 'opacity-0 translate-y-[150%]' : 'opacity-100 translate-y-0'}`}>
-                    <div className="dynamic-dock rounded-[2.5rem] p-2 md:p-3 flex flex-col">
+                <div className={`fixed bottom-4 md:bottom-6 left-3 md:left-4 right-3 md:right-4 md:left-1/2 md:-translate-x-1/2 md:w-full md:max-w-2xl z-40 pointer-events-auto transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] ${liveMode ? 'opacity-0 translate-y-[150%]' : 'opacity-100 translate-y-0'}`}>
+                    <div className="dynamic-dock rounded-3xl md:rounded-[2.5rem] p-2 md:p-3 flex flex-col">
                         {candidates.length > 0 && (
                             <div className="mb-3 px-2">
                                 <ResultsList
@@ -1224,7 +1228,7 @@ export default function App() {
                                 className={`relative flex-shrink-0 group p-2 rounded-[2rem] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 transition-all duration-300 ${liveMode ? 'scale-105' : 'hover:scale-105 active:scale-95'}`}
                                 title={t('enterVoiceMode')}
                             >
-                                <div className="relative h-12 w-12 lg:h-14 lg:w-14 rounded-full flex items-center justify-center bg-gradient-to-tr from-indigo-500 via-blue-500 to-cyan-400 shadow-apple-lg hover:shadow-apple-xl transition-all duration-300 overflow-hidden">
+                                <div className="relative h-11 w-11 md:h-12 md:w-12 lg:h-14 lg:w-14 rounded-full flex items-center justify-center bg-gradient-to-tr from-indigo-500 via-blue-500 to-cyan-400 shadow-apple-lg hover:shadow-apple-xl transition-all duration-300 overflow-hidden">
                                     <div className="absolute inset-0 bg-white/20 mix-blend-overlay group-hover:opacity-100 opacity-0 transition-opacity" />
                                     <svg className="w-5 h-5 text-white flex-shrink-0 relative z-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                                         <path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />

@@ -188,19 +188,19 @@ export default function ChatMessage({ message, isUser, isLoading, latency }) {
     }
 
     return (
-        <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} message-enter`}>
+        <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} message-enter mb-3 md:mb-4 w-full`}>
             {isUser ? (
                 /* User message — Indigo bubble */
-                <div className="bg-indigo-600/95 backdrop-blur-md text-white rounded-[1.4rem] rounded-tr-sm px-4 py-2.5 md:px-5 md:py-3.5 max-w-[85%] md:max-w-[80%] shadow-md shadow-indigo-500/20 border border-indigo-400/20">
+                <div className="bg-indigo-600/95 backdrop-blur-md text-white rounded-2xl rounded-tr-sm md:rounded-[1.4rem] md:rounded-tr-sm px-3.5 py-2.5 md:px-5 md:py-3.5 max-w-[88%] md:max-w-[80%] shadow-md shadow-indigo-500/20 border border-indigo-400/20">
                     <p className="whitespace-pre-wrap text-[14px] md:text-[15px] font-body leading-relaxed" dir="auto">{message}</p>
                 </div>
             ) : (
                 /* Bot message — Frosted White bubble with avatar */
-                <div className="flex items-start gap-2 md:gap-3 max-w-[92%] md:max-w-[88%]">
-                    <div className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-white/70 backdrop-blur-md flex items-center justify-center flex-shrink-0 mt-0.5 border border-white/60 shadow-sm">
-                        <span className="text-indigo-600 font-brand font-bold text-[11px] md:text-xs">M</span>
+                <div className="flex items-start gap-2 md:gap-3 max-w-[95%] md:max-w-[88%] w-full">
+                    <div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-white/70 backdrop-blur-md flex items-center justify-center flex-shrink-0 mt-1 border border-white/60 shadow-sm">
+                        <span className="text-indigo-600 font-brand font-bold text-[10px] md:text-xs">M</span>
                     </div>
-                    <div className="bg-white/70 backdrop-blur-2xl border border-white/60 rounded-[1.4rem] rounded-tl-sm px-4 py-3 md:px-5 md:py-4 shadow-apple-md">
+                    <div className="bg-white/70 backdrop-blur-2xl border border-white/60 rounded-2xl rounded-tl-sm md:rounded-[1.4rem] md:rounded-tl-sm px-3.5 py-3 md:px-5 md:py-4 shadow-apple-sm md:shadow-apple-md flex-1 min-w-0">
                         {parsed?.type === 'medication_list' ? (
                             <MedicationListMessage
                                 pre={parsed.pre}

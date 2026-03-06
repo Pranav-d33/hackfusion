@@ -53,7 +53,7 @@ export default function TextInput({ onSend, onUpload, disabled, placeholder }) {
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={disabled || isUploading}
-                className={`p-3 rounded-2xl border-2 border-surface-fog text-ink-faint 
+                className={`p-2.5 md:p-3 flex items-center justify-center rounded-[1.1rem] md:rounded-2xl border-2 border-surface-fog text-ink-faint 
                     hover:border-mediloon-200 hover:text-mediloon-500 hover:bg-mediloon-50/50 
                     transition-all duration-200 active:scale-95
                     ${isUploading ? 'animate-pulse' : ''}`}
@@ -76,11 +76,11 @@ export default function TextInput({ onSend, onUpload, disabled, placeholder }) {
                 value={text}
                 onChange={(e) => setText(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder={placeholder || "Type a message or speak..."}
+                placeholder={placeholder || "Type a message..."}
                 disabled={disabled}
                 className={`
-                    flex-1 px-4 py-3 rounded-2xl border-2 border-surface-fog
-                    font-body text-ink-primary placeholder:text-ink-ghost
+                    flex-1 px-3 md:px-4 py-2.5 md:py-3 rounded-[1.1rem] md:rounded-2xl border-2 border-surface-fog
+                    font-body text-ink-primary placeholder:text-ink-ghost text-[14px] md:text-base
                     focus:border-mediloon-400 focus:outline-none focus:ring-2 focus:ring-mediloon-100
                     transition-all duration-200
                     ${disabled ? 'opacity-50 cursor-not-allowed bg-surface-cloud' : 'bg-white'}
@@ -92,7 +92,7 @@ export default function TextInput({ onSend, onUpload, disabled, placeholder }) {
                 type="submit"
                 disabled={disabled || !text.trim()}
                 className={`
-                    px-5 py-3 rounded-2xl font-brand font-semibold transition-all duration-200
+                    px-4 md:px-5 py-2.5 md:py-3 rounded-[1.1rem] md:rounded-2xl font-brand font-semibold transition-all duration-200 flex items-center justify-center
                     ${text.trim() && !disabled
                         ? 'bg-gradient-to-r from-mediloon-500 to-mediloon-600 text-white shadow-md shadow-mediloon-200 hover:shadow-lg hover:shadow-mediloon-300 hover:-translate-y-0.5 active:translate-y-0 active:scale-95'
                         : 'bg-surface-cloud text-ink-ghost cursor-not-allowed'
