@@ -1,5 +1,14 @@
 import React, { useRef } from 'react';
 
+const EXAMPLE_SUGGESTIONS = [
+    { icon: '💊', text: 'Order Dolo 650 for fever' },
+    { icon: '🛒', text: 'Add Crocin to my cart' },
+    { icon: '🤧', text: 'What do you have for cold?' },
+    { icon: '📋', text: 'Show me my cart' },
+    { icon: '💉', text: 'I need Combiflam tablets' },
+    { icon: '🧴', text: 'Do you have Betadine?' },
+];
+
 export default function VoiceModeOverlay({
     isOpen,
     onClose,
@@ -23,6 +32,8 @@ export default function VoiceModeOverlay({
         }
     };
 
+    const isIdle = !transcript && !lastResponse && !isListening && !isSpeaking;
+
     return (
         <div className="fixed inset-0 z-50 flex flex-col items-center justify-center glass-overlay transition-opacity duration-300">
             {/* Close Button */}
@@ -36,7 +47,7 @@ export default function VoiceModeOverlay({
             </button>
 
             {/* Main Visualizer */}
-            <div className={`siri-container ${isListening || isSpeaking ? 'active' : ''} mb-12`}>
+            <div className={`siri-container ${isListening || isSpeaking ? 'active' : ''} mb-8`}>
                 <div className="orbit"></div>
                 <div className="orbit"></div>
                 <div className="orbit"></div>
@@ -45,7 +56,7 @@ export default function VoiceModeOverlay({
 
             {/* Dynamic Status Text */}
             <h2 className="text-2xl font-bold text-gray-800 mb-2">
-                {isListening ? "I'm listening..." : isSpeaking ? "Mediloon Agent" : "Thinking..."}
+                {isListening ? "I'm listening..." : isSpeaking ? "MedAura Agent" : isIdle ? "How can I help?" : "Thinking..."}
             </h2>
 
             {/* Transcript / Response Area */}
@@ -54,15 +65,37 @@ export default function VoiceModeOverlay({
                     <p className="text-xl text-gray-600 font-medium animate-pulse">
                         "{transcript}"
                     </p>
-                ) : (
+                ) : lastResponse ? (
                     <p className="text-lg text-gray-500 font-light leading-relaxed">
-                        {lastResponse || "Go ahead, ask me to add medicines or analyze a prescription."}
+                        {lastResponse}
+                    </p>
+                ) : (
+                    <p className="text-base text-gray-400 font-light leading-relaxed">
+                        Try saying one of these, or ask anything about medicines
                     </p>
                 )}
             </div>
 
+            {/* Example Suggestion Chips */}
+            {isIdle && (
+                <div className="w-full max-w-xl px-6 mt-6">
+                    <div className="flex flex-wrap justify-center gap-2">
+                        {EXAMPLE_SUGGESTIONS.map((item, i) => (
+                            <div
+                                key={i}
+                                className="voice-suggestion-chip"
+                                style={{ animationDelay: `${i * 80}ms` }}
+                            >
+                                <span className="text-sm">{item.icon}</span>
+                                <span className="text-sm text-gray-600">{item.text}</span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
             {/* Contextual Actions (e.g. Upload Prescription while in voice mode) */}
-            <div className="mt-12 flex gap-4">
+            <div className="mt-8 flex gap-4">
                 <input
                     type="file"
                     ref={fileInputRef}
@@ -82,7 +115,7 @@ export default function VoiceModeOverlay({
             </div>
 
             <div className="absolute bottom-8 text-sm text-gray-400 font-medium">
-                Powered by Mediloon Voice AI
+                Powered by MedAura Voice AI
             </div>
         </div>
     );

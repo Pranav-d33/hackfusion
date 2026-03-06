@@ -168,12 +168,13 @@ export default function AdminDashboard({ onSwitchToUser, user }) {
   const toggleSection = (key) => setExpandedSections(p => ({ ...p, [key]: !p[key] }));
 
   // ═══ Data Fetchers ═══
-  const fetchMedications = async () => { try { const r = await fetch(`${API_BASE}/admin/medications`); const d = await r.json(); setMedications(d.medications || []); } catch (e) { console.error(e); } };
-  const fetchLowStockPredictions = async () => { try { const r = await fetch(`${API_BASE}/refill/predictions`); const d = await r.json(); setLowStockPredictions(d.predictions || []); } catch (e) { console.error(e); } };
-  const fetchProcurementQueue = async () => { try { const r = await fetch(`${API_BASE}/procurement/queue`); const d = await r.json(); setProcurementQueue(d.orders || []); } catch (e) { console.error(e); } };
-  const fetchRefillAlerts = async () => { try { const r = await fetch(`${API_BASE}/refill/alerts?days=14`); const d = await r.json(); setRefillAlerts(d.alerts || []); } catch (e) { console.error(e); } };
-  const fetchEvents = async () => { try { const r = await fetch(`${API_BASE}/events?limit=30`); const d = await r.json(); setEvents(d.events || []); } catch (e) { console.error(e); } };
-  const fetchWebhookLogs = async () => { try { const r = await fetch(`${API_BASE}/webhooks/logs?limit=10`); const d = await r.json(); setWebhookLogs(d.logs || []); } catch (e) { console.error(e); } };
+  const safeFetchJson = async (url) => { const r = await fetch(url); if (!r.ok) throw new Error(`${r.status} ${r.statusText}`); return r.json(); };
+  const fetchMedications = async () => { try { const d = await safeFetchJson(`${API_BASE}/admin/medications`); setMedications(d.medications || []); } catch (e) { console.error('fetchMedications:', e); } };
+  const fetchLowStockPredictions = async () => { try { const d = await safeFetchJson(`${API_BASE}/refill/predictions`); setLowStockPredictions(d.predictions || []); } catch (e) { console.error('fetchLowStockPredictions:', e); } };
+  const fetchProcurementQueue = async () => { try { const d = await safeFetchJson(`${API_BASE}/procurement/queue`); setProcurementQueue(d.orders || []); } catch (e) { console.error('fetchProcurementQueue:', e); } };
+  const fetchRefillAlerts = async () => { try { const d = await safeFetchJson(`${API_BASE}/refill/alerts?days_ahead=14`); setRefillAlerts(d.alerts || []); } catch (e) { console.error('fetchRefillAlerts:', e); } };
+  const fetchEvents = async () => { try { const d = await safeFetchJson(`${API_BASE}/events?limit=30`); setEvents(d.events || []); } catch (e) { console.error('fetchEvents:', e); } };
+  const fetchWebhookLogs = async () => { try { const d = await safeFetchJson(`${API_BASE}/webhooks/logs?limit=10`); setWebhookLogs(d.logs || []); } catch (e) { console.error('fetchWebhookLogs:', e); } };
   const fetchObservabilityData = async () => {
     try {
       const [s, l, sf, w, t] = await Promise.all([
@@ -183,6 +184,7 @@ export default function AdminDashboard({ onSwitchToUser, user }) {
         fetch(`${API_BASE}/observability/workflow-traces?limit=20`),
         fetch(`${API_BASE}/observability/traces?limit=20`),
       ]);
+      for (const resp of [s, l, sf, w, t]) { if (!resp.ok) throw new Error(`${resp.status} ${resp.statusText}`); }
       const [status, logs, safety, workflows, traceList] = await Promise.all([s.json(), l.json(), sf.json(), w.json(), t.json()]);
       setObservabilityStatus(status);
       setExecutionLogs(logs.logs || []);
@@ -191,8 +193,8 @@ export default function AdminDashboard({ onSwitchToUser, user }) {
       setTraces(traceList.traces || []);
     } catch (e) { console.error(e); }
   };
-  const fetchRagMetrics = async () => { try { const r = await fetch(`${API_BASE}/observability/rag-metrics`); const d = await r.json(); setRagMetrics(d); } catch (e) { console.error(e); } };
-  const fetchPatientData = async () => { setLoadingPatients(true); try { const r = await fetch(`${API_BASE}/data/export/orders`); const d = await r.json(); setPatientData(d.orders || []); } catch (e) { console.error(e); } finally { setLoadingPatients(false); } };
+  const fetchRagMetrics = async () => { try { const d = await safeFetchJson(`${API_BASE}/observability/rag-metrics`); setRagMetrics(d); } catch (e) { console.error('fetchRagMetrics:', e); } };
+  const fetchPatientData = async () => { setLoadingPatients(true); try { const d = await safeFetchJson(`${API_BASE}/data/export/orders`); setPatientData(d.orders || []); } catch (e) { console.error('fetchPatientData:', e); } finally { setLoadingPatients(false); } };
 
   // ═══ Actions ═══
   const refreshAllData = useCallback(async () => {

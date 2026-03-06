@@ -104,16 +104,8 @@ export default function TracePanel({ trace, latency, traceId, traceUrl, external
 function renderTraceContent(trace, traceUrl, t) {
     if (!trace || trace.length === 0) {
         return (
-            <div className="h-full flex flex-col items-center justify-center space-y-4 opacity-40 hover:opacity-100 transition-opacity duration-500 group cursor-default">
-                <div className="relative w-16 h-16 flex items-center justify-center">
-                    {/* Outer rings */}
-                    <div className="absolute inset-0 rounded-full border border-mediloon-500/20 scale-100 group-hover:scale-110 transition-transform duration-700" />
-                    <div className="absolute inset-0 rounded-full border border-mediloon-500/10 scale-75 group-hover:scale-90 transition-transform duration-700 delay-75" />
-
-                    {/* Inner pulse */}
-                    <div className="w-2 h-2 rounded-full bg-mediloon-500 animate-pulse shadow-[0_0_15px_rgba(239,68,68,0.5)]" />
-                </div>
-                <p className="text-[10px] font-brand tracking-[0.2em] text-gray-400 uppercase">{t('systemActive')}</p>
+            <div className="h-full flex flex-col items-center justify-center space-y-2 opacity-40 cursor-default">
+                <p className="text-[10px] font-brand tracking-[0.2em] text-gray-500 uppercase">No trace history</p>
             </div>
         );
     }

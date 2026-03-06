@@ -37,7 +37,11 @@ class RegisterRequest(BaseModel):
 class LoginRequest(BaseModel):
     """User login request."""
     email: str
-    password: str
+    password: Optional[str] = None
+    # Social provider fields (Google)
+    provider: Optional[str] = None  # 'google'
+    uid: Optional[str] = None       # Firebase UID
+    name: Optional[str] = None
 
 
 class UpdateProfileRequest(BaseModel):
@@ -99,7 +103,7 @@ def decode_access_token(token: str) -> Optional[dict]:
     try:
         decoded_data = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
         return decoded_data
-    except pyjwt.PyJWTError:
+    except jwt.PyJWTError:
         return None
 
 # ============ Helper Functions ============
@@ -156,11 +160,47 @@ async def register(request: RegisterRequest):
     """Register a new user."""
     # Check if email already exists
     existing = await execute_query(
-        "SELECT id FROM customers WHERE email = ?",
+        "SELECT id, name, email, phone, age, gender, address, city, state, postal_code, country, notification_enabled, profile_completed, password_hash FROM customers WHERE email = ?",
         (request.email.lower(),)
     )
     
     if existing:
+        user = existing[0]
+        # If user was created via Google (no password), upgrade to email/password account
+        if not user.get('password_hash'):
+            password_hash = hash_password(request.password)
+            updates = ["password_hash = ?"]
+            params = [password_hash]
+            if request.name and not user.get('name'):
+                updates.append("name = ?")
+                params.append(request.name)
+            if request.phone and not user.get('phone'):
+                updates.append("phone = ?")
+                params.append(request.phone)
+            params.append(user['id'])
+            await execute_write(
+                f"UPDATE customers SET {', '.join(updates)} WHERE id = ?",
+                tuple(params)
+            )
+            # Re-fetch updated user
+            result = await execute_query(
+                "SELECT id, name, email, phone, age, gender, address, city, state, postal_code, country, notification_enabled, profile_completed FROM customers WHERE id = ?",
+                (user['id'],)
+            )
+            user = result[0] if result else user
+            session_token = create_access_token(data={"sub": str(user['id'])})
+            return AuthResponse(
+                user=UserResponse(
+                    id=user['id'], name=user['name'] or request.name, email=user['email'],
+                    phone=user.get('phone') or request.phone, age=user.get('age'), gender=user.get('gender'),
+                    address=user.get('address'), city=user.get('city'), state=user.get('state'),
+                    postal_code=user.get('postal_code'), country=user.get('country'),
+                    notification_enabled=bool(user.get('notification_enabled', True)),
+                    profile_completed=bool(user.get('profile_completed', False)),
+                ),
+                session_token=session_token,
+                message="Account upgraded with password",
+            )
         raise HTTPException(status_code=400, detail="Email already registered")
     
     # Hash password
@@ -205,44 +245,85 @@ async def register(request: RegisterRequest):
 
 @router.post("/login", response_model=AuthResponse)
 async def login(request: LoginRequest):
-    """Login user and get session token."""
+    """Login user. Supports email/password and Google social auth."""
+
+    # ── Google social provider ───────────────────────────────────────────────
+    if request.provider == 'google':
+        if not request.email:
+            raise HTTPException(status_code=400, detail="Email required for Google login")
+        result = await execute_query(
+            "SELECT id, name, email, phone, age, gender, address, city, state, postal_code, country, notification_enabled, profile_completed FROM customers WHERE email = ?",
+            (request.email.lower(),)
+        )
+        if result:
+            user = result[0]
+        else:
+            display_name = request.name or request.email.split('@')[0]
+            user_id = await execute_write("""
+                INSERT INTO customers (name, email, notification_enabled, profile_completed)
+                VALUES (?, ?, 1, 0)
+            """, (display_name, request.email.lower()))
+            result = await execute_query(
+                "SELECT id, name, email, phone, age, gender, address, city, state, postal_code, country, notification_enabled, profile_completed FROM customers WHERE id = ?",
+                (user_id,)
+            )
+            if not result:
+                raise HTTPException(status_code=500, detail="Failed to create user")
+            user = result[0]
+        session_token = create_access_token(data={"sub": str(user['id'])})
+        return AuthResponse(
+            user=UserResponse(
+                id=user['id'], name=user['name'], email=user['email'],
+                phone=user.get('phone'), age=user.get('age'), gender=user.get('gender'),
+                address=user.get('address'), city=user.get('city'), state=user.get('state'),
+                postal_code=user.get('postal_code'), country=user.get('country'),
+                notification_enabled=bool(user.get('notification_enabled', True)),
+                profile_completed=bool(user.get('profile_completed', False)),
+            ),
+            session_token=session_token,
+            message="Social login successful",
+        )
+
+    # ── Email / password ────────────────────────────────────────────────────
+    if not request.password:
+        raise HTTPException(status_code=400, detail="Password is required for email login")
+
     password_hash = hash_password(request.password)
     
-    # Find user
+    # Check if user exists in local DB
     result = await execute_query("""
-        SELECT id, name, email, phone, age, gender, address, city, state, postal_code, country, notification_enabled, profile_completed
-        FROM customers
-        WHERE email = ? AND password_hash = ?
-    """, (request.email.lower(), password_hash))
+        SELECT * FROM customers WHERE email = ?
+    """, (request.email.lower(),))
     
     if not result:
-        raise HTTPException(status_code=401, detail="Invalid email or password")
-    
-    user = result[0]
-    
-    # Create new session (JWT)
+        # User exist in Firebase (ensured by frontend) but not in local DB. Sync them.
+        display_name = request.name or request.email.split('@')[0]
+        user_id = await execute_write("""
+            INSERT INTO customers (name, email, password_hash, notification_enabled, profile_completed)
+            VALUES (?, ?, ?, 1, 0)
+        """, (display_name, request.email.lower(), password_hash))
+        
+        result = await execute_query("SELECT * FROM customers WHERE id = ?", (user_id,))
+        if not result:
+            raise HTTPException(status_code=500, detail="Failed to sync user to database")
+        user = result[0]
+    else:
+        user = result[0]
+        # If password hash doesn't match, they might have reset it in Firebase or we are syncing them.
+        # Since frontend validated via Firebase, we should update local DB to match.
+        if user['password_hash'] != password_hash:
+            await execute_write("UPDATE customers SET password_hash = ? WHERE id = ?", (password_hash, user['id']))
+            user = dict(user)
+            user['password_hash'] = password_hash
+
     session_token = create_access_token(data={"sub": str(user['id'])})
-    
-    # Note: We no longer insert into user_sessions as JWT is stateless
-    # await execute_write("""
-    #     INSERT INTO user_sessions (user_id, session_token, expires_at)
-    #     VALUES (?, ?, datetime('now', '+30 days'))
-    # """, (user['id'], session_token))
-    
     return AuthResponse(
         user=UserResponse(
-            id=user['id'],
-            name=user['name'],
-            email=user['email'],
-            phone=user['phone'],
-            age=user.get('age'),
-            gender=user.get('gender'),
-            address=user.get('address'),
-            city=user.get('city'),
-            state=user.get('state'),
-            postal_code=user.get('postal_code'),
-            country=user.get('country'),
-            notification_enabled=bool(user['notification_enabled']),
+            id=user['id'], name=user['name'], email=user['email'],
+            phone=user.get('phone'), age=user.get('age'), gender=user.get('gender'),
+            address=user.get('address'), city=user.get('city'), state=user.get('state'),
+            postal_code=user.get('postal_code'), country=user.get('country'),
+            notification_enabled=bool(user.get('notification_enabled', True)),
             profile_completed=bool(user.get('profile_completed', False)),
         ),
         session_token=session_token,

@@ -31,8 +31,12 @@ const translations = {
 
     // Upload
     uploadPrescription: 'Upload Prescription (OCR)',
+    capturePrescription: 'Capture Prescription',
+    startWithPrescription: 'Start with Prescription',
+    addPrescription: 'Add Prescription',
     new: 'NEW',
     tapUploadPrescription: 'Tap to Upload Prescription',
+    tapCapturePrescription: 'Tap to Capture Prescription',
 
     // Cart
     yourCart: 'Your Cart',
@@ -167,7 +171,10 @@ const translations = {
     replacePrescription: 'Replace Prescription',
     replacePrescriptionDesc: 'Upload a new prescription to replace the existing one.',
     uploadPrescriptionDesc: 'Upload your prescription image or PDF for verification.',
+    startWithPrescriptionDesc: 'Start your order by uploading a prescription image or PDF.',
+    addPrescriptionDesc: 'Add a prescription by uploading an image or PDF.',
     chooseFile: 'Choose File',
+    useCamera: 'Use Camera',
 
     // Login
     createAccount: 'Create Account',
@@ -183,6 +190,12 @@ const translations = {
     createOne: 'Create one',
     securedByFirebaseAuth: 'Secured by Firebase Auth',
     firebaseNotConfigured: 'Firebase is not configured. Add the VITE_FIREBASE_* variables to your Vite environment.',
+    invalidCredentials: 'The email address or password you entered is incorrect.',
+    emailAlreadyInUse: 'An account already exists with this email address.',
+    weakPassword: 'Password should be at least 6 characters.',
+    forgotPassword: 'Forgot password?',
+    enterEmailForReset: 'Enter your email address first to reset password.',
+    resetPasswordSent: 'Password reset email sent. Check your inbox.',
 
     // Profile
     completeYourProfile: 'Complete Your Profile',
@@ -288,8 +301,12 @@ const translations = {
 
     // Upload
     uploadPrescription: 'Rezept hochladen (OCR)',
+    capturePrescription: 'Rezept fotografieren',
+    startWithPrescription: 'Mit Rezept starten',
+    addPrescription: 'Rezept hinzufügen',
     new: 'NEU',
     tapUploadPrescription: 'Tippen zum Rezept hochladen',
+    tapCapturePrescription: 'Tippen zum Rezept fotografieren',
 
     // Cart
     yourCart: 'Ihr Warenkorb',
@@ -424,7 +441,10 @@ const translations = {
     replacePrescription: 'Rezept ersetzen',
     replacePrescriptionDesc: 'Lade ein neues Rezept hoch, um das bestehende zu ersetzen.',
     uploadPrescriptionDesc: 'Lade dein Rezeptbild oder PDF zur Verifizierung hoch.',
+    startWithPrescriptionDesc: 'Starte deine Bestellung, indem du ein Rezeptbild oder PDF hochlädst.',
+    addPrescriptionDesc: 'Füge ein Rezept hinzu, indem du ein Bild oder PDF hochlädst.',
     chooseFile: 'Datei wählen',
+    useCamera: 'Kamera verwenden',
 
     // Login
     createAccount: 'Konto erstellen',
@@ -440,6 +460,12 @@ const translations = {
     createOne: 'Konto erstellen',
     securedByFirebaseAuth: 'Gesichert durch Firebase Auth',
     firebaseNotConfigured: 'Firebase ist nicht konfiguriert. Füge die VITE_FIREBASE_* Variablen zur Vite-Umgebung hinzu.',
+    invalidCredentials: 'Die eingegebene E-Mail-Adresse oder das Passwort ist falsch.',
+    emailAlreadyInUse: 'Ein Konto mit dieser E-Mail-Adresse existiert bereits.',
+    weakPassword: 'Das Passwort muss mindestens 6 Zeichen lang sein.',
+    forgotPassword: 'Passwort vergessen?',
+    enterEmailForReset: 'Gib zuerst deine E-Mail-Adresse ein, um das Passwort zurückzusetzen.',
+    resetPasswordSent: 'E-Mail zum Zurücksetzen des Passworts gesendet. Bitte Posteingang prüfen.',
 
     // Profile
     completeYourProfile: 'Profil vervollständigen',
@@ -545,8 +571,12 @@ const translations = {
 
     // Upload
     uploadPrescription: 'رفع الوصفة الطبية (OCR)',
+    capturePrescription: 'التقاط صورة للوصفة',
+    startWithPrescription: 'ابدأ بالوصفة الطبية',
+    addPrescription: 'أضف وصفة طبية',
     new: 'جديد',
     tapUploadPrescription: 'اضغط لرفع الوصفة الطبية',
+    tapCapturePrescription: 'اضغط لالتقاط الوصفة',
 
     // Cart
     yourCart: 'سلة التسوق',
@@ -681,7 +711,10 @@ const translations = {
     replacePrescription: 'استبدال الوصفة',
     replacePrescriptionDesc: 'ارفع وصفة جديدة لاستبدال الوصفة الحالية.',
     uploadPrescriptionDesc: 'ارفع صورة الوصفة أو ملف PDF للتحقق.',
+    startWithPrescriptionDesc: 'ابدأ طلبك برفع صورة الوصفة أو ملف PDF.',
+    addPrescriptionDesc: 'أضف وصفة طبية عبر رفع صورة أو ملف PDF.',
     chooseFile: 'اختر ملفًا',
+    useCamera: 'استخدم الكاميرا',
 
     // Login
     createAccount: 'إنشاء حساب',
@@ -697,6 +730,12 @@ const translations = {
     createOne: 'أنشئ حساباً',
     securedByFirebaseAuth: 'مؤمّن بواسطة Firebase Auth',
     firebaseNotConfigured: 'لم يتم إعداد Firebase. أضف متغيرات VITE_FIREBASE_* إلى بيئة Vite.',
+    invalidCredentials: 'عنوان البريد الإلكتروني أو كلمة المرور التي أدخلتها غير صحيحة.',
+    emailAlreadyInUse: 'يوجد حساب بالفعل بهذا البريد الإلكتروني.',
+    weakPassword: 'يجب أن لا تقل كلمة المرور عن 6 أحرف.',
+    forgotPassword: 'هل نسيت كلمة المرور؟',
+    enterEmailForReset: 'أدخل بريدك الإلكتروني أولاً لإعادة تعيين كلمة المرور.',
+    resetPasswordSent: 'تم إرسال رسالة إعادة تعيين كلمة المرور. تحقق من بريدك الوارد.',
 
     // Profile
     completeYourProfile: 'أكمل ملفك الشخصي',
@@ -802,8 +841,12 @@ const translations = {
 
     // Upload
     uploadPrescription: 'प्रिस्क्रिप्शन अपलोड करें (OCR)',
+    capturePrescription: 'प्रिस्क्रिप्शन कैप्चर करें',
+    startWithPrescription: 'प्रिस्क्रिप्शन से शुरू करें',
+    addPrescription: 'प्रिस्क्रिप्शन जोड़ें',
     new: 'नया',
     tapUploadPrescription: 'प्रिस्क्रिप्शन अपलोड करने के लिए टैप करें',
+    tapCapturePrescription: 'प्रिस्क्रिप्शन कैप्चर करने के लिए टैप करें',
 
     // Cart
     yourCart: 'आपकी कार्ट',
@@ -938,7 +981,10 @@ const translations = {
     replacePrescription: 'प्रिस्क्रिप्शन बदलें',
     replacePrescriptionDesc: 'मौजूदा प्रिस्क्रिप्शन बदलने के लिए नया प्रिस्क्रिप्शन अपलोड करें।',
     uploadPrescriptionDesc: 'सत्यापन के लिए प्रिस्क्रिप्शन इमेज या PDF अपलोड करें।',
+    startWithPrescriptionDesc: 'प्रिस्क्रिप्शन इमेज या PDF अपलोड करके अपना ऑर्डर शुरू करें।',
+    addPrescriptionDesc: 'इमेज या PDF अपलोड करके प्रिस्क्रिप्शन जोड़ें।',
     chooseFile: 'फ़ाइल चुनें',
+    useCamera: 'कैमरा इस्तेमाल करें',
 
     // Login
     createAccount: 'खाता बनाएं',
@@ -954,6 +1000,12 @@ const translations = {
     createOne: 'नया बनाएं',
     securedByFirebaseAuth: 'Firebase Auth द्वारा सुरक्षित',
     firebaseNotConfigured: 'Firebase कॉन्फ़िगर नहीं है। Vite environment में VITE_FIREBASE_* variables जोड़ें।',
+    invalidCredentials: 'ईमेल पता या पासवर्ड जो आपने दर्ज किया है वह गलत है।',
+    emailAlreadyInUse: 'इस ईमेल पते के साथ पहले से ही एक खाता मौजूद है।',
+    weakPassword: 'पासवर्ड कम से कम 6 अक्षरों का होना चाहिए।',
+    forgotPassword: 'पासवर्ड भूल गए?',
+    enterEmailForReset: 'पासवर्ड रीसेट करने के लिए पहले अपना ईमेल पता दर्ज करें।',
+    resetPasswordSent: 'पासवर्ड रीसेट ईमेल भेज दिया गया है। अपना इनबॉक्स देखें।',
 
     // Profile
     completeYourProfile: 'अपनी प्रोफ़ाइल पूरी करें',

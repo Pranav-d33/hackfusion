@@ -11,7 +11,7 @@ import sys
 sys.path.insert(0, str(__file__).rsplit('/', 2)[0])
 
 from db.database import execute_query, execute_write
-from config import MAX_ORDER_TOTAL_UNITS, MAX_ORDER_SUBTOTAL_EUR, MAX_ORDER_LINE_QTY
+from config import MAX_ORDER_ITEMS, MAX_ORDER_TOTAL_UNITS, MAX_ORDER_SUBTOTAL_EUR, MAX_ORDER_LINE_QTY
 from tools.query_tools import _resolve_rx_required
 
 
@@ -69,7 +69,20 @@ async def add_to_cart(session_id: str, med_id: str, qty: int, dose: str = None) 
         "SELECT id, quantity, dose FROM cart WHERE session_id = ? AND product_catalog_id = ?",
         (session_id, med_id)
     )
-    
+
+    # Enforce max distinct medicines per order
+    if not existing:
+        current_item_count_row = await execute_query(
+            "SELECT COUNT(*) as cnt FROM cart WHERE session_id = ?", (session_id,)
+        )
+        current_item_count = int((current_item_count_row[0]['cnt'] if current_item_count_row else 0))
+        if current_item_count >= MAX_ORDER_ITEMS:
+            return {
+                **(await get_cart(session_id)),
+                "warning": f"Order limit reached: you can have at most {MAX_ORDER_ITEMS} different medicines per order.",
+                "added": False,
+            }
+
     current_cart_qty = existing[0]['quantity'] if existing else 0
     remaining_stock = stock_available - current_cart_qty
 

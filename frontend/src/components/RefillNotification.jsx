@@ -87,25 +87,25 @@ export default function RefillNotification({ customerId, onReorder }) {
       {/* ===== Auto-Toast Pop-up ===== */}
       {toastAlert && !expanded && (
         <div className="fixed top-20 right-4 z-[1001] animate-fade-in-up">
-          <div className="bg-white rounded-2xl shadow-2xl border border-red-100 p-4 w-[320px] relative overflow-hidden">
+          <div className="bg-white/95 backdrop-blur-3xl rounded-[1.5rem] shadow-apple-2xl border border-mediloon-100 p-4 w-[320px] relative overflow-hidden">
             {/* Top accent */}
-            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-red-500 to-rose-400" />
+            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-mediloon-500 to-mediloon-700" />
 
             <button
               onClick={() => { setToastAlert(null); setAutoDismissed(true); }}
-              className="absolute top-3 right-3 p-1 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors"
+              className="absolute top-3 right-3 p-1 text-ink-ghost hover:text-ink-primary rounded-full hover:bg-surface-snow transition-colors"
             >
               <X size={14} />
             </button>
 
             <div className="flex items-start gap-3 mt-1">
-              <div className="p-2 bg-red-50 rounded-xl">
-                <Sparkles size={20} className="text-red-500" />
+              <div className="p-2 bg-mediloon-50 rounded-xl">
+                <Sparkles size={20} className="text-mediloon-500" />
               </div>
               <div className="flex-1">
-                <p className="text-xs font-semibold text-red-500 uppercase tracking-wide mb-0.5">Smart Refill Suggestion</p>
-                <p className="text-sm font-semibold text-gray-900">{toastAlert.brand_name}</p>
-                <p className="text-xs text-gray-500 mt-0.5">
+                <p className="text-[11px] font-brand font-bold text-mediloon-600 uppercase tracking-wide mb-0.5">Smart Refill Suggestion</p>
+                <p className="text-[15px] font-brand font-semibold text-ink-primary">{toastAlert.brand_name}</p>
+                <p className="text-[13px] font-body text-ink-secondary mt-0.5">
                   {toastAlert.days_until_depletion <= 0
                     ? t('thisMedicineLikelyRunOut')
                     : toastAlert.days_until_depletion === 1
@@ -138,11 +138,11 @@ export default function RefillNotification({ customerId, onReorder }) {
         <button
           onClick={() => setExpanded(!expanded)}
           className={`
-            flex items-center gap-2 px-4 py-2.5 rounded-full font-semibold text-sm
-            shadow-lg transition-all duration-300 hover:-translate-y-0.5
+            flex items-center gap-2 px-4 py-2.5 rounded-full font-brand font-bold text-[14px]
+            shadow-apple transition-all duration-300 hover:-translate-y-0.5
             ${criticalCount > 0
-              ? 'bg-gradient-to-r from-red-500 to-rose-500 text-white shadow-red-200'
-              : 'bg-white text-gray-700 border border-gray-200 shadow-gray-200 hover:border-red-200'}
+              ? 'bg-gradient-to-r from-mediloon-500 to-mediloon-600 text-white shadow-mediloon-200'
+              : 'bg-white text-ink-primary border border-black/[0.04] shadow-apple-md hover:border-black/[0.08]'}
           `}
         >
           <Bell size={16} className={criticalCount > 0 ? 'animate-bounce-subtle' : ''} />
@@ -156,12 +156,12 @@ export default function RefillNotification({ customerId, onReorder }) {
 
         {/* ===== Expanded Panel ===== */}
         {expanded && (
-          <div className="absolute bottom-14 right-0 w-[380px] max-h-[460px] bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden animate-fade-in-up">
+          <div className="absolute bottom-14 right-0 w-[380px] max-h-[460px] bg-white/95 backdrop-blur-3xl rounded-[1.5rem] shadow-apple-2xl border border-black/[0.04] overflow-hidden animate-slide-up-spring">
             {/* Panel Header */}
-            <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100 bg-gray-50/50">
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-black/[0.04] bg-surface-snow/50">
               <div className="flex items-center gap-2">
-                <Pill size={16} className="text-red-500" />
-                <h3 className="text-sm font-semibold text-gray-800">{t('smartUpdates')}</h3>
+                <Pill size={16} className="text-mediloon-500" />
+                <h3 className="text-[14px] font-brand font-bold text-ink-primary">{t('smartUpdates')}</h3>
               </div>
               <div className="flex items-center gap-2">
                 {criticalCount > 0 && (
@@ -183,30 +183,30 @@ export default function RefillNotification({ customerId, onReorder }) {
             {/* Alert List */}
             <div className="overflow-y-auto max-h-[360px] p-3 space-y-2">
               {activeAlerts.map((alert, i) => (
-                <div key={i} className={`rounded-xl border p-3 ${urgencyBg(alert.urgency)} transition-all hover:shadow-sm`}>
+                <div key={i} className={`rounded-[1rem] border p-3 ${urgencyBg(alert.urgency)} transition-all hover:shadow-apple-sm`}>
                   <div className="flex items-start gap-3">
                     <div className="mt-0.5">{urgencyIcon(alert.urgency)}</div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-gray-900 truncate">{alert.brand_name}</p>
-                      <p className="text-[11px] text-gray-500">{alert.dosage}</p>
-                      <p className="text-xs text-gray-600 mt-1 flex items-center gap-1">
+                      <p className="text-[14px] font-brand font-semibold text-ink-primary truncate">{alert.brand_name}</p>
+                      <p className="text-[12px] font-body text-ink-secondary">{alert.dosage}</p>
+                      <p className="text-[12px] font-body text-ink-secondary mt-1 flex items-center gap-1.5">
                         {alert.days_until_depletion <= 0
-                          ? <><AlertTriangle size={11} className="text-red-400" /> {t('thisMedicineLikelyRunOut')}</>
+                          ? <><AlertTriangle size={12} className="text-red-400" /> {t('thisMedicineLikelyRunOut')}</>
                           : alert.days_until_depletion === 1
-                            ? <><Clock size={11} className="text-amber-400" /> {t('runningOutTomorrow')}</>
-                            : <><Calendar size={11} className="text-blue-400" /> {t('runningOutInDays', { days: alert.days_until_depletion })}</>}
+                            ? <><Clock size={12} className="text-amber-400" /> {t('runningOutTomorrow')}</>
+                            : <><Calendar size={12} className="text-blue-400" /> {t('runningOutInDays', { days: alert.days_until_depletion })}</>}
                       </p>
                     </div>
                     <div className="flex flex-col items-end gap-1.5">
                       <button
                         onClick={() => handleReorder(alert)}
-                        className="text-[11px] bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg flex items-center gap-1 transition-colors shadow-sm"
+                        className="text-[12px] font-brand font-semibold bg-mediloon-500 hover:bg-mediloon-600 text-white px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-colors shadow-sm"
                       >
                         <ShoppingCart size={11} /> {t('reorder')}
                       </button>
                       <button
                         onClick={() => dismissAlert(alert.medication_id)}
-                        className="text-[10px] text-gray-400 hover:text-gray-600 transition-colors"
+                        className="text-[11px] font-brand text-ink-ghost hover:text-ink-secondary transition-colors"
                       >
                         {t('dismiss')}
                       </button>

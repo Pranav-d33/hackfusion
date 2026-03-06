@@ -1,8 +1,8 @@
 """
 OCR Service
 Extracts text from prescription images and parses structured product data.
-Uses Qwen Vision via OpenRouter for OCR, then an LLM to extract clean
-medicine names + dosages, followed by fuzzy DB matching.
+Uses Gemma 3 27B Vision (google/gemma-3-27b-it:free) via OpenRouter for OCR,
+then an LLM to extract clean medicine names + dosages, followed by fuzzy DB matching.
 Queries V2 schema: product_catalog.
 """
 import sys
@@ -28,8 +28,38 @@ from config import (
     NLU_FALLBACK_MODELS,
 )
 
+
+def _normalize_name_for_compare(name: str) -> str:
+    """Normalize medicine names for robust similarity checks."""
+    if not name:
+        return ""
+    normalized = name.lower().strip()
+    # Remove common dosage/package tokens so similarity compares the core name.
+    normalized = re.sub(r"\b\d+(?:\.\d+)?\s*(mg|mcg|g|ml|iu|units?)\b", "", normalized)
+    normalized = re.sub(r"[^a-z0-9]+", "", normalized)
+    return normalized
+
+
+def _is_aggressive_name_rewrite(extracted_name: str, original_ocr_name: str) -> bool:
+    """
+    Detect when LLM changed OCR name too aggressively (possible hallucination).
+    Example: OCR 'goodra' -> extracted 'oxprenolol'.
+    """
+    a = _normalize_name_for_compare(extracted_name)
+    b = _normalize_name_for_compare(original_ocr_name)
+
+    if not a or not b or a == b:
+        return False
+
+    similarity = SequenceMatcher(None, a, b).ratio()
+    prefix_len = min(3, len(a), len(b))
+    same_prefix = prefix_len > 0 and a[:prefix_len] == b[:prefix_len]
+
+    # If similarity is low and prefixes differ, this is likely an unsafe rewrite.
+    return similarity < 0.6 and not same_prefix
+
 async def extract_text_from_image(image_path: str) -> Dict[str, Any]:
-    """Extract text from an image using Qwen Vision via OpenRouter."""
+    """Extract text from an image using Gemma 3 27B Vision via OpenRouter."""
     if not os.path.exists(image_path):
         if "mock_prescription" in image_path:
             return {
@@ -48,7 +78,7 @@ async def extract_text_from_image(image_path: str) -> Dict[str, Any]:
         return {"error": "File not found"}
 
     try:
-        print(f"📖 Reading image for OCR (Qwen Vision): {image_path}")
+        print(f"📖 Reading image for OCR (Gemma 3 Vision): {image_path}")
         with open(image_path, "rb") as image_file:
             encoded_string = base64.b64encode(image_file.read()).decode("utf-8")
         
@@ -64,7 +94,7 @@ async def extract_text_from_image(image_path: str) -> Dict[str, Any]:
         }
         
         payload = {
-            "model": "qwen/qwen-2.5-vl-72b-instruct",
+            "model": "google/gemma-3-27b-it:free",
             "messages": [
                 {
                     "role": "user",
@@ -118,11 +148,11 @@ async def extract_text_from_image(image_path: str) -> Dict[str, Any]:
                 "text": final_text,
                 "structured_data": structured_data,
                 "confidence": 0.95,
-                "source": "qwen-vision-openrouter"
+                "source": "gemma3-27b-vision-openrouter"
             }
             
     except Exception as e:
-        print(f"❌ OCR Log: Error processing image with Qwen: {e}")
+        print(f"❌ OCR Log: Error processing image with Gemma 3: {e}")
         return {"error": str(e)}
 
 
@@ -144,8 +174,9 @@ async def _llm_extract_medicines(raw_text: str, structured_data: Optional[Dict] 
 RULES:
 - Extract ONLY medicine/drug names. Ignore addresses, dates, doctor names, hospital names, patient info, signatures.
 - For each medicine, extract the name and dosage (if present). If dosage is not mentioned, leave it empty.
-- Normalize medicine names: fix obvious OCR misspellings, but keep the intended drug name.
-- If a name looks like a real drug but is slightly misspelled (e.g., "Oxprelol" → "Oxprenolol"), provide the corrected name.
+- Keep the medicine name as written in OCR. Do NOT invent or substitute a different drug name.
+- If uncertain about a word, keep the raw OCR token and put that same value in both "name" and "original_ocr_name".
+- You may normalize only trivial formatting (spacing/case/hyphen), not the underlying drug identity.
 - Return ONLY valid JSON. No extra text.
 {structured_hint}
 
@@ -231,7 +262,7 @@ Return JSON in this exact format:
     }
 
 
-def _fuzzy_match_product(medicine_name: str, product_index: Dict[str, Dict], threshold: float = 0.55) -> Optional[Dict]:
+def _fuzzy_match_product(medicine_name: str, product_index: Dict[str, Dict], threshold: float = 0.7) -> Optional[Dict]:
     """
     Fuzzy-match a medicine name against the product index.
     Uses SequenceMatcher for similarity scoring.
@@ -245,10 +276,14 @@ def _fuzzy_match_product(medicine_name: str, product_index: Dict[str, Dict], thr
     if med_lower in product_index:
         return product_index[med_lower]
 
-    # 2) Substring containment (both directions, only for names >= 4 chars)
-    if len(med_lower) >= 4:
+    # 2) Strict substring containment (guards against false positives)
+    if len(med_lower) >= 5:
         for pname, prod in product_index.items():
             if med_lower in pname or pname in med_lower:
+                sim = SequenceMatcher(None, med_lower, pname).ratio()
+                # Require strong lexical closeness for containment matches.
+                if sim < 0.8:
+                    continue
                 return prod
 
     # 3) Fuzzy ratio scoring
@@ -262,7 +297,8 @@ def _fuzzy_match_product(medicine_name: str, product_index: Dict[str, Dict], thr
         # Also check if medicine name starts with the same prefix (common for drug names)
         prefix_len = min(4, len(med_lower), len(pname))
         prefix_bonus = 0.1 if med_lower[:prefix_len] == pname[:prefix_len] else 0.0
-        total = score + prefix_bonus
+        length_ratio = min(len(med_lower), len(pname)) / max(len(med_lower), len(pname))
+        total = score + prefix_bonus + (0.05 if length_ratio >= 0.8 else 0.0)
         if total > best_score:
             best_score = total
             best_product = prod
@@ -334,7 +370,12 @@ async def parse_prescription_text(ocr_result: Dict[str, Any]) -> Dict[str, Any]:
         if not med_name or len(med_name) < 2:
             continue
 
-        match = _fuzzy_match_product(med_name, product_index)
+        effective_name = med_name
+        if original_name and _is_aggressive_name_rewrite(med_name, original_name):
+            print(f"  ⚠️ Rejecting aggressive OCR rename '{med_name}' (original: '{original_name}')")
+            effective_name = original_name
+
+        match = _fuzzy_match_product(effective_name, product_index)
 
         if match and match['id'] not in matched_ids:
             matched_ids.add(match['id'])
@@ -345,12 +386,12 @@ async def parse_prescription_text(ocr_result: Dict[str, Any]) -> Dict[str, Any]:
                 "dosage": med_dosage or match['package_size'] or "",
                 "confidence": 0.95,
                 "match_type": "llm_fuzzy_match",
-                "searched_name": med_name,
+                "searched_name": effective_name,
                 "original_ocr_name": original_name,
             })
         elif not match:
             unknown_items.append({
-                "name": med_name,
+                "name": effective_name,
                 "dosage": med_dosage,
                 "original_ocr_name": original_name,
             })

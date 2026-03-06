@@ -176,7 +176,7 @@ export default function App() {
     const { t, lang, bcp47, dir, setLang } = useLanguage();
 
     // --- UI Context (agent-controlled navigation) ---
-    const { executeUIAction, isCartOpen, setCartOpen, isOrdersOpen, setOrdersOpen, isPrescriptionModalOpen, setPrescriptionModalOpen, prescriptionMode, isTraceOpen, setTraceOpen, modalEpoch } = useUI();
+    const { executeUIAction, isCartOpen, setCartOpen, isOrdersOpen, setOrdersOpen, isPrescriptionModalOpen, setPrescriptionModalOpen, prescriptionMode, setPrescriptionMode, isTraceOpen, setTraceOpen, modalEpoch } = useUI();
 
     // --- State ---
     const [messages, setMessages] = useState([{
@@ -201,6 +201,10 @@ export default function App() {
     const [showMobileCart, setShowMobileCart] = useState(false);
     const [showVoiceIntroPopup, setShowVoiceIntroPopup] = useState(false);
     const [showVoiceSettings, setShowVoiceSettings] = useState(false);
+    const [isDesktop, setIsDesktop] = useState(() => {
+        if (typeof window === 'undefined') return true;
+        return window.matchMedia('(min-width: 1024px)').matches;
+    });
 
     // New UI State
     const [showSearch, setShowSearch] = useState(false);
@@ -243,6 +247,7 @@ export default function App() {
         setPreferredLanguage,
     } = useSpeech();
     const messagesEndRef = useRef(null);
+    const cameraInputRef = useRef(null);
     const pendingTranscriptQueueRef = useRef([]);
     const shortVoiceFinalizeTimerRef = useRef(null);
     const transcriptLiveRef = useRef('');
@@ -253,7 +258,7 @@ export default function App() {
     // Effects
     useEffect(() => {
         const token = localStorage.getItem('session_token');
-        if (!token) return;
+        if (!token || token === 'undefined' || token === 'null') { localStorage.removeItem('session_token'); return; }
         let active = true;
         const restoreSession = async () => {
             try {
@@ -278,6 +283,23 @@ export default function App() {
         restoreSession();
         return () => { active = false; };
     }, []);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return undefined;
+        const mediaQuery = window.matchMedia('(min-width: 1024px)');
+        const handleChange = (event) => {
+            setIsDesktop(event.matches);
+        };
+        setIsDesktop(mediaQuery.matches);
+        mediaQuery.addEventListener('change', handleChange);
+        return () => mediaQuery.removeEventListener('change', handleChange);
+    }, []);
+
+    useEffect(() => {
+        if (!isDesktop && isTraceOpen) {
+            setTraceOpen(false);
+        }
+    }, [isDesktop, isTraceOpen, setTraceOpen]);
 
     const [pendingVoiceIntro, setPendingVoiceIntro] = useState(false);
     const checkFirstTimeLogin = useCallback(() => {
@@ -657,7 +679,29 @@ export default function App() {
             setMessages(prev => [...prev, { id: Date.now() + 1, text: t('uploadFailed'), isUser: false }]);
             setIsLoading(false);
         }
-    }, [handleSend, isLoading]);
+    }, [handleSend, isLoading, t]);
+
+    const openPrescriptionFilePicker = useCallback(() => {
+        if (isLoading) return;
+        document.getElementById('prescription-upload-input')?.click();
+    }, [isLoading]);
+
+    const openStartWithPrescription = useCallback(() => {
+        if (isLoading) return;
+        setPrescriptionMode('start');
+        setPrescriptionModalOpen(true);
+    }, [isLoading, setPrescriptionMode, setPrescriptionModalOpen]);
+
+    const openAddPrescription = useCallback(() => {
+        if (isLoading) return;
+        setPrescriptionMode('add');
+        setPrescriptionModalOpen(true);
+    }, [isLoading, setPrescriptionMode, setPrescriptionModalOpen]);
+
+    const openPrescriptionCamera = useCallback(() => {
+        if (isLoading) return;
+        cameraInputRef.current?.click();
+    }, [isLoading]);
 
     const handleLogout = () => {
         if (sessionToken) {
@@ -845,69 +889,88 @@ export default function App() {
     }
 
     const hasCartItems = cart?.items?.length > 0;
-    const isAnyModalOpen = isCartOpen || showCartDetail || isOrdersOpen || showAddressModal || showOrderSummary || showSearch || isPrescriptionModalOpen || showProfileModal || showVoiceSettings || isTraceOpen;
+    const isAnyModalOpen = isCartOpen || showCartDetail || isOrdersOpen || showAddressModal || showOrderSummary || showSearch || isPrescriptionModalOpen || showProfileModal || showVoiceSettings || (isDesktop && isTraceOpen);
 
     return (
-        <div className="relative min-h-screen bg-surface-snow flex flex-col font-body selection:bg-mediloon-100 overflow-x-hidden">
+        <div className="ambient-canvas fixed inset-0 overflow-hidden flex flex-col font-body selection:bg-mediloon-200">
+            {/* Ambient Animated Orbs */}
+            <div className="ambient-orb bg-indigo-300 w-[600px] h-[600px] top-[-100px] left-[-100px] animate-orb-float-1" />
+            <div className="ambient-orb bg-blue-300 w-[500px] h-[500px] bottom-[-50px] right-[-50px] animate-orb-float-2" />
+            <div className="ambient-orb bg-violet-300 w-[700px] h-[700px] top-[20%] right-[30%] animate-orb-float-3" />
 
             {/* ═══════════════════════════════════
-                1. HEADER — Glassmorphic with red accent
-               ═══════════════════════════════════ */}
-            <header className={`sticky top-0 z-40 transition-all duration-300 ${liveMode ? 'opacity-0 -translate-y-full' : 'opacity-100'}`}>
-                {/* Red accent line */}
-                <div className="h-1 bg-gradient-to-r from-mediloon-500 via-mediloon-600 to-mediloon-500" />
-                <div className="bg-white/90 backdrop-blur-xl border-b border-surface-fog/50">
-                    <div className="max-w-[95rem] mx-auto px-3 md:px-5 h-14 md:h-16 flex items-center justify-between">
-                        {/* Logo */}
-                        <img
-                            src="/mediloon-logo.webp"
-                            alt="Mediloon Logo"
-                            className="w-32 h-32 md:w-40 md:h-40 object-contain ml-1 md:ml-2 pointer-events-none"
-                        />
+                 1. FLOATING HEADER — Apple Glass
+                ═══════════════════════════════════ */}
+            <header className={`fixed top-4 left-4 right-4 md:left-1/2 md:-translate-x-1/2 md:w-full md:max-w-4xl z-50 transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] ${liveMode ? 'opacity-0 -translate-y-full' : 'opacity-100'}`}>
+                <div className="bg-white/60 backdrop-blur-3xl border border-white/50 shadow-apple-lg rounded-[2rem] px-4 md:px-6 h-14 md:h-16 flex items-center justify-between">
+                    <div className="max-w-[95rem] mx-auto px-3 md:px-6 h-12 md:h-14 flex items-center justify-between">
+                        {/* Logo + Tagline */}
+                        <div className="flex items-center gap-2.5 md:gap-3">
+                            <div className="w-8 h-8 md:w-9 md:h-9 bg-mediloon-600 rounded-[10px] flex items-center justify-center">
+                                <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                                </svg>
+                            </div>
+                            <div>
+                                <h1 className="text-base md:text-lg font-brand font-bold tracking-[-0.02em] leading-none">
+                                    <span className="text-mediloon-600">Med</span><span className="text-ink-primary">Aura</span>
+                                </h1>
+                                <p className="text-[9px] md:text-[10px] font-brand font-medium text-ink-faint uppercase tracking-[0.12em] leading-none mt-0.5">AI Voice Pharmacy</p>
+                            </div>
+                        </div>
 
                         {/* Nav Actions */}
-                        <div className="flex items-center gap-1 md:gap-2">
-                            {/* Language Selector */}
+                        <div className="flex items-center gap-0.5 md:gap-1.5">
                             <LanguageSelector />
 
-                            {/* Search */}
                             <button
                                 onClick={() => setShowSearch(true)}
-                                className="p-2.5 text-ink-muted hover:text-mediloon-600 hover:bg-mediloon-50 rounded-xl transition-all duration-200 active:scale-95"
+                                className="p-2 text-ink-muted hover:text-mediloon-600 hover:bg-mediloon-50 rounded-lg transition-all duration-200 active:scale-95"
                                 title={t('searchMedicines')}
                             >
-                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                                <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
                             </button>
 
-                            {/* Voice Settings */}
                             <button
                                 onClick={() => setShowVoiceSettings(true)}
-                                className="p-2.5 text-ink-muted hover:text-mediloon-600 hover:bg-mediloon-50 rounded-xl transition-all duration-200 active:scale-95"
+                                className="p-2 text-ink-muted hover:text-mediloon-600 hover:bg-mediloon-50 rounded-lg transition-all duration-200 active:scale-95"
                                 title={t('voiceSettings')}
                             >
-                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                                 </svg>
                             </button>
 
+                            {/* Voice Mode CTA — clean pill */}
+                            <button
+                                onClick={toggleLiveMode}
+                                className={`hidden md:flex items-center gap-2 px-4 py-2 rounded-full font-brand font-semibold text-xs transition-all duration-200 ${liveMode
+                                    ? 'bg-mediloon-600 text-white shadow-glow-red'
+                                    : 'bg-mediloon-600 text-white hover:bg-mediloon-700 active:scale-[0.97]'}`}
+                            >
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
+                                {liveMode ? 'Voice On' : 'Voice Mode'}
+                                {!liveMode && <span className="relative flex h-1.5 w-1.5"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white/60 opacity-75"></span><span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-white"></span></span>}
+                            </button>
+
                             {/* Admin Toggle */}
-                            <div className="hidden md:flex bg-surface-cloud rounded-full p-1 border border-surface-fog">
-                                <button onClick={() => setViewMode('user')} className={`px-4 py-1.5 rounded-full text-xs font-brand font-semibold transition-all duration-200 ${viewMode === 'user' ? 'bg-white shadow-sm text-ink-primary' : 'text-ink-muted hover:text-ink-primary'}`}>{t('user')}</button>
-                                <button onClick={() => setViewMode('admin')} className={`px-4 py-1.5 rounded-full text-xs font-brand font-semibold transition-all duration-200 ${viewMode === 'admin' ? 'bg-white shadow-sm text-ink-primary' : 'text-ink-muted hover:text-ink-primary'}`}>{t('admin')}</button>
+                            <div className="hidden md:flex bg-surface-cloud rounded-full p-0.5 ml-1">
+                                <button onClick={() => setViewMode('user')} className={`px-3.5 py-1.5 rounded-full text-xs font-brand font-medium transition-all duration-200 ${viewMode === 'user' ? 'bg-white shadow-sm text-ink-primary' : 'text-ink-muted hover:text-ink-primary'}`}>{t('user')}</button>
+                                <button onClick={() => setViewMode('admin')} className={`px-3.5 py-1.5 rounded-full text-xs font-brand font-medium transition-all duration-200 ${viewMode === 'admin' ? 'bg-white shadow-sm text-ink-primary' : 'text-ink-muted hover:text-ink-primary'}`}>{t('admin')}</button>
                             </div>
 
                             {/* Auth Section */}
                             {user ? (
-                                <div className="flex items-center gap-2 pl-3 ml-1 border-l border-surface-fog">
-                                    <button onClick={() => setShowProfileModal(true)} className="p-2 text-ink-muted hover:text-mediloon-600 hover:bg-mediloon-50 rounded-xl transition-all duration-200" title={t('editProfile')}>
-                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                                <div className="flex items-center gap-2 pl-2.5 ml-1.5 border-l border-black/[0.06]">
+                                    <button onClick={() => setShowProfileModal(true)} className="p-2 text-ink-muted hover:text-mediloon-600 hover:bg-mediloon-50 rounded-lg transition-all duration-200" title={t('editProfile')}>
+                                        <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
                                     </button>
-                                    <span className="text-sm font-brand font-semibold text-ink-secondary hidden sm:block">{user.name.split(' ')[0]}</span>
-                                    <button onClick={handleLogout} className="text-xs font-brand font-semibold text-mediloon-500 hover:text-mediloon-700 hover:underline ml-1 transition-colors">{t('logout')}</button>
+                                    <span className="text-sm font-brand font-medium text-ink-secondary hidden sm:block">{user.name.split(' ')[0]}</span>
+                                    <button onClick={handleLogout} className="text-xs font-brand font-medium text-ink-muted hover:text-mediloon-600 ml-1 transition-colors">{t('logout')}</button>
                                 </div>
                             ) : (
-                                <button onClick={() => setShowLogin(true)} className="btn-primary ml-1 md:ml-2 text-xs md:text-sm py-1.5 px-3 md:py-2 md:px-5">{t('signIn')}</button>
+                                <button onClick={() => setShowLogin(true)} className="btn-primary ml-1 md:ml-2 text-xs py-1.5 px-4">{t('signIn')}</button>
                             )}
                         </div>
                     </div>
@@ -915,247 +978,319 @@ export default function App() {
             </header>
 
             {/* ═══════════════════════════════════
-                2. MAIN LAYOUT — 3 Column Grid
+                2. AMBIENT LAYOUT — Floating Streams
                ═══════════════════════════════════ */}
-            <main className={`max-w-[98rem] mx-auto w-full px-2 py-2 md:px-4 md:py-3 grid grid-cols-1 lg:grid-cols-[340px_1fr_380px] gap-3 md:gap-4 transition-all duration-500 h-[calc(100vh-[3.5rem])] md:h-[calc(100vh-[4rem])] lg:h-[calc(100vh-5.25rem)] overflow-y-auto lg:overflow-hidden ${liveMode && !isAnyModalOpen ? 'blur-md scale-95 opacity-50 pointer-events-none' : ''}`}>
+            <main className={`relative w-full h-[calc(100vh)] overflow-hidden transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] ${liveMode && !isAnyModalOpen ? 'blur-xl scale-95 opacity-40 pointer-events-none' : ''}`}>
 
-                {/* ─── LEFT COLUMN: Trace ─── */}
-                <aside className={`flex flex-col gap-3 order-2 lg:order-1 lg:h-full`}>
-                    <div className="flex-1 flex flex-col gap-3 min-h-0">
-                        <TracePanel
-                            trace={trace}
-                            latency={latency}
-                            traceUrl={traceUrl}
-                            traceId={traceId}
-                            externalOpen={isTraceOpen}
-                            onExternalClose={() => setTraceOpen(false)}
-                            isVoiceMode={liveMode}
-                            modalEpoch={modalEpoch}
-                        />
-
-                        {/* AI Timeline moved to PastOrdersModal */}
-                    </div>
-                </aside>
-
-
-                {/* ─── CENTER COLUMN: Chat Interface ─── */}
-                <section className="flex flex-col gap-3 order-1 lg:order-2 lg:h-full min-h-0 overflow-hidden">
-
-                    {/* Feature Highlights (removed to favor the new inline boxes) */}
-
-
-
-                    {/* Prescription Upload Button — Refined */}
-                    <button
-                        onClick={() => document.getElementById('prescription-upload-input').click()}
-                        className="w-full p-3.5 bg-white border-2 border-dashed border-mediloon-200 rounded-2xl text-mediloon-600 font-brand font-bold flex items-center justify-center gap-3 transition-all duration-200 hover:border-mediloon-400 hover:bg-mediloon-50 hover:shadow-glow-red-sm active:scale-[0.98] group"
-                    >
-                        <div className="w-9 h-9 bg-mediloon-100 rounded-xl flex items-center justify-center group-hover:bg-mediloon-200 transition-colors">
-                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                        </div>
-                        <span className="text-sm">{t('uploadPrescription')}</span>
-                        <span className="feature-badge-red text-[10px] ml-auto">{t('new')}</span>
-                    </button>
-                    <input
-                        type="file"
-                        id="prescription-upload-input"
-                        className="hidden"
-                        accept="image/*,.pdf"
-                        onChange={(e) => handleFileUpload(e.target.files[0])}
-                        disabled={isLoading}
-                    />
-
-                    {/* Chat Container */}
-                    <div className="flex-1 min-h-0 glass-card-solid flex flex-col overflow-hidden relative">
-                        {/* Chat Messages */}
-                        <div className="flex-1 overflow-y-auto p-3 md:p-6 space-y-4 md:space-y-5 scroll-smooth">
-                            {messages.length <= 1 && (
-                                <div className="flex flex-col gap-4 mb-6 w-full max-w-2xl mx-auto mt-4">
-                                    <div className="text-center mb-2 animate-fade-in-up" style={{ animationDelay: '0.1s', animationFillMode: 'both' }}>
-                                        <h3 className="text-[28px] font-brand font-bold text-gray-800 mb-1 tracking-tight">How can I help you?</h3>
-                                        <p className="text-[15px] font-body text-gray-500 font-medium">Type a message or tap the microphone to start</p>
-                                    </div>
-
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                        <div className="glass-card flex flex-col items-center text-center p-5 hover-lift hover:border-red-200 hover:shadow-lg transition-all duration-300 animate-fade-in-up group" style={{ animationDelay: '0.2s', animationFillMode: 'both' }}>
-                                            <div className="w-12 h-12 rounded-2xl bg-red-50 text-red-500 flex items-center justify-center shadow-inner mb-3 group-hover:bg-red-500 group-hover:text-white transition-colors duration-300">
-                                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
-                                            </div>
-                                            <h4 className="text-gray-800 font-brand font-bold text-lg mb-1.5 tracking-tight">Voice Ordering</h4>
-                                            <p className="text-gray-500 text-[13px] font-body leading-snug">Just speak naturally — our AI understands medicines in any language</p>
-                                        </div>
-
-                                        <div className="glass-card flex flex-col items-center text-center p-5 hover-lift hover:border-blue-200 hover:shadow-lg transition-all duration-300 animate-fade-in-up group" style={{ animationDelay: '0.3s', animationFillMode: 'both' }}>
-                                            <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-500 flex items-center justify-center shadow-inner mb-3 group-hover:bg-blue-500 group-hover:text-white transition-colors duration-300">
-                                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-                                            </div>
-                                            <h4 className="text-gray-800 font-brand font-bold text-lg mb-1.5 tracking-tight">Smart Refills</h4>
-                                            <p className="text-gray-500 text-[13px] font-body leading-snug">AI predicts when you'll run out and reminds you to reorder</p>
-                                        </div>
-
-                                        <div className="glass-card flex flex-col items-center text-center p-5 hover-lift hover:border-emerald-200 hover:shadow-lg transition-all duration-300 animate-fade-in-up group" style={{ animationDelay: '0.4s', animationFillMode: 'both' }}>
-                                            <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-500 flex items-center justify-center shadow-inner mb-3 group-hover:bg-emerald-500 group-hover:text-white transition-colors duration-300">
-                                                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                                            </div>
-                                            <h4 className="text-gray-800 font-brand font-bold text-lg mb-1.5 tracking-tight">Prescription OCR</h4>
-                                            <p className="text-gray-500 text-[13px] font-body leading-snug">Snap a photo of your prescription and we'll handle the rest</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                            {messages.map((msg) => (
-                                <ChatMessage key={msg.id} message={msg.text} isUser={msg.isUser} latency={msg.latency} />
-                            ))}
-                            {isLoading && <ChatMessage isLoading />}
-                            <div ref={messagesEndRef} />
-                        </div>
-
-                        {/* Input Area */}
-                        <div className="p-2 md:p-4 bg-white/80 backdrop-blur-sm border-t border-surface-fog/50">
-                            {candidates.length > 0 && (
-                                <div className="mb-4">
-                                    <ResultsList
-                                        candidates={candidates}
-                                        onSelect={(med) => { setSelectedMedId(med.id); handleDirectAddToCart(med); }}
-                                        selectedId={selectedMedId}
-                                        onFlyToCart={handleFlyToCart}
-                                    />
-                                </div>
-                            )}
-                            <div className="flex items-center gap-3">
-                                {/* ★ Unique Voice Mode Button — Mic with waveform bars */}
-                                <button
-                                    onClick={toggleLiveMode}
-                                    disabled={isLoading}
-                                    className={`relative flex-shrink-0 group p-2 -m-2 lg:p-3 lg:-m-3 rounded-[1.4rem] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mediloon-300 focus-visible:ring-offset-2 transition-all duration-300 ${liveMode ? 'scale-110' : 'hover:scale-105'}`}
-                                    title={t('enterVoiceMode')}
-                                >
-                                    {/* Glow rings */}
-                                    <div className={`absolute inset-0 rounded-2xl bg-mediloon-500/15 transition-all duration-500 ${liveMode ? 'scale-[1.8] animate-ping opacity-30' : 'scale-125 opacity-0 group-hover:opacity-40 group-hover:scale-[1.6]'}`} />
-
-                                    {/* Button body — pill with mic + waveform */}
-                                    <div className={`relative h-12 px-3 lg:h-14 lg:px-4 rounded-2xl flex items-center gap-2.5 shadow-lg transition-all duration-300 ${liveMode
-                                        ? 'bg-gradient-to-r from-mediloon-600 to-mediloon-700 shadow-mediloon-300 shadow-xl'
-                                        : 'bg-gradient-to-r from-mediloon-500 to-mediloon-600 shadow-mediloon-200 group-hover:shadow-xl group-hover:shadow-mediloon-300'}`}>
-                                        {/* Mic icon */}
-                                        <svg className="w-5 h-5 text-white flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                                        </svg>
-
-                                        {/* Animated waveform bars */}
-                                        <div className="flex items-center gap-[2px] h-6">
-                                            {[0.6, 1, 0.4, 0.8, 0.5, 0.9, 0.3].map((h, i) => (
-                                                <div key={i}
-                                                    className={`w-[3px] rounded-full bg-white/80 transition-all duration-300 ${liveMode ? 'animate-bounce' : ''}`}
-                                                    style={{
-                                                        height: `${h * 100}%`,
-                                                        animationDelay: `${i * 80}ms`,
-                                                        animationDuration: liveMode ? '0.5s' : '1s',
-                                                        ...(liveMode ? {} : { animation: `waveIdle ${0.8 + i * 0.15}s ease-in-out infinite alternate`, animationDelay: `${i * 0.1}s` })
-                                                    }}
-                                                />
-                                            ))}
-                                        </div>
-                                    </div>
-                                </button>
-                                <div className="flex-1 min-w-0">
-                                    <TextInput onSend={handleSend} onUpload={handleFileUpload} disabled={isLoading} placeholder={t('typeMessage')} />
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </section>
-
-
-                {/* ─── RIGHT COLUMN: Cart, Updates, Past Orders ─── */}
-                <aside className={`flex flex-col gap-3 order-3 lg:h-full overflow-y-auto ${!user ? 'justify-start' : ''}  `}>
-
-                    {/* Past Orders — Now prominent */}
-                    {user && (
-                        <div className="flex-shrink-0 animate-fade-in-up">
-                            <PastOrdersModal
-                                orders={recentOrders}
-                                activeOrders={orderUpdates}
-                                timeline={refillTimeline}
-                                stats={refillStats}
-                                consumption={refillConsumption}
-                                loading={refillLoading}
-                                onReorder={(item) => handleSend(`Reorder ${item.brand_name}`)}
-                                externalOpen={isOrdersOpen}
-                                onExternalClose={() => setOrdersOpen(false)}
+                {/* ─── LEFT FLOATING WIDGET (Desktop Only) ─── */}
+                {isDesktop && (
+                    <aside className="fixed left-6 top-24 bottom-28 w-[340px] z-30 flex flex-col gap-4 overflow-y-auto scrollbar-hide pointer-events-auto">
+                        <div className="flex-shrink-0">
+                            <TracePanel
+                                trace={trace}
+                                latency={latency}
+                                traceUrl={traceUrl}
+                                traceId={traceId}
+                                externalOpen={isTraceOpen}
+                                onExternalClose={() => setTraceOpen(false)}
                                 isVoiceMode={liveMode}
                                 modalEpoch={modalEpoch}
                             />
                         </div>
-                    )}
 
-                    {/* Past Orders for non-logged-in users — prompt to sign in */}
-                    {!user && (
-                        <button
-                            onClick={() => setShowLogin(true)}
-                            className="w-full flex items-center gap-3 p-3.5 bg-white border border-surface-fog rounded-2xl shadow-sm hover:shadow-md hover:border-mediloon-200 transition-all duration-200 group"
-                        >
-                            <div className="w-9 h-9 bg-mediloon-50 rounded-xl flex items-center justify-center group-hover:bg-mediloon-100 transition-colors">
-                                <svg className="w-5 h-5 text-mediloon-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        {/* Updates & Insights */}
+                        {user && (
+                            <div className="glass-card-solid p-4 border border-mediloon-100 animate-fade-in-up hover:shadow-lift transition-all duration-300">
+                                <div className="flex items-center justify-between mb-3">
+                                    <h3 className="font-brand font-bold text-ink-primary flex items-center gap-2 text-sm">
+                                        <span className="relative flex h-3 w-3">
+                                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-mediloon-400 opacity-75"></span>
+                                            <span className="relative inline-flex rounded-full h-3 w-3 bg-mediloon-500"></span>
+                                        </span>
+                                        {t('updatesInsights')}
+                                    </h3>
+                                </div>
+                                <div className="bg-surface-snow rounded-2xl p-1">
+                                    <UpdatesModal
+                                        alerts={refillAlerts}
+                                        timeline={refillTimeline}
+                                        orders={orderUpdates}
+                                        loading={refillLoading}
+                                        onInitiateOrder={(text) => handleSend(text)}
+                                        inline={true}
+                                        modalEpoch={modalEpoch}
+                                    />
+                                </div>
+                                {refillStats && (
+                                    <div className="mt-3 grid grid-cols-2 gap-2 text-center">
+                                        <div className="bg-mediloon-50 rounded-xl p-2.5 border border-mediloon-100">
+                                            <p className="text-xl font-brand font-extrabold text-mediloon-600">{refillStats.upcoming_refills}</p>
+                                            <p className="text-[10px] text-mediloon-700 font-brand font-semibold uppercase tracking-wider">{t('dueSoon')}</p>
+                                        </div>
+                                        <div className="bg-mediloon-50 rounded-xl p-2.5 border border-mediloon-100">
+                                            <p className="text-xl font-brand font-extrabold text-mediloon-600">{refillStats.avg_adherence}%</p>
+                                            <p className="text-[10px] text-mediloon-700 font-brand font-semibold uppercase tracking-wider">{t('adherence')}</p>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
-                            <div className="text-left">
-                                <p className="text-sm font-brand font-bold text-ink-primary">{t('myOrders')}</p>
-                                <p className="text-[10px] text-ink-faint">{t('signInToView')}</p>
-                            </div>
-                            <svg className="w-4 h-4 text-ink-faint ml-auto group-hover:text-mediloon-500 group-hover:translate-x-0.5 transition-all" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
-                        </button>
-                    )}
+                        )}
 
-                    {/* Cart */}
-                    <div className="flex-shrink-0" ref={cartRef}>
-                        <Cart
-                            cart={cart}
-                            sessionId={sessionId}
-                            onRemove={handleRemoveCartItem}
-                            onCheckout={handleCheckoutFlow}
-                            onClear={handleClearCart}
-                            onCartUpdate={handleCartUpdate}
+                        {/* ─── Creator Contact Card ─── */}
+                        <div className="creator-card group mt-auto flex-shrink-0">
+                            {/* Animated gradient border */}
+                            <div className="creator-card-border" />
+                            <div className="relative bg-white rounded-[1.3rem] p-4 z-10">
+                                {/* Header row */}
+                                <div className="flex items-center gap-3 mb-3">
+                                    <div className="w-10 h-10 bg-mediloon-600 rounded-full flex items-center justify-center text-white font-brand font-bold text-sm group-hover:scale-110 transition-transform duration-500">
+                                        PD
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="font-brand font-bold text-ink-primary text-sm leading-tight">Pranav Dhiran</p>
+                                        <p className="text-[10px] text-ink-faint font-brand font-semibold uppercase tracking-wider">Creator & AI Engineer</p>
+                                    </div>
+                                    {/* Floating particles */}
+                                    <div className="creator-particles">
+                                        <span /><span /><span />
+                                    </div>
+                                </div>
+
+                                {/* Contact links */}
+                                <div className="grid grid-cols-2 gap-1.5">
+                                    <a href="tel:+918999629839" className="creator-link group/link" title="Call">
+                                        <svg className="w-3.5 h-3.5 text-mediloon-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+                                        <span className="text-[10px] font-brand font-semibold text-ink-secondary group-hover/link:text-mediloon-600">+91-8999629839</span>
+                                    </a>
+                                    <a href="mailto:2023bec105@sggs.ac.in" className="creator-link group/link" title="Email">
+                                        <svg className="w-3.5 h-3.5 text-mediloon-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                                        <span className="text-[10px] font-brand font-semibold text-ink-secondary group-hover/link:text-mediloon-600 truncate">Email</span>
+                                    </a>
+                                    <a href="https://linkedin.com/in/prannav-dhiran" target="_blank" rel="noopener noreferrer" className="creator-link group/link" title="LinkedIn">
+                                        <svg className="w-3.5 h-3.5 text-blue-600" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452z" /></svg>
+                                        <span className="text-[10px] font-brand font-semibold text-ink-secondary group-hover/link:text-blue-600">LinkedIn</span>
+                                    </a>
+                                    <a href="https://github.com/Pranav-d33" target="_blank" rel="noopener noreferrer" className="creator-link group/link" title="GitHub">
+                                        <svg className="w-3.5 h-3.5 text-ink-primary" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z" /></svg>
+                                        <span className="text-[10px] font-brand font-semibold text-ink-secondary group-hover/link:text-ink-primary">GitHub</span>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </aside>
+                )}
+
+                {/* ─── CENTER CHAT STREAM ─── */}
+                <section className="absolute inset-0 z-20 flex flex-col lg:px-[400px] overflow-hidden">
+                    <div className="flex-1 w-full max-w-3xl mx-auto h-full overflow-y-auto pt-28 pb-40 px-4 md:px-8 scroll-smooth scrollbar-hide mask-gradient-to-b flex flex-col">
+
+                        {/* Feature Highlights (removed to favor the new inline boxes) */}
+
+
+
+                        {/* System Active & Prescription Actions Combined */}
+                        <div className="w-full bg-white border border-mediloon-100 rounded-2xl shadow-sm p-3 mb-2 flex items-center justify-between gap-4 relative overflow-hidden group hover:border-mediloon-200 transition-colors">
+                            {/* Ambient Glow */}
+                            <div className="absolute -left-10 -top-10 w-32 h-32 bg-mediloon-100/30 rounded-full blur-3xl group-hover:bg-mediloon-100/50 transition-colors pointer-events-none" />
+
+                            {/* Left Side: System Active Orb & Text */}
+                            <div className="flex items-center gap-3 relative z-10 pl-2">
+                                <div className="relative w-10 h-10 flex flex-shrink-0 items-center justify-center">
+                                    {/* Outer rings */}
+                                    <div className="absolute inset-0 rounded-full border border-mediloon-500/20 scale-100 group-hover:scale-110 transition-transform duration-700" />
+                                    <div className="absolute inset-0 rounded-full border border-mediloon-500/10 scale-75 group-hover:scale-90 transition-transform duration-700 delay-75" />
+                                    {/* Inner pulse */}
+                                    <div className="w-2.5 h-2.5 rounded-full bg-mediloon-500 animate-[pulse_2s_ease-in-out_infinite] shadow-[0_0_15px_rgba(239,68,68,0.5)]" />
+                                </div>
+                                <div className="flex flex-col">
+                                    <span className="text-[11px] font-brand tracking-[0.15em] text-mediloon-600 font-bold uppercase leading-tight">{t('systemActive')}</span>
+                                    <span className="text-[10px] font-body text-ink-muted leading-tight">Ready to assist</span>
+                                </div>
+                            </div>
+
+                            {/* Right Side: Prescription Options */}
+                            <div className="flex items-center gap-2 relative z-10">
+                                <button
+                                    onClick={openStartWithPrescription}
+                                    disabled={isLoading}
+                                    className="px-3 py-2 bg-mediloon-50 hover:bg-mediloon-100 text-mediloon-700 rounded-xl text-xs font-brand font-semibold flex items-center gap-1.5 transition-colors active:scale-95 disabled:opacity-50"
+                                >
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                    <span>{t('startWithPrescription')}</span>
+                                    <span className="bg-red-500 text-white text-[9px] px-1 rounded uppercase min-w-max ml-0.5">{t('new')}</span>
+                                </button>
+                                <button
+                                    onClick={openAddPrescription}
+                                    disabled={isLoading}
+                                    className="px-3 py-2 bg-mediloon-50 hover:bg-mediloon-100 text-mediloon-700 rounded-xl text-xs font-brand font-semibold flex items-center gap-1.5 transition-colors active:scale-95 disabled:opacity-50"
+                                >
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 7a2 2 0 012-2h2l1.5-1.5A2 2 0 0110 3h4a2 2 0 011.5.5L17 5h2a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" /><circle cx="12" cy="12" r="3" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                                    <span className="hidden sm:inline">{t('addPrescription')}</span>
+                                    <span className="sm:hidden">Add Rx</span>
+                                </button>
+                            </div>
+                        </div>
+                        <input
+                            type="file"
+                            id="prescription-upload-input"
+                            className="hidden"
+                            accept="image/*,.pdf"
+                            onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) handleFileUpload(file);
+                                e.target.value = '';
+                            }}
+                            disabled={isLoading}
                         />
-                    </div>
+                        <input
+                            type="file"
+                            id="prescription-camera-input"
+                            ref={cameraInputRef}
+                            className="hidden"
+                            accept="image/*"
+                            capture="environment"
+                            onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) handleFileUpload(file);
+                                e.target.value = '';
+                            }}
+                            disabled={isLoading}
+                        />
 
-                    {/* Updates & Insights */}
-                    {user && (
-                        <div className="mt-auto glass-card-solid p-4 border border-mediloon-100 animate-fade-in-up hover:shadow-lift transition-all duration-300">
-                            <div className="flex items-center justify-between mb-3">
-                                <h3 className="font-brand font-bold text-ink-primary flex items-center gap-2 text-sm">
-                                    <span className="relative flex h-3 w-3">
-                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-mediloon-400 opacity-75"></span>
-                                        <span className="relative inline-flex rounded-full h-3 w-3 bg-mediloon-500"></span>
-                                    </span>
-                                    {t('updatesInsights')}
-                                </h3>
+                        {/* Chat Messages */}
+                        {messages.length <= 1 && (
+                            <div className="flex flex-col gap-6 lg:gap-8 mb-8 w-full max-w-4xl mx-auto mt-8 lg:mt-16">
+                                <div className="text-center mb-4 animate-fade-in-up" style={{ animationDelay: '0.1s', animationFillMode: 'both' }}>
+                                    <h3 className="text-4xl lg:text-[3.2rem] font-brand font-bold text-ink-primary mb-3 tracking-[-0.03em] leading-tight">
+                                        Good {new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 18 ? 'afternoon' : 'evening'}
+                                        {user ? `, ${user.name.split(' ')[0]}` : ''}.
+                                    </h3>
+                                    <p className="text-[17px] font-body text-ink-secondary">How can MedAura assist you today?</p>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-6 px-2">
+                                    <div className="bg-white/60 backdrop-blur-2xl border border-white/50 rounded-3xl p-6 lg:p-7 shadow-apple-lg hover:shadow-apple-xl transition-all duration-400 ease-[cubic-bezier(0.16,1,0.3,1)] animate-fade-in-up group cursor-pointer hover:-translate-y-1" style={{ animationDelay: '0.2s', animationFillMode: 'both' }}>
+                                        <div className="w-12 h-12 rounded-2xl bg-indigo-50/80 text-indigo-600 flex items-center justify-center mb-4 group-hover:bg-indigo-600 group-hover:text-white transition-colors duration-400 shadow-sm border border-indigo-100/50">
+                                            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
+                                        </div>
+                                        <h4 className="text-ink-primary font-brand font-bold text-[17px] mb-1.5 tracking-[-0.01em]">Voice Ordering</h4>
+                                        <p className="text-ink-muted text-[14px] font-body leading-relaxed">Speak naturally — our AI understands medicines in any language.</p>
+                                    </div>
+
+                                    <div className="bg-white/60 backdrop-blur-2xl border border-white/50 rounded-3xl p-6 lg:p-7 shadow-apple-lg hover:shadow-apple-xl transition-all duration-400 ease-[cubic-bezier(0.16,1,0.3,1)] animate-fade-in-up group cursor-pointer hover:-translate-y-1" style={{ animationDelay: '0.3s', animationFillMode: 'both' }}>
+                                        <div className="w-12 h-12 rounded-2xl bg-blue-50/80 text-blue-600 flex items-center justify-center mb-4 group-hover:bg-blue-600 group-hover:text-white transition-colors duration-400 shadow-sm border border-blue-100/50">
+                                            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                                        </div>
+                                        <h4 className="text-ink-primary font-brand font-bold text-[17px] mb-1.5 tracking-[-0.01em]">Smart Refills</h4>
+                                        <p className="text-ink-muted text-[14px] font-body leading-relaxed">AI predicts when you'll run out and reminds you to reorder.</p>
+                                    </div>
+
+                                    <div className="bg-white/60 backdrop-blur-2xl border border-white/50 rounded-3xl p-6 lg:p-7 shadow-apple-lg hover:shadow-apple-xl transition-all duration-400 ease-[cubic-bezier(0.16,1,0.3,1)] animate-fade-in-up group cursor-pointer hover:-translate-y-1" style={{ animationDelay: '0.4s', animationFillMode: 'both' }} onClick={openAddPrescription}>
+                                        <div className="w-12 h-12 rounded-2xl bg-violet-50/80 text-violet-600 flex items-center justify-center mb-4 group-hover:bg-violet-600 group-hover:text-white transition-colors duration-400 shadow-sm border border-violet-100/50">
+                                            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                        </div>
+                                        <h4 className="text-ink-primary font-brand font-bold text-[17px] mb-1.5 tracking-[-0.01em]">Prescription OCR</h4>
+                                        <p className="text-ink-muted text-[14px] font-body leading-relaxed">Snap a photo of your prescription and we'll extract the medicines.</p>
+                                    </div>
+                                </div>
                             </div>
-                            <div className="bg-surface-snow rounded-2xl p-1">
-                                <UpdatesModal
-                                    alerts={refillAlerts}
+                        )}
+                        {messages.map((msg) => (
+                            <ChatMessage key={msg.id} message={msg.text} isUser={msg.isUser} latency={msg.latency} />
+                        ))}
+                        {isLoading && <ChatMessage isLoading />}
+                        <div ref={messagesEndRef} className="h-4" />
+                    </div>
+                </section>
+
+                {/* ─── DYNAMIC DOCK (Input Area) ─── */}
+                <div className={`fixed bottom-6 left-4 right-4 md:left-1/2 md:-translate-x-1/2 md:w-full md:max-w-2xl z-40 pointer-events-auto transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] ${liveMode ? 'opacity-0 translate-y-[150%]' : 'opacity-100 translate-y-0'}`}>
+                    <div className="dynamic-dock rounded-[2.5rem] p-2 md:p-3 flex flex-col">
+                        {candidates.length > 0 && (
+                            <div className="mb-3 px-2">
+                                <ResultsList
+                                    candidates={candidates}
+                                    onSelect={(med) => { setSelectedMedId(med.id); handleDirectAddToCart(med); }}
+                                    selectedId={selectedMedId}
+                                    onFlyToCart={handleFlyToCart}
+                                />
+                            </div>
+                        )}
+                        <div className="flex items-center gap-2 md:gap-3">
+                            {/* Voice Mode Button — Dynamic Island orb */}
+                            <button
+                                onClick={toggleLiveMode}
+                                disabled={isLoading}
+                                className={`relative flex-shrink-0 group p-2 rounded-[2rem] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300 transition-all duration-300 ${liveMode ? 'scale-105' : 'hover:scale-105 active:scale-95'}`}
+                                title={t('enterVoiceMode')}
+                            >
+                                <div className="relative h-12 w-12 lg:h-14 lg:w-14 rounded-full flex items-center justify-center bg-gradient-to-tr from-indigo-500 via-blue-500 to-cyan-400 shadow-apple-lg hover:shadow-apple-xl transition-all duration-300 overflow-hidden">
+                                    <div className="absolute inset-0 bg-white/20 mix-blend-overlay group-hover:opacity-100 opacity-0 transition-opacity" />
+                                    <svg className="w-5 h-5 text-white flex-shrink-0 relative z-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                                    </svg>
+                                </div>
+                            </button>
+                            <div className="flex-1 min-w-0 pr-2">
+                                <TextInput onSend={handleSend} onUpload={handleFileUpload} disabled={isLoading} placeholder="Ask anything or search medicines..." />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* ─── RIGHT FLOATING WIDGET (Desktop Only) ─── */}
+                {isDesktop && (
+                    <aside className="fixed right-6 top-24 bottom-28 w-[380px] z-30 flex flex-col gap-4 overflow-y-auto scrollbar-hide pointer-events-auto">
+
+                        {/* Past Orders — Now prominent */}
+                        {user && (
+                            <div className="flex-shrink-0 animate-fade-in-up">
+                                <PastOrdersModal
+                                    orders={recentOrders}
+                                    activeOrders={orderUpdates}
                                     timeline={refillTimeline}
-                                    orders={orderUpdates}
+                                    stats={refillStats}
+                                    consumption={refillConsumption}
                                     loading={refillLoading}
-                                    onInitiateOrder={(text) => handleSend(text)}
-                                    inline={true}
+                                    onReorder={(item) => handleSend(`Reorder ${item.brand_name}`)}
+                                    externalOpen={isOrdersOpen}
+                                    onExternalClose={() => setOrdersOpen(false)}
+                                    isVoiceMode={liveMode}
                                     modalEpoch={modalEpoch}
                                 />
                             </div>
-                            {refillStats && (
-                                <div className="mt-3 grid grid-cols-2 gap-2 text-center">
-                                    <div className="bg-mediloon-50 rounded-xl p-2.5 border border-mediloon-100">
-                                        <p className="text-xl font-brand font-extrabold text-mediloon-600">{refillStats.upcoming_refills}</p>
-                                        <p className="text-[10px] text-mediloon-700 font-brand font-semibold uppercase tracking-wider">{t('dueSoon')}</p>
-                                    </div>
-                                    <div className="bg-mediloon-50 rounded-xl p-2.5 border border-mediloon-100">
-                                        <p className="text-xl font-brand font-extrabold text-mediloon-600">{refillStats.avg_adherence}%</p>
-                                        <p className="text-[10px] text-mediloon-700 font-brand font-semibold uppercase tracking-wider">{t('adherence')}</p>
-                                    </div>
+                        )}
+
+                        {/* Past Orders for non-logged-in users — prompt to sign in */}
+                        {!user && (
+                            <button
+                                onClick={() => setShowLogin(true)}
+                                className="w-full flex items-center gap-3 p-3 bg-white border border-surface-fog rounded-xl shadow-sm hover:shadow-md hover:border-mediloon-200 transition-all duration-200 group"
+                            >
+                                <div className="w-8 h-8 bg-mediloon-50 rounded-lg flex items-center justify-center group-hover:bg-mediloon-100 transition-colors">
+                                    <svg className="w-4 h-4 text-mediloon-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                                 </div>
-                            )}
+                                <div className="text-left">
+                                    <p className="text-sm font-brand font-bold text-ink-primary">{t('myOrders')}</p>
+                                    <p className="text-[10px] text-ink-faint">{t('signInToView')}</p>
+                                </div>
+                                <svg className="w-4 h-4 text-ink-faint ml-auto group-hover:text-mediloon-500 group-hover:translate-x-0.5 transition-all" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+                            </button>
+                        )}
+
+                        {/* Cart */}
+                        <div className="flex-shrink-0" ref={cartRef}>
+                            <Cart
+                                cart={cart}
+                                sessionId={sessionId}
+                                onRemove={handleRemoveCartItem}
+                                onCheckout={handleCheckoutFlow}
+                                onClear={handleClearCart}
+                                onCartUpdate={handleCartUpdate}
+                            />
                         </div>
-                    )}
-                </aside>
+                    </aside>
+                )}
             </main>
 
             {/* ═══════════════════════════════════
@@ -1181,6 +1316,8 @@ export default function App() {
                 onSelectLanguage={handleLanguageSelect}
                 isAnyModalOpen={isAnyModalOpen}
                 onRetryListening={startListening}
+                onOpenStartWithPrescription={openStartWithPrescription}
+                onOpenAddPrescription={openAddPrescription}
                 onSelectCandidate={(med) => {
                     setSelectedMedId(med.id);
                     handleDirectAddToCart(med);
@@ -1200,6 +1337,7 @@ export default function App() {
 
             {/* Login Modal */}
             {(showLogin || showLoginForCheckout) && <Login onLogin={(data) => {
+                if (!data?.user || !data?.session_token) { console.error('Login returned invalid data:', data); return; }
                 setUser(data.user);
                 setSessionToken(data.session_token);
                 localStorage.setItem('session_token', data.session_token);
@@ -1235,15 +1373,15 @@ export default function App() {
             {/* Voice Intro Popup — Unique Waveform Design */}
             {showVoiceIntroPopup && user && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-md animate-fade-in">
-                    <div className="bg-white rounded-3xl p-8 max-w-md text-center shadow-glass-lg m-4 relative overflow-hidden animate-scale-in">
-                        {/* Top accent gradient */}
-                        <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-mediloon-400 via-mediloon-600 to-mediloon-400" />
+                    <div className="bg-white rounded-2xl p-8 max-w-md text-center shadow-apple-lg m-4 relative overflow-hidden animate-scale-in">
+                        {/* Top accent */}
+                        <div className="absolute top-0 left-0 w-full h-1 bg-mediloon-600" />
 
-                        {/* Animated waveform illustration */}
+                        {/* Animated waveform */}
                         <div className="flex items-end justify-center gap-1 h-16 mb-4 mt-2">
                             {[0.3, 0.5, 0.8, 0.4, 1, 0.6, 0.9, 0.35, 0.7, 0.5, 0.85, 0.4, 0.65].map((h, i) => (
                                 <div key={i}
-                                    className="w-1.5 rounded-full bg-gradient-to-t from-mediloon-500 to-mediloon-300"
+                                    className="w-1.5 rounded-full bg-mediloon-400"
                                     style={{
                                         height: `${h * 100}%`,
                                         animation: `waveIdle ${0.6 + i * 0.12}s ease-in-out infinite alternate`,
@@ -1254,7 +1392,7 @@ export default function App() {
                         </div>
 
                         {/* Mic orb */}
-                        <div className="w-16 h-16 bg-gradient-to-br from-mediloon-500 to-mediloon-700 rounded-full flex items-center justify-center mx-auto mb-5 shadow-lg shadow-mediloon-200 relative">
+                        <div className="w-14 h-14 bg-mediloon-600 rounded-full flex items-center justify-center mx-auto mb-5 relative">
                             <div className="absolute inset-0 rounded-full animate-glow-pulse" />
                             <svg className="w-7 h-7 text-white relative z-10" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
                         </div>
@@ -1288,6 +1426,9 @@ export default function App() {
                 isOpen={isPrescriptionModalOpen}
                 mode={prescriptionMode}
                 onClose={() => setPrescriptionModalOpen(false)}
+                onChooseFile={openPrescriptionFilePicker}
+                onCapturePhoto={openPrescriptionCamera}
+                isLoading={isLoading}
                 isVoiceMode={liveMode}
             />
         </div>

@@ -20,6 +20,7 @@ from agents.safety_agent import check_input_safety, validate_add_to_cart
 from tools.query_tools import (
     lookup_by_indication, vector_search, get_inventory,
     get_rx_flag, get_medication_details, get_tier1_alternatives,
+    suggest_similar_medications,
 )
 from tools.cart_tools import add_to_cart, get_cart, checkout, clear_cart, remove_from_cart
 from tools.trace_tools import log_trace, get_trace
@@ -231,6 +232,18 @@ _L10N = {
         "ar": "سلة التسوق فارغة بالفعل.",
         "hi": "आपका कार्ट पहले से खाली है।",
     },
+    "order_limit_reached": {
+        "en": "Sorry, you've reached the maximum of {max_items} different medicines per order. Would you like to checkout with what's in your cart, or remove an item first?",
+        "de": "Du hast die maximale Anzahl von {max_items} verschiedenen Medikamenten pro Bestellung erreicht. Möchtest du mit dem aktuellen Warenkorb fortfahren oder zuerst einen Artikel entfernen?",
+        "ar": "عذراً، لقد وصلت إلى الحد الأقصى وهو {max_items} أدوية مختلفة لكل طلب. هل تريد إتمام الشراء بما في السلة أو إزالة منتج أولاً؟",
+        "hi": "माफ़ कीजिए, एक ऑर्डर में अधिकतम {max_items} अलग-अलग दवाइयाँ ही ली जा सकती हैं। क्या आप कार्ट में जो है उससे चेकआउट करना चाहेंगे, या पहले कोई आइटम हटाएं?",
+    },
+    "order_units_limit": {
+        "en": "You've reached the order limit. Only {actual} of {qty} unit(s) were added ({product}). Maximum allowed: {max_units} total units per order.",
+        "de": "Du hast das Bestelllimit erreicht. Nur {actual} von {qty} Einheit(en) wurden hinzugefügt ({product}). Maximum: {max_units} Einheiten pro Bestellung.",
+        "ar": "لقد وصلت إلى حد الطلب. تمت إضافة {actual} فقط من {qty} وحدة للمنتج {product}. الحد الأقصى المسموح به: {max_units} وحدة لكل طلب.",
+        "hi": "ऑर्डर लिमिट पहुँच गई है। {product} की {qty} में से सिर्फ {actual} यूनिट जोड़ी गई। प्रति ऑर्डर अधिकतम: {max_units} कुल यूनिट।",
+    },
     "remove_not_found": {
         "en": "I couldn't find that item in your cart. Please tell me the exact item name.",
         "de": "Ich konnte diesen Artikel im Warenkorb nicht finden. Bitte nenne den genauen Namen.",
@@ -430,6 +443,61 @@ def _is_repeat_add_request(text: str | None) -> bool:
         "المزيد", "مرة أخرى", "مره اخرى", "كمان",
     ]
     return any(term in cleaned for term in repeat_terms)
+
+
+def _extract_medicine_query_from_utterance(text: str | None) -> str:
+    """Extract likely medicine query from ordering utterances."""
+    if not text:
+        return ""
+    cleaned = (text or "").strip()
+    if not cleaned:
+        return ""
+
+    import re as _re
+    q = cleaned
+    for pattern in [
+        r'^i\s+want\s+to\s+(order|get|buy)\s+',
+        r'^i\s+need\s+to\s+(order|get|buy)\s+',
+        r'^i\s+(need|want)\s+',
+        r'^(can\s+i|could\s+i|please)\s+(get|have|order)\s+(me\s+)?',
+        r'^(give|get|order|buy)\s+me\s+',
+        r'^(to\s+)?(order|buy|get)\s+',
+        r'^(mujhe|mujhko)\s+',
+        r'^(ich\s+möchte|ich\s+will|bitte)\s+',
+    ]:
+        q = _re.sub(pattern, '', q, flags=_re.IGNORECASE).strip()
+
+    # keep only first line and trim punctuation/spaces
+    q = q.splitlines()[0].strip(" \t\n\r.,!?\"'`“”‘’")
+    return q
+
+
+def _looks_like_order_intent(text: str | None) -> bool:
+    if not text:
+        return False
+    t = (text or "").strip().lower()
+    if not t:
+        return False
+    order_markers = [
+        "order", "buy", "get", "need", "want", "bestellen", "mujhe", "chahiye",
+        "أريد", "اطلب", "طلب",
+    ]
+    return any(m in t for m in order_markers)
+
+
+def _is_not_found_style_message(text: str | None) -> bool:
+    """Detect generic 'not found' wording that can conflict with real results."""
+    if not text:
+        return False
+    t = (text or "").strip().lower()
+    if not t:
+        return False
+    cues = [
+        "couldn't find", "could not find", "not found", "no information",
+        "no medication", "check the spelling", "double-check the spelling",
+        "ich konnte", "nicht finden", "لم أجد", "لا أجد", "नहीं मिला",
+    ]
+    return any(c in t for c in cues)
 
 
 def _extract_candidate_index(text: str | None) -> Optional[int]:
@@ -799,13 +867,13 @@ def _detect_ui_action_intent(user_input: str | None) -> Optional[str]:
         ],
         "open_upload_prescription": [
             # English
-            "upload prescription", "add prescription", "prescription upload",
+            "upload prescription", "add prescription", "start with prescription", "prescription upload", "start prescription",
             # German
-            "rezept hochladen", "verschreibung hochladen",
+            "rezept hochladen", "verschreibung hochladen", "mit rezept starten",
             # Arabic
-            "ارفع الوصفة", "تحميل الوصفة", "أضف وصفة",
+            "ارفع الوصفة", "تحميل الوصفة", "أضف وصفة", "ابدأ بالوصفة",
             # Hindi / Hinglish
-            "prescription upload", "prescription add", "प्रिस्क्रिप्शन अपलोड",
+            "prescription upload", "prescription add", "start with prescription", "प्रिस्क्रिप्शन अपलोड", "प्रिस्क्रिप्शन से शुरू करें",
         ],
     }
 
@@ -1192,6 +1260,20 @@ async def execute_action(
     force_localized = _force_ui_language(state)
     action = plan.get("action", "respond")
 
+    # ── Guard: avoid LLM-only false "not found" responses on order intent ──
+    # If the model returned a plain response while user appears to be ordering a
+    # medicine, force a real catalog lookup against live DB/vector tools.
+    if action == "respond" and _looks_like_order_intent(user_input):
+        query = _extract_medicine_query_from_utterance(user_input)
+        # Ignore known non-search control intents
+        ql = (query or "").lower()
+        if query and ql not in {"checkout", "cancel", "stop", "help"}:
+            plan = dict(plan)
+            plan["action"] = "tool_call"
+            plan["tool"] = "vector_search"
+            plan["tool_args"] = {"name": query}
+            action = "tool_call"
+
     # ── Map hallucinated tool actions to tool_call ──────────────────
     legacy_tool_actions = [
         "add_to_cart", "vector_search", "lookup_by_indication", 
@@ -1506,6 +1588,101 @@ async def execute_action(
 
 
 # ── Tool executor ───────────────────────────────────────────────────────
+async def _llm_not_found_response(
+    session_id: str,
+    query: str,
+    user_input: str | None,
+    state: Dict[str, Any],
+    lang: str,
+    force_localized: bool,
+    search_type: str = "name",  # "name" or "indication"
+) -> Dict[str, Any]:
+    """
+    When a medicine search returns no results, do a follow-up LLM call
+    with the 'not found' context injected so the agent generates a warm,
+    natural response rather than a stiff hardcoded template.
+    """
+    suggestions = await suggest_similar_medications(query, limit=3)
+
+    # Track repeated misses to avoid same answer loop
+    q_norm = (query or "").strip().lower()
+    if state.get("last_not_found_query") == q_norm:
+        state["not_found_repeat_count"] = int(state.get("not_found_repeat_count", 0)) + 1
+    else:
+        state["last_not_found_query"] = q_norm
+        state["not_found_repeat_count"] = 1
+    repeat_count = int(state.get("not_found_repeat_count", 1))
+
+    suggestions_line = ""
+    if suggestions:
+        lead_by_lang = {
+            "en": "Did you mean",
+            "de": "Meintest du vielleicht",
+            "ar": "هل تقصد",
+            "hi": "क्या आपका मतलब यह था",
+        }
+        lead = lead_by_lang.get(lang, lead_by_lang["en"])
+        suggestions_line = f"\n\n{lead}: {', '.join(suggestions)}?"
+
+    # Build a synthetic tool-result message to inject into conversation
+    if search_type == "indication":
+        tool_result_content = (
+            f"[TOOL RESULT] lookup_by_indication(\"{query}\") returned NO results. "
+            f"There are no medications in our catalog matching the indication/condition '{query}'."
+        )
+        fallback = _localize("lookup_empty", lang, indication=query)
+    else:
+        tool_result_content = (
+            f"[TOOL RESULT] vector_search(\"{query}\") returned NO results. "
+            f"There is no medication called '{query}' (or anything phonetically similar) in our catalog. "
+            f"This name does not exist in our inventory — it may be misspelled, a fictional name, or simply not carried."
+        )
+        fallback = _localize("search_empty", lang, name=query)
+
+    if suggestions:
+        tool_result_content += f" Suggest these close matches to the user: {', '.join(suggestions)}."
+        fallback = f"{fallback}{suggestions_line}"
+
+    if repeat_count >= 2 and not suggestions:
+        reinforce_by_lang = {
+            "en": "I still can't find that name. Please share the active ingredient or your symptom (for example: fever, cold, allergy).",
+            "de": "Ich finde diesen Namen weiterhin nicht. Bitte nenne den Wirkstoff oder dein Symptom (z. B. Fieber, Erkältung, Allergie).",
+            "ar": "ما زلت لا أجد هذا الاسم. من فضلك اذكر المادة الفعالة أو العرض (مثل: حمى، زكام، حساسية).",
+            "hi": "मुझे यह नाम अभी भी नहीं मिल रहा है। कृपया सक्रिय घटक या लक्षण बताएं (जैसे: बुखार, सर्दी, एलर्जी)।",
+        }
+        fallback = reinforce_by_lang.get(lang, reinforce_by_lang["en"])
+
+    # Temporarily inject the tool result into history, call the LLM, then clean up
+    history = state.setdefault("conversation_history", [])
+    injected = {"role": "system", "content": tool_result_content}
+    history.append(injected)
+
+    try:
+        # The original user_input drives the LLM to know what it was asked
+        llm_result = await ordering_agent_handle(user_input or query, state)
+    except Exception:
+        llm_result = {}
+    finally:
+        # Remove the injected message to keep history clean
+        if injected in history:
+            history.remove(injected)
+
+    msg = (llm_result.get("message") or "").strip()
+    tts = (llm_result.get("tts_message") or "").strip()
+
+    # Validate the LLM response makes sense — if it tries to do a tool_call or
+    # another search, fall back to the template to avoid infinite loops.
+    if not msg or llm_result.get("action") == "tool_call":
+        msg = fallback
+        tts = fallback
+    elif suggestions and not any(s.lower() in msg.lower() for s in suggestions):
+        msg = f"{msg}{suggestions_line}"
+        if not tts:
+            tts = msg
+
+    return {"message": msg, "tts_message": tts or msg}
+
+
 async def execute_tool_call(
     session_id: str,
     plan: Dict[str, Any],
@@ -1552,12 +1729,13 @@ async def execute_tool_call(
             if results:
                 state.setdefault("search_cache", {})[f"ind:{indication}"] = results
         if not results:
-            fallback_msg = _localize("lookup_empty", lang, indication=indication)
-            msg = _prefer_llm_text(plan.get("message"), fallback_msg, lang, force_localized)
-            tts = _prefer_llm_tts(plan.get("tts_message"), plan.get("message"), msg, lang, force_localized)
+            not_found_result = await _llm_not_found_response(
+                session_id, indication, user_input, state, lang, force_localized,
+                search_type="indication"
+            )
             return {
-                "message": msg,
-                "tts_message": tts,
+                "message": not_found_result.get("message", _localize("lookup_empty", lang, indication=indication)),
+                "tts_message": not_found_result.get("tts_message", not_found_result.get("message", "")),
                 "candidates": [],
                 "action_taken": "lookup_empty",
             }
@@ -1576,7 +1754,8 @@ async def execute_tool_call(
         med_list = "\n".join(_fmt(i, m) for i, m in enumerate(results[:5]))
         # Always build the real medication list — never trust the LLM's placeholder message
         lead_default = _localize("indication_lead", lang, indication=indication)
-        lead = _prefer_llm_text(plan.get("message"), lead_default, lang, force_localized)
+        llm_msg = plan.get("message")
+        lead = lead_default if _is_not_found_style_message(llm_msg) else _prefer_llm_text(llm_msg, lead_default, lang, force_localized)
         select_prompt = _localize("select_prompt", lang)
         msg = f"{lead}\n{med_list}\n\n{select_prompt}"
         # TTS includes the indication name so user hears what was found
@@ -1617,12 +1796,15 @@ async def execute_tool_call(
             if results:
                 state.setdefault("search_cache", {})[f"vec:{name}"] = results
         if not results:
-            fallback_default = _localize("search_empty", lang, name=name)
-            fallback_msg = _prefer_llm_text(plan.get("message"), fallback_default, lang, force_localized)
-            tts = _prefer_llm_tts(plan.get("tts_message"), plan.get("message"), fallback_msg, lang, force_localized)
+            # ── Do a follow-up LLM call so the agent generates a natural
+            #    "not found" response instead of a stiff hardcoded template. ──
+            not_found_result = await _llm_not_found_response(
+                session_id, name, user_input, state, lang, force_localized,
+                search_type="name"
+            )
             return {
-                "message": fallback_msg,
-                "tts_message": tts,
+                "message": not_found_result.get("message", _localize("search_empty", lang, name=name)),
+                "tts_message": not_found_result.get("tts_message", not_found_result.get("message", "")),
                 "candidates": [],
                 "action_taken": "search_empty",
             }
@@ -1692,7 +1874,8 @@ async def execute_tool_call(
                     dosage=med.get("dosage", ""),
                     price=float(med.get("price") or 0),
                 )
-                msg = _prefer_llm_text(plan.get("message"), default_msg, lang, force_localized)
+                llm_msg = plan.get("message")
+                msg = default_msg if _is_not_found_style_message(llm_msg) else _prefer_llm_text(llm_msg, default_msg, lang, force_localized)
                 return {
                     "message": msg,
                     "tts_message": _prefer_llm_tts(plan.get("tts_message"), plan.get("message"), msg, lang, force_localized),
@@ -1711,7 +1894,8 @@ async def execute_tool_call(
                     dosage=med.get("dosage", ""),
                     price=float(med.get("price") or 0),
                 )
-                msg = _prefer_llm_text(plan.get("message"), default_msg, lang, force_localized)
+                llm_msg = plan.get("message")
+                msg = default_msg if _is_not_found_style_message(llm_msg) else _prefer_llm_text(llm_msg, default_msg, lang, force_localized)
                 return {
                     "message": msg,
                     "tts_message": _prefer_llm_tts(plan.get("tts_message"), plan.get("message"), msg, lang, force_localized),
@@ -1727,7 +1911,8 @@ async def execute_tool_call(
             return f"{i+1}. {name} — \u20ac{price:.2f} — {_availability_label(stock, lang)}"
         med_list = "\n".join(_fmt_r(i, m) for i, m in enumerate(results[:5]))
         lead_default = _localize("search_lead", lang)
-        lead = _prefer_llm_text(plan.get("message"), lead_default, lang, force_localized)
+        llm_msg = plan.get("message")
+        lead = lead_default if _is_not_found_style_message(llm_msg) else _prefer_llm_text(llm_msg, lead_default, lang, force_localized)
         select_prompt = _localize("select_prompt", lang)
         msg = f"{lead}\n{med_list}\n\n{select_prompt}"
         # TTS includes the searched medicine name so user knows what was found
@@ -1882,7 +2067,17 @@ async def execute_tool_call(
 
         cart = await add_to_cart(session_id, med_id, qty, dose=dose)
         if not cart.get("added", True):
-            blocked_msg = cart.get("warning") or _localize("add_not_found", lang)
+            raw_warning = cart.get("warning") or ""
+            # Detect order limit hit and produce a localized, user-friendly message
+            from config import MAX_ORDER_ITEMS, MAX_ORDER_TOTAL_UNITS
+            if "Order limit reached" in raw_warning or f"{MAX_ORDER_ITEMS} different medicines" in raw_warning:
+                blocked_msg = _localize("order_limit_reached", lang, max_items=MAX_ORDER_ITEMS)
+            elif "cart limit reached" in raw_warning or f"{MAX_ORDER_TOTAL_UNITS} units" in raw_warning:
+                blocked_msg = _localize("order_units_limit", lang,
+                    product=med.get("brand_name", "item"), qty=qty,
+                    actual=0, max_units=MAX_ORDER_TOTAL_UNITS)
+            else:
+                blocked_msg = raw_warning or _localize("add_not_found", lang)
             return {
                 "message": blocked_msg,
                 "tts_message": _prefer_llm_tts(plan.get("tts_message"), plan.get("message"), blocked_msg, lang, force_localized),
@@ -1902,6 +2097,18 @@ async def execute_tool_call(
             "cart": cart,
         })
 
+        # If cart capped the quantity, relay the localized warning
+        warning_suffix = ""
+        if cart.get("warning"):
+            from config import MAX_ORDER_TOTAL_UNITS, MAX_ORDER_LINE_QTY
+            actual_added = cart.get("total_quantity", qty)
+            warning_suffix = "\n\n" + _localize(
+                "order_units_limit", lang,
+                product=med.get("brand_name", "item"),
+                qty=qty, actual=actual_added,
+                max_units=MAX_ORDER_TOTAL_UNITS,
+            )
+
         default_add_msg = _localize(
             "add_success",
             lang,
@@ -1910,7 +2117,7 @@ async def execute_tool_call(
             plural="s" if qty != 1 else "",
             cart_items=cart["item_count"],
             cart_plural="s" if cart.get("item_count", 0) != 1 else "",
-        )
+        ) + warning_suffix
         msg = _prefer_llm_text(plan.get("message"), default_add_msg, lang, force_localized)
         return {
             "message": msg,

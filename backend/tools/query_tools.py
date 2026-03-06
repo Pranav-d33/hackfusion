@@ -5,6 +5,7 @@ Queries the V2 schema: product_catalog, inventory_items, customers, customer_ord
 """
 from typing import List, Dict, Any, Optional
 import sys
+import difflib
 sys.path.insert(0, str(__file__).rsplit('/', 2)[0])
 
 from db.database import execute_query
@@ -233,52 +234,23 @@ async def vector_search(name: str, top_k: int = 3) -> List[Dict[str, Any]]:
     Returns:
         List of candidate products with similarity scores
     """
-    # Pre-clean the search query to remove filler words
-    import re as _re
-    clean_name = name.strip()
-    for pattern in [
-        r'^i\s+want\s+to\s+(order|get|buy)\s+',
-        r'^i\s+need\s+to\s+(order|get|buy)\s+',
-        r'^i\s+(need|want)\s+',
-        r'^(can\s+i|could\s+i|please)\s+(get|have|order)\s+(me\s+)?',
-        r'^(give|get|order|buy)\s+me\s+',
-        r'^(to\s+)?(order|buy|get)\s+',
-    ]:
-        clean_name = _re.sub(pattern, '', clean_name, flags=_re.IGNORECASE).strip()
-    # Strip trailing quantity+unit
-    clean_name = _re.sub(
-        r'\s+\d+\s*(strip|strips|tab|tabs|tablet|tablets|unit|units|pack|packs|bottle|bottles|capsule|capsules)\s*$',
-        '', clean_name, flags=_re.IGNORECASE
-    ).strip()
-    clean_name = _re.sub(r'\s+\d+\s*$', '', clean_name).strip()
-    clean_name = _re.sub(r'^(some|any|a|an|the|of)\s+', '', clean_name, flags=_re.IGNORECASE).strip()
-    if not clean_name:
-        clean_name = name.strip()
+    clean_name = _clean_search_query(name)
 
-    # If vector search is available, use it
-    if vector_search_fn:
-        candidates = await vector_search_fn(clean_name, top_k)
+    # Prefer live DB direct matches first (important for newly added products
+    # that may not yet be present in vector indexes).
+    direct_sql = await _sql_direct_name_candidates(clean_name, top_k)
+    if direct_sql:
+        candidates = direct_sql
     else:
-        # SQL fallback - search product_catalog + translations
-        name_lower = clean_name.lower()
-        results = await execute_query("""
-            SELECT DISTINCT
-                pc.id, pc.product_name, pc.pzn, pc.package_size,
-                pc.description, pc.base_price_eur, pc.rx_required,
-                COALESCE(inv.stock_quantity, 0) as stock_quantity,
-                COALESCE(lst_name.translated_text, pc.product_name) as product_name_en
-            FROM product_catalog pc
-            LEFT JOIN inventory_items inv ON pc.id = inv.product_catalog_id
-            LEFT JOIN localized_strings ls_name ON ls_name.string_key = pc.product_name_i18n_key
-                AND ls_name.namespace = 'product_export'
-            LEFT JOIN localized_string_translations lst_name ON lst_name.localized_string_id = ls_name.id
-                AND lst_name.language_code = 'en'
-            WHERE LOWER(pc.product_name) LIKE ?
-               OR LOWER(COALESCE(lst_name.translated_text, '')) LIKE ?
-            LIMIT ?
-        """, (f"%{name_lower}%", f"%{name_lower}%", top_k))
+        candidates = []
 
-        candidates = [dict(r) for r in results] if results else []
+        # If vector search is available, use it
+        if vector_search_fn:
+            candidates = await vector_search_fn(clean_name, top_k)
+
+    # SQL fallback for when vector store is unavailable OR returns no matches
+    if not candidates:
+        candidates = await _sql_name_search_candidates(clean_name, top_k)
 
     # Enrich with inventory data if not already present
     for candidate in candidates:
@@ -308,6 +280,135 @@ async def vector_search(name: str, top_k: int = 3) -> List[Dict[str, Any]]:
         })
 
     return normalized
+
+
+def _clean_search_query(name: str) -> str:
+    """Normalize user utterances into a compact medicine query."""
+    import re as _re
+
+    clean_name = (name or "").strip()
+    for pattern in [
+        r'^i\s+want\s+to\s+(order|get|buy)\s+',
+        r'^i\s+need\s+to\s+(order|get|buy)\s+',
+        r'^i\s+(need|want)\s+',
+        r'^(can\s+i|could\s+i|please)\s+(get|have|order)\s+(me\s+)?',
+        r'^(give|get|order|buy)\s+me\s+',
+        r'^(to\s+)?(order|buy|get)\s+',
+    ]:
+        clean_name = _re.sub(pattern, '', clean_name, flags=_re.IGNORECASE).strip()
+
+    clean_name = _re.sub(
+        r'\s+\d+\s*(strip|strips|tab|tabs|tablet|tablets|unit|units|pack|packs|bottle|bottles|capsule|capsules)\s*$',
+        '', clean_name, flags=_re.IGNORECASE
+    ).strip()
+    clean_name = _re.sub(r'\s+\d+\s*$', '', clean_name).strip()
+    clean_name = _re.sub(r'^(some|any|a|an|the|of)\s+', '', clean_name, flags=_re.IGNORECASE).strip()
+
+    return clean_name or (name or "").strip()
+
+
+async def _sql_name_search_candidates(clean_name: str, top_k: int) -> List[Dict[str, Any]]:
+    """SQL-backed name search with substring first, then fuzzy fallback."""
+    name_lower = (clean_name or "").lower().strip()
+
+    # First pass: direct substring match in product names/translations
+    direct = await _sql_direct_name_candidates(clean_name, top_k)
+    if direct:
+        return direct
+
+    # Second pass: fuzzy rank across catalog names for typo tolerance
+    all_names = await execute_query("""
+        SELECT DISTINCT
+            pc.id, pc.product_name, pc.pzn, pc.package_size,
+            pc.description, pc.base_price_eur, pc.rx_required,
+            COALESCE(inv.stock_quantity, 0) as stock_quantity,
+            COALESCE(lst_name.translated_text, pc.product_name) as product_name_en
+        FROM product_catalog pc
+        LEFT JOIN inventory_items inv ON pc.id = inv.product_catalog_id
+        LEFT JOIN localized_strings ls_name ON ls_name.string_key = pc.product_name_i18n_key
+            AND ls_name.namespace = 'product_export'
+        LEFT JOIN localized_string_translations lst_name ON lst_name.localized_string_id = ls_name.id
+            AND lst_name.language_code = 'en'
+    """)
+
+    if not all_names or not name_lower:
+        return []
+
+    ranked: List[tuple[float, Dict[str, Any]]] = []
+    for row in all_names:
+        r = dict(row)
+        candidate_name = (r.get("product_name_en") or r.get("product_name") or "").lower().strip()
+        if not candidate_name:
+            continue
+
+        ratio = difflib.SequenceMatcher(None, name_lower, candidate_name).ratio()
+        # Light bonus for prefix overlap (helps short misspellings)
+        if candidate_name.startswith(name_lower[:2]):
+            ratio += 0.05
+        if ratio >= 0.48:
+            ranked.append((ratio, r))
+
+    ranked.sort(key=lambda x: x[0], reverse=True)
+    return [row for _, row in ranked[:top_k]]
+
+
+async def _sql_direct_name_candidates(clean_name: str, top_k: int) -> List[Dict[str, Any]]:
+    """Direct SQL name search (no fuzzy matching)."""
+    name_lower = (clean_name or "").lower().strip()
+    if not name_lower:
+        return []
+
+    direct = await execute_query("""
+        SELECT DISTINCT
+            pc.id, pc.product_name, pc.pzn, pc.package_size,
+            pc.description, pc.base_price_eur, pc.rx_required,
+            COALESCE(inv.stock_quantity, 0) as stock_quantity,
+            COALESCE(lst_name.translated_text, pc.product_name) as product_name_en
+        FROM product_catalog pc
+        LEFT JOIN inventory_items inv ON pc.id = inv.product_catalog_id
+        LEFT JOIN localized_strings ls_name ON ls_name.string_key = pc.product_name_i18n_key
+            AND ls_name.namespace = 'product_export'
+        LEFT JOIN localized_string_translations lst_name ON lst_name.localized_string_id = ls_name.id
+            AND lst_name.language_code = 'en'
+        WHERE LOWER(pc.product_name) LIKE ?
+           OR LOWER(COALESCE(lst_name.translated_text, '')) LIKE ?
+        LIMIT ?
+    """, (f"%{name_lower}%", f"%{name_lower}%", top_k))
+    if direct:
+        return [dict(r) for r in direct]
+    return []
+
+
+async def suggest_similar_medications(query: str, limit: int = 3) -> List[str]:
+    """Return close medication name suggestions for typo/unknown queries."""
+    clean = _clean_search_query(query)
+    if not clean:
+        return []
+
+    rows = await execute_query("""
+        SELECT DISTINCT
+            pc.product_name,
+            COALESCE(lst_name.translated_text, pc.product_name) as product_name_en
+        FROM product_catalog pc
+        LEFT JOIN localized_strings ls_name ON ls_name.string_key = pc.product_name_i18n_key
+            AND ls_name.namespace = 'product_export'
+        LEFT JOIN localized_string_translations lst_name ON lst_name.localized_string_id = ls_name.id
+            AND lst_name.language_code = 'en'
+    """)
+
+    names = []
+    for row in rows or []:
+        name = (row.get("product_name_en") or row.get("product_name") or "").strip()
+        if name and name not in names:
+            names.append(name)
+
+    if not names:
+        return []
+
+    # Use lowercase index for matching but preserve display casing
+    lower_to_display = {n.lower(): n for n in names}
+    close = difflib.get_close_matches(clean.lower(), list(lower_to_display.keys()), n=limit, cutoff=0.5)
+    return [lower_to_display[c] for c in close]
 
 
 async def get_inventory(med_id: int) -> Dict[str, Any]:

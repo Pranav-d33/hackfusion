@@ -252,6 +252,19 @@ You receive the full conversation history. Use it to understand what the user me
 - Hindi/Hinglish: "haan" = yes, "nahi" = no, "aur do" = give more, "kitna" = how much, "ye wala" = this one, "pehla wala" = the first one.
 - If the user says something you don't understand → ask for clarification politely.
 
+## ORDER LIMITS — ENFORCE THESE PROACTIVELY
+- Each order can contain at most **20 different medicines** (distinct medication types).
+- Each medicine line can have at most **10 units**.
+- The total cart cannot exceed **30 units** across all items combined.
+- If the user tries to add a **21st different medicine**, you MUST tell them clearly (in their language):
+  - English: "I'm sorry, you can only have up to 20 different medicines per order."
+  - Hindi: "माफ़ कीजिए, एक ऑर्डर में अधिकतम 20 अलग-अलग दवाइयाँ ही जोड़ी जा सकती हैं।"
+  - German: "Leider kannst du maximal 20 verschiedene Medikamente pro Bestellung hinzufügen."
+  - Arabic: "عذراً، يمكنك إضافة 20 نوع مختلف من الأدوية كحد أقصى لكل طلب."
+  - Then offer to checkout with what's in the cart, or remove an item first.
+- NEVER try to call `add_to_cart` if you know the cart already has 20 different medicines.
+- If the system returns a warning that the order limit is reached, relay the message in the user's language clearly.
+
 ## CHECKOUT FLOW
 1. User says "checkout" → return `action: "checkout"`. The system will ask for login/address.
 2. System sends "Checkout. Deliver to: <address>" → return `action: "checkout"` again. The system will show order summary.
@@ -709,14 +722,20 @@ def _build_state_context(state: Dict[str, Any]) -> str:
     cart = state.get("cart", {})
     if cart.get("items"):
         items = cart["items"]
+        distinct_count = len(items)
+        limit_note = ""
+        if distinct_count >= 18:
+            remaining = 20 - distinct_count
+            limit_note = f" ⚠️ ORDER LIMIT: {distinct_count}/20 medicines. {remaining} slot(s) left." if remaining > 0 else " ⚠️ ORDER LIMIT REACHED: 20/20 medicines. Cannot add more distinct medicines."
         item_lines = [
             f"  {i+1}. {item.get('brand_name','')} (generic: {item.get('generic_name','')}) — "
             f"Qty: {item.get('quantity', 1)} — CartItemID: {item.get('cart_item_id')} — MedID: {item.get('medication_id')}"
             for i, item in enumerate(items[:10])
         ]
         parts.append(
-            f"Cart has {len(items)} item(s):\n" + "\n".join(item_lines)
+            f"Cart has {len(items)} item(s) [{distinct_count}/20 distinct medicines]{limit_note}:\n" + "\n".join(item_lines)
         )
+
 
     # Checkout state
     if state.get("pending_checkout_confirm"):

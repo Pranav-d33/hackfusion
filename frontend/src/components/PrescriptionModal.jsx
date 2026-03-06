@@ -4,10 +4,15 @@ import { useLanguage } from '../i18n/LanguageContext';
 export default function PrescriptionModal({
     isOpen,
     onClose,
+    onChooseFile,
+    onCapturePhoto,
     mode = 'upload',
+    isLoading = false,
     isVoiceMode = false
 }) {
     const { t, dir } = useLanguage();
+    const isReplace = mode === 'replace';
+    const isStart = mode === 'start';
 
     if (!isOpen) return null;
 
@@ -23,26 +28,46 @@ export default function PrescriptionModal({
                 </div>
                 <h2 className={`text-2xl font-brand font-extrabold mb-2 ${isVoiceMode ? 'text-gray-100' : 'text-ink-primary'
                     }`}>
-                    {mode === 'replace' ? t('replacePrescription') : t('uploadPrescription')}
+                    {isReplace ? t('replacePrescription') : isStart ? t('startWithPrescription') : t('addPrescription')}
                 </h2>
                 <p className={`font-body text-sm mb-6 leading-relaxed ${isVoiceMode ? 'text-gray-400' : 'text-ink-muted'
                     }`}>
-                    {mode === 'replace'
+                    {isReplace
                         ? t('replacePrescriptionDesc')
-                        : t('uploadPrescriptionDesc')}
+                        : isStart
+                            ? t('startWithPrescriptionDesc')
+                            : t('addPrescriptionDesc')}
                 </p>
                 <button
                     onClick={() => {
                         onClose();
-                        document.getElementById('prescription-upload-input')?.click();
+                        onChooseFile?.();
                     }}
+                    disabled={isLoading}
                     className={`btn-primary w-full mb-3 flex items-center justify-center gap-2 ${isVoiceMode ? 'bg-mediloon-600 hover:bg-mediloon-500' : ''
-                        }`}
+                        } disabled:opacity-60 disabled:cursor-not-allowed`}
                 >
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                     </svg>
                     {t('chooseFile')}
+                </button>
+                <button
+                    onClick={() => {
+                        onClose();
+                        onCapturePhoto?.();
+                    }}
+                    disabled={isLoading}
+                    className={`w-full mb-4 px-4 py-3 rounded-xl font-brand font-semibold border transition-all flex items-center justify-center gap-2 ${isVoiceMode
+                        ? 'border-gray-700 text-gray-200 hover:border-mediloon-500 hover:text-white'
+                        : 'border-mediloon-200 text-mediloon-600 hover:bg-mediloon-50 hover:border-mediloon-300'
+                        } disabled:opacity-60 disabled:cursor-not-allowed`}
+                >
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 7a2 2 0 012-2h2l1.5-1.5A2 2 0 0110 3h4a2 2 0 011.5.5L17 5h2a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
+                        <circle cx="12" cy="12" r="3" />
+                    </svg>
+                    {t('useCamera')}
                 </button>
                 <button
                     onClick={onClose}

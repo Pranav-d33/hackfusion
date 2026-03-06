@@ -142,12 +142,12 @@ export default function UpdatesModal({ alerts, timeline, orders = [], loading, o
   const renderUpdatesList = (isZoomedView = false) => (
     <div className={`space-y-2 ${isZoomedView ? 'space-y-3' : ''}`}>
       {updates.length === 0 ? (
-          <div className={`text-center ${isZoomedView ? 'py-16' : 'py-8'}`}>
-            <div className="w-12 h-12 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-3">
-              <CheckCircle size={20} className="text-emerald-400" />
-            </div>
-          <p className="text-sm font-medium text-gray-500">{t('allCaughtUp')}</p>
-          <p className="text-xs text-gray-400 mt-1">{t('noPendingRefillUpdates')}</p>
+        <div className={`text-center ${isZoomedView ? 'py-16' : 'py-8'}`}>
+          <div className="w-12 h-12 bg-surface-snow rounded-full flex items-center justify-center mx-auto mb-3">
+            <CheckCircle size={20} className="text-emerald-400" />
+          </div>
+          <p className="text-[14px] font-brand font-semibold text-ink-secondary">{t('allCaughtUp')}</p>
+          <p className="text-[13px] font-body text-ink-muted mt-1">{t('noPendingRefillUpdates')}</p>
         </div>
       ) : (
         updates.map(update => {
@@ -164,7 +164,7 @@ export default function UpdatesModal({ alerts, timeline, orders = [], loading, o
                 <div className="mt-0.5 flex-shrink-0">{style.icon}</div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-0.5">
-                    <p className={`font-semibold text-gray-900 truncate ${isZoomedView ? 'text-sm' : 'text-xs'}`}>
+                    <p className={`font-brand font-semibold text-ink-primary truncate ${isZoomedView ? 'text-[15px]' : 'text-[13px]'}`}>
                       {update.title}
                     </p>
                     <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase ${style.badge}`}>
@@ -172,31 +172,31 @@ export default function UpdatesModal({ alerts, timeline, orders = [], loading, o
                     </span>
                   </div>
                   {update.dosage && (
-                    <p className="text-[10px] text-gray-400 mb-1">{update.dosage}</p>
+                    <p className="text-[11px] font-body text-ink-muted mb-1">{update.dosage}</p>
                   )}
-                  <p className={`text-gray-600 ${isZoomedView ? 'text-xs' : 'text-[11px]'}`}>
+                  <p className={`font-body text-ink-secondary ${isZoomedView ? 'text-[14px]' : 'text-[12px]'}`}>
                     {update.message}
                   </p>
 
                   {isOrder && (
                     <div className={`mt-2 ${isZoomedView ? 'space-y-2' : 'space-y-1.5'}`}>
-                      <div className="flex items-center flex-wrap gap-2 text-[11px] text-gray-600">
+                      <div className="flex items-center flex-wrap gap-2 text-[12px] font-body text-ink-secondary">
                         {orderData.estimated_delivery && (
-                          <span className="px-2 py-1 rounded-lg bg-white border border-gray-100 font-semibold text-gray-700">ETA {orderData.estimated_delivery}</span>
+                          <span className="px-2 py-1 rounded-lg bg-surface-snow border border-black/[0.04] font-semibold text-ink-primary">ETA {orderData.estimated_delivery}</span>
                         )}
                         {orderData.total != null && (
-                          <span className="px-2 py-1 rounded-lg bg-white border border-gray-100 font-semibold text-gray-700">€{Number(orderData.total).toFixed(2)}</span>
+                          <span className="px-2 py-1 rounded-lg bg-surface-snow border border-black/[0.04] font-semibold text-ink-primary">€{Number(orderData.total).toFixed(2)}</span>
                         )}
                         {orderData.address && (
-                          <span className="px-2 py-1 rounded-lg bg-white border border-gray-100 text-gray-600 truncate max-w-full">Deliver to: {orderData.address}</span>
+                          <span className="px-2 py-1 rounded-lg bg-surface-snow border border-black/[0.04] text-ink-secondary truncate max-w-full">Deliver to: {orderData.address}</span>
                         )}
                       </div>
                       {isExpanded && orderData.items && orderData.items.length > 0 && (
-                        <div className="text-[11px] text-gray-600 space-y-1 bg-white/70 border border-gray-100 rounded-lg p-2">
-                          <p className="font-semibold text-gray-700">Items</p>
+                        <div className="text-[12px] font-body text-ink-secondary space-y-1 bg-surface-snow/70 border border-black/[0.04] rounded-lg p-2">
+                          <p className="font-semibold text-ink-primary">Items</p>
                           <div className="flex flex-wrap gap-1.5">
                             {orderData.items.map((it, idx) => (
-                              <span key={idx} className="px-2 py-1 bg-gray-50 rounded-full text-[11px] text-gray-700 border border-gray-100">
+                              <span key={idx} className="px-2 py-1 bg-white rounded-full text-[11px] text-ink-secondary border border-black/[0.04]">
                                 {(it.brand_name || 'Item')} x{it.quantity}
                               </span>
                             ))}
@@ -211,13 +211,13 @@ export default function UpdatesModal({ alerts, timeline, orders = [], loading, o
                       <>
                         <button
                           onClick={() => setExpandedOrderId(isExpanded ? null : update.id)}
-                          className={`flex items-center gap-1.5 bg-gray-900 text-white rounded-lg transition-all duration-200 shadow-sm font-medium hover:scale-105 active:scale-95 hover:shadow-md ${isZoomedView ? 'text-xs px-3 py-2' : 'text-[11px] px-2.5 py-1.5'}`}
+                          className={`flex items-center gap-1.5 bg-ink-primary text-white rounded-lg transition-all duration-200 shadow-sm font-brand font-semibold hover:scale-105 active:scale-95 hover:shadow-apple-md ${isZoomedView ? 'text-[13px] px-3 py-2' : 'text-[11px] px-2.5 py-1.5'}`}
                         >
                           <ChevronRight size={isZoomedView ? 13 : 11} className={isExpanded ? 'rotate-90 transition-transform' : ''} /> {t('viewDetails')}
                         </button>
                         <button
                           onClick={() => dismiss(update.id)}
-                          className={`text-gray-400 hover:text-gray-600 transition-all duration-200 hover:scale-110 active:scale-95 ${isZoomedView ? 'text-xs' : 'text-[10px]'}`}
+                          className={`text-ink-ghost hover:text-ink-secondary transition-all font-brand duration-200 hover:scale-110 active:scale-95 ${isZoomedView ? 'text-xs' : 'text-[10px]'}`}
                         >
                           {t('dismiss')}
                         </button>
@@ -226,14 +226,14 @@ export default function UpdatesModal({ alerts, timeline, orders = [], loading, o
                       <>
                         <button
                           onClick={() => handleReorder(update)}
-                          className={`flex items-center gap-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-all duration-200 shadow-sm font-medium hover:scale-105 active:scale-95 hover:shadow-md
-                        ${isZoomedView ? 'text-xs px-3 py-2' : 'text-[11px] px-2.5 py-1.5'}`}
+                          className={`flex items-center gap-1.5 bg-mediloon-500 hover:bg-mediloon-600 text-white rounded-lg transition-all duration-200 shadow-sm font-brand font-semibold hover:scale-105 active:scale-95 hover:shadow-apple-md
+                        ${isZoomedView ? 'text-[13px] px-3 py-2' : 'text-[11px] px-2.5 py-1.5'}`}
                         >
                           <MessageCircle size={isZoomedView ? 13 : 11} /> {t('orderViaChat')}
                         </button>
                         <button
                           onClick={() => dismiss(update.id)}
-                          className={`text-gray-400 hover:text-gray-600 transition-all duration-200 hover:scale-110 active:scale-95 ${isZoomedView ? 'text-xs' : 'text-[10px]'}`}
+                          className={`text-ink-ghost hover:text-ink-secondary transition-all font-brand duration-200 hover:scale-110 active:scale-95 ${isZoomedView ? 'text-xs' : 'text-[10px]'}`}
                         >
                           {t('dismiss')}
                         </button>
@@ -244,11 +244,10 @@ export default function UpdatesModal({ alerts, timeline, orders = [], loading, o
 
                 {/* Days badge */}
                 <div className="flex-shrink-0 text-right">
-                  <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg ${
-                    update.daysLeft <= 0 ? 'bg-red-100 text-red-600' :
+                  <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg ${update.daysLeft <= 0 ? 'bg-red-100 text-red-600' :
                     update.daysLeft <= 3 ? 'bg-red-50 text-red-500' :
-                    update.daysLeft <= 7 ? 'bg-amber-50 text-amber-600' : 'bg-gray-50 text-gray-500'
-                  }`}>
+                      update.daysLeft <= 7 ? 'bg-amber-50 text-amber-600' : 'bg-gray-50 text-gray-500'
+                    }`}>
                     <Clock size={10} />
                     <span className="text-[10px] font-bold">
                       {update.daysLeft <= 0 ? t('now') : `${update.daysLeft}d`}
@@ -268,18 +267,17 @@ export default function UpdatesModal({ alerts, timeline, orders = [], loading, o
       {/* Bell trigger button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2.5 text-gray-500 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all duration-200 hover:scale-110 active:scale-95"
+        className="relative p-2.5 text-ink-ghost hover:text-mediloon-500 hover:bg-mediloon-50 rounded-xl transition-all duration-200 hover:scale-110 active:scale-95"
         title={t('refillUpdates')}
       >
         {totalCount > 0 ? (
-          <BellRing size={20} className={criticalCount > 0 ? 'text-red-500 animate-bounce-subtle' : ''} />
+          <BellRing size={20} className={criticalCount > 0 ? 'text-mediloon-500 animate-bounce-subtle' : ''} />
         ) : (
           <Bell size={20} />
         )}
         {totalCount > 0 && (
-          <span className={`absolute top-1 right-1 min-w-[16px] h-4 flex items-center justify-center rounded-full text-[9px] font-bold border-2 border-white px-1 ${
-            criticalCount > 0 ? 'bg-red-500 text-white' : 'bg-amber-500 text-white'
-          }`}>
+          <span className={`absolute top-1 right-1 min-w-[16px] h-4 flex items-center justify-center rounded-full text-[9px] font-bold border-2 border-white px-1 ${criticalCount > 0 ? 'bg-mediloon-500 text-white' : 'bg-amber-500 text-white'
+            }`}>
             {totalCount}
           </span>
         )}
@@ -292,12 +290,12 @@ export default function UpdatesModal({ alerts, timeline, orders = [], loading, o
           <div className="fixed inset-0 z-[998] bg-black/20" onClick={() => setIsOpen(false)} />
 
           {/* Panel */}
-          <div className="fixed top-16 right-4 z-[999] w-[360px] max-h-[70vh] bg-white rounded-2xl shadow-2xl border border-gray-100 flex flex-col overflow-hidden animate-fade-in-up">
+          <div className="fixed top-16 right-4 z-[999] w-[360px] max-h-[70vh] bg-white/95 backdrop-blur-3xl rounded-[1.5rem] shadow-apple-2xl border border-black/[0.04] flex flex-col overflow-hidden animate-fade-in-up">
             {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50/50 flex-shrink-0">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-black/[0.04] bg-surface-snow/50 flex-shrink-0">
               <div className="flex items-center gap-2">
-                <Sparkles size={14} className="text-red-500" />
-                <h3 className="text-xs font-bold text-gray-800">{t('smartUpdates')}</h3>
+                <Sparkles size={14} className="text-mediloon-500" />
+                <h3 className="text-[13px] font-brand font-bold text-ink-primary">{t('smartUpdates')}</h3>
                 {criticalCount > 0 && (
                   <span className="text-[9px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full font-bold">
                     {criticalCount} {t('urgent')}
@@ -307,14 +305,14 @@ export default function UpdatesModal({ alerts, timeline, orders = [], loading, o
               <div className="flex items-center gap-1">
                 <button
                   onClick={() => { setZoomed(true); }}
-                  className="p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                  className="p-1 text-ink-ghost hover:text-ink-primary hover:bg-surface-snow rounded-lg transition-colors"
                   title={t('expand')}
                 >
                   <Maximize2 size={13} />
                 </button>
                 <button
                   onClick={() => setIsOpen(false)}
-                  className="p-1 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                  className="p-1 text-ink-ghost hover:text-ink-primary hover:bg-surface-snow rounded-lg transition-colors"
                 >
                   <X size={14} />
                 </button>
@@ -325,8 +323,8 @@ export default function UpdatesModal({ alerts, timeline, orders = [], loading, o
             <div className="flex-1 overflow-y-auto p-3">
               {loading ? (
                 <div className="py-8 text-center">
-                  <div className="w-6 h-6 border-2 border-gray-200 border-t-red-500 rounded-full animate-spin mx-auto mb-2" />
-                  <p className="text-xs text-gray-400">{t('loadingUpdates')}</p>
+                  <div className="w-6 h-6 border-2 border-surface-fog border-t-mediloon-500 rounded-full animate-spin mx-auto mb-2" />
+                  <p className="text-[13px] font-body text-ink-muted">{t('loadingUpdates')}</p>
                 </div>
               ) : (
                 renderUpdatesList(false)
@@ -340,36 +338,36 @@ export default function UpdatesModal({ alerts, timeline, orders = [], loading, o
       {zoomed && (
         <div className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 sm:p-8" onClick={() => { setZoomed(false); setIsOpen(false); }}>
           <div
-            className="w-full max-w-lg max-h-[80vh] bg-white rounded-3xl shadow-2xl border border-gray-100 flex flex-col overflow-hidden animate-fade-in-up"
+            className="w-full max-w-lg max-h-[80vh] bg-white rounded-[2rem] shadow-apple-2xl border border-black/[0.04] flex flex-col overflow-hidden animate-slide-up-spring"
             onClick={e => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex-shrink-0">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-black/[0.04] bg-surface-snow/30 flex-shrink-0">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 bg-gradient-to-br from-red-500 to-rose-500 rounded-xl flex items-center justify-center">
+                <div className="w-8 h-8 bg-gradient-to-br from-mediloon-500 to-mediloon-700 rounded-xl flex items-center justify-center">
                   <BellRing size={16} className="text-white" />
                 </div>
                 <div>
-                  <h2 className="text-sm font-bold text-gray-900">Refill Updates</h2>
-                  <p className="text-[11px] text-gray-400">
+                  <h2 className="text-[16px] font-brand font-bold text-ink-primary">Refill Updates</h2>
+                  <p className="text-[12px] font-body text-ink-secondary">
                     {totalCount} {t('refillUpdates').toLowerCase()} • {t('aiSuggestedRefills')}
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => { setZoomed(false); setIsOpen(false); }}
-                className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors"
+                className="p-2 text-ink-ghost hover:text-ink-primary hover:bg-surface-snow rounded-xl transition-colors"
               >
                 <X size={18} />
               </button>
             </div>
 
             {/* Content */}
-            <div className="flex-1 overflow-y-auto p-5">
+            <div className="flex-1 overflow-y-auto p-5 bg-surface-snow/30">
               {loading ? (
                 <div className="py-12 text-center">
-                  <div className="w-8 h-8 border-2 border-gray-200 border-t-red-500 rounded-full animate-spin mx-auto mb-3" />
-                  <p className="text-sm text-gray-400">{t('loadingUpdates')}</p>
+                  <div className="w-8 h-8 border-2 border-surface-fog border-t-mediloon-500 rounded-full animate-spin mx-auto mb-3" />
+                  <p className="text-[14px] font-body text-ink-muted">{t('loadingUpdates')}</p>
                 </div>
               ) : (
                 renderUpdatesList(true)

@@ -48,11 +48,14 @@ export default function LiveOverlay({
     onSelectLanguage,
     isAnyModalOpen,
     onRetryListening,
+    onOpenStartWithPrescription,
+    onOpenAddPrescription,
 }) {
     const { t, setLang } = useLanguage();
     const scrollRef = useRef(null);
     const [showUploadPrompt, setShowUploadPrompt] = useState(false);
     const fileInputRef = useRef(null);
+    const cameraInputRef = useRef(null);
     const [cartNotif, setCartNotif] = useState(null);
     const [showLangMenu, setShowLangMenu] = useState(false);
     const prevCartCount = useRef(cart?.item_count || 0);
@@ -97,6 +100,13 @@ export default function LiveOverlay({
     const handleFileChange = (e) => {
         const file = e.target.files[0];
         if (file) onUpload(file);
+        e.target.value = '';
+    };
+
+    const handleCameraChange = (e) => {
+        const file = e.target.files[0];
+        if (file) onUpload(file);
+        e.target.value = '';
     };
 
     // Voice-reactive shape calculations
@@ -218,40 +228,39 @@ export default function LiveOverlay({
                 {/* Floating Chat History */}
                 <div className="w-full flex-1 overflow-y-auto px-6 mb-10 pointer-events-auto mask-gradient" ref={scrollRef}>
                     <div className="space-y-6 pb-4">
-                        {messages.map((msg) => (
-                            <div key={msg.id} className={`flex ${msg.isUser ? 'justify-end' : 'justify-start'}`}>
-                                <div className={`
-                                    max-w-[80%] rounded-2xl px-6 py-4 text-lg shadow-sm backdrop-blur-sm
-                                    ${msg.isUser
-                                        ? 'bg-red-500/90 text-white rounded-br-none'
-                                        : 'bg-white/90 text-gray-800 border border-gray-200 rounded-bl-none'
-                                    }
-                                `} dir="auto">
-                                    {msg.text}
-                                </div>
+                        {messages.slice(-6).map((msg) => (
+                            <div key={msg.id} className={`flex ${msg.isUser ? 'justify-end' : 'justify-start'} w-full animate-slide-up`} style={{ animationFillMode: 'both' }}>
+                                {msg.isUser ? (
+                                    <div className="px-5 py-3.5 bg-indigo-600 text-white rounded-[1.4rem] rounded-tr-sm shadow-apple max-w-[85%] text-[15px] font-body">
+                                        {msg.text}
+                                    </div>
+                                ) : (
+                                    <div className="flex gap-2.5 sm:gap-3 items-start max-w-full">
+                                        <div className="w-8 h-8 rounded-full bg-surface-cloud flex items-center justify-center flex-shrink-0 mt-1 shadow-sm border border-black/[0.04] animate-scale-in">
+                                            <span className="text-indigo-600 font-brand font-bold text-xs">M</span>
+                                        </div>
+                                        <div className="px-5 py-3.5 bg-white/95 backdrop-blur-md rounded-[1.4rem] rounded-tl-sm shadow-apple border border-white max-w-[85%] flex flex-col gap-2">
+                                            {msg.text.split('\n').map((part, index) => (
+                                                <div key={index} className="flex items-start gap-2">
+                                                    {part.startsWith('- ') && <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 mt-1.5 flex-shrink-0" />}
+                                                    <span className="text-ink-primary font-body text-[15px] leading-relaxed block">{part.replace(/^- /, '')}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         ))}
                         {/* Real-time transcript with native script support */}
                         {isListening && transcript && (
-                            <div className="flex justify-end animate-fade-in">
-                                <div
-                                    className="relative max-w-[80%] rounded-2xl px-6 py-4 text-lg text-gray-800 bg-white/80 border border-gray-200 backdrop-blur-sm shadow-sm transition-all duration-150"
-                                    style={{
-                                        direction: scriptInfo.direction,
-                                        fontFamily: scriptInfo.script !== 'Latin'
-                                            ? `"Noto Sans ${scriptInfo.script}", "Noto Sans", system-ui, sans-serif`
-                                            : 'inherit'
-                                    }}
-                                >
-                                    {/* Language/Script Badge - inline for smoother feel */}
-                                    {activeBadge && (
-                                        <span className={`inline-flex items-center gap-1 mr-2 px-2 py-0.5 text-xs font-semibold text-white rounded-full ${activeBadge.color} shadow-sm`}>
-                                            <span className="w-1.5 h-1.5 bg-white/80 rounded-full animate-pulse"></span>
-                                            {activeBadge.label}
-                                        </span>
-                                    )}
-                                    <span className="font-medium" dir="auto">{transcript}</span>
-                                    <span className="inline-block w-1 h-5 ml-1 bg-red-400 rounded-full animate-pulse align-middle"></span>
+                            <div className="flex justify-end w-full animate-slide-up" style={{ animationFillMode: 'both' }}>
+                                <div className="px-5 py-3.5 bg-white/50 backdrop-blur-md text-ink-primary rounded-[1.4rem] rounded-tr-sm shadow-sm border border-white max-w-[85%] text-[15px] font-body flex items-center gap-3">
+                                    <span className="opacity-70">{transcript}</span>
+                                    <div className="flex gap-1 items-center h-4">
+                                        <span className="w-1 h-1 rounded-full bg-indigo-500 animate-bounce" style={{ animationDelay: '0ms' }} />
+                                        <span className="w-1 h-1 rounded-full bg-indigo-500 animate-bounce" style={{ animationDelay: '150ms' }} />
+                                        <span className="w-1 h-1 rounded-full bg-indigo-500 animate-bounce" style={{ animationDelay: '300ms' }} />
+                                    </div>
                                 </div>
                             </div>
                         )}
@@ -267,8 +276,8 @@ export default function LiveOverlay({
                                 <button
                                     key={med.id || i}
                                     onClick={() => onSelectCandidate && onSelectCandidate(med)}
-                                    className="flex-shrink-0 flex flex-col items-start bg-white/90 backdrop-blur-sm border border-gray-200 rounded-2xl px-4 py-3 shadow-lg hover:border-red-300 hover:bg-red-50/50 active:scale-95 transition-all"
-                                    style={{ minWidth: '150px', maxWidth: '180px', animationDelay: `${i * 60}ms` }}
+                                    className="px-4 py-2 bg-white/80 backdrop-blur-md border border-indigo-100 rounded-full text-sm font-brand font-medium text-indigo-700 shadow-sm hover:shadow-md hover:border-indigo-300 hover:bg-indigo-50 transition-all duration-300 active:scale-95 flex-shrink-0 animate-fade-in-up"
+                                    style={{ animationDelay: `${0.1 + i * 0.05}s`, animationFillMode: 'both' }}
                                 >
                                     <div className="flex items-center gap-1.5 mb-1 w-full">
                                         <span className="font-bold text-gray-800 text-sm leading-tight truncate flex-1">{med.brand_name}</span>
@@ -279,7 +288,7 @@ export default function LiveOverlay({
                                         )}
                                     </div>
                                     <p className="text-xs text-gray-500 leading-tight">{med.dosage}</p>
-                                    <div className="mt-2 flex items-center gap-1 text-red-500 text-xs font-semibold">
+                                    <div className="mt-2 flex items-center gap-1 text-indigo-500 text-xs font-semibold">
                                         <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
                                         </svg>
@@ -301,30 +310,93 @@ export default function LiveOverlay({
                             onChange={handleFileChange}
                             accept="image/*,.pdf"
                         />
-                        <button
+                        <input
+                            type="file"
+                            ref={cameraInputRef}
+                            className="hidden"
+                            onChange={handleCameraChange}
+                            accept="image/*"
+                            capture="environment"
+                        />
+                        <button className="flex items-center gap-2 px-5 py-2.5 bg-white/90 backdrop-blur border border-indigo-100/50 rounded-full shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all text-indigo-600 font-brand font-medium group active:scale-95 animate-fade-in-up"
+                            style={{ animationDelay: '0.1s' }}
                             onClick={() => fileInputRef.current?.click()}
-                            className="flex items-center gap-2 px-6 py-3 bg-white text-red-500 font-semibold rounded-full shadow-xl border border-red-100 hover:bg-red-50 transition-all transform hover:scale-105"
                         >
-                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <svg className="w-4 h-4 text-indigo-400 group-hover:text-indigo-600 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                             </svg>
-                            {t('tapUploadPrescription')}
+                            <span className="text-sm">{t('tapUploadPrescription')}</span>
+                        </button>
+                        <button className="mt-2 flex items-center gap-2 px-5 py-2.5 bg-white/90 backdrop-blur border border-indigo-100/50 rounded-full shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all text-indigo-600 font-brand font-medium group active:scale-95 animate-fade-in-up"
+                            style={{ animationDelay: '0.2s' }}
+                            onClick={() => cameraInputRef.current?.click()}
+                        >
+                            <svg className="w-4 h-4 text-indigo-400 group-hover:text-indigo-600 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7a2 2 0 012-2h2l1.5-1.5A2 2 0 0110 3h4a2 2 0 011.5.5L17 5h2a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
+                                <circle cx="12" cy="12" r="3" />
+                            </svg>
+                            <span className="text-sm">{t('tapCapturePrescription')}</span>
                         </button>
                     </div>
                 )}
 
+                {/* System Active & Prescription Actions Combined (Voice Mode) */}
+                <div className="mb-6 w-full max-w-xl pointer-events-auto animate-fade-in-up">
+                    <div className="w-full bg-white/90 backdrop-blur-md border border-mediloon-100/50 rounded-2xl shadow-lg p-3 flex flex-col sm:flex-row items-center justify-between gap-4 relative overflow-hidden group hover:border-mediloon-200 transition-colors">
+                        {/* Ambient Glow */}
+                        <div className="absolute -left-10 -top-10 w-32 h-32 bg-mediloon-100/30 rounded-full blur-3xl group-hover:bg-mediloon-100/50 transition-colors pointer-events-none" />
+
+                        {/* Left Side: System Active Orb & Text */}
+                        <div className="flex items-center gap-3 relative z-10 pl-2 w-full sm:w-auto">
+                            <div className="relative w-10 h-10 flex flex-shrink-0 items-center justify-center">
+                                {/* Outer rings */}
+                                <div className="absolute inset-0 rounded-full border border-mediloon-500/20 scale-100 group-hover:scale-110 transition-transform duration-700" />
+                                <div className="absolute inset-0 rounded-full border border-mediloon-500/10 scale-75 group-hover:scale-90 transition-transform duration-700 delay-75" />
+                                {/* Inner pulse */}
+                                <div className="w-2.5 h-2.5 rounded-full bg-mediloon-500 animate-[pulse_2s_ease-in-out_infinite] shadow-[0_0_15px_rgba(239,68,68,0.5)]" />
+                            </div>
+                            <div className="flex flex-col text-left">
+                                <span className="text-[11px] font-brand tracking-[0.15em] text-mediloon-600 font-bold uppercase leading-tight">{t('systemActive')}</span>
+                                <span className="text-[10px] font-body text-ink-muted leading-tight">Ready to assist</span>
+                            </div>
+                        </div>
+
+                        {/* Right Side: Prescription Options */}
+                        <div className="flex items-center justify-center sm:justify-end gap-2 relative z-10 w-full sm:w-auto">
+                            <button
+                                onClick={() => onOpenStartWithPrescription && onOpenStartWithPrescription()}
+                                disabled={isLoading}
+                                className="flex-1 sm:flex-none px-3 py-2 bg-mediloon-50 hover:bg-mediloon-100 text-mediloon-700 rounded-xl text-xs font-brand font-semibold flex items-center justify-center gap-1.5 transition-colors active:scale-95 disabled:opacity-50"
+                            >
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                <span>{t('startWithPrescription')}</span>
+                                <span className="bg-red-500 text-white text-[9px] px-1 rounded uppercase min-w-max ml-0.5">{t('new')}</span>
+                            </button>
+                            <button
+                                onClick={() => onOpenAddPrescription && onOpenAddPrescription()}
+                                disabled={isLoading}
+                                className="flex-1 sm:flex-none px-3 py-2 bg-mediloon-50 hover:bg-mediloon-100 text-mediloon-700 rounded-xl text-xs font-brand font-semibold flex items-center justify-center gap-1.5 transition-colors active:scale-95 disabled:opacity-50"
+                            >
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 7a2 2 0 012-2h2l1.5-1.5A2 2 0 0110 3h4a2 2 0 011.5.5L17 5h2a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" /><circle cx="12" cy="12" r="3" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                                <span className="hidden sm:inline">{t('addPrescription')}</span>
+                                <span className="sm:hidden">Add Rx</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
                 {/* VOICE-REACTIVE SIRI SPHERE */}
                 <div className="pointer-events-auto mb-16 relative">
                     {/* Exit Button */}
-                    <button
-                        onClick={onClose}
-                        className="absolute -right-20 top-1/2 -translate-y-1/2 p-3 rounded-full bg-gray-100 text-gray-500 hover:bg-white hover:text-red-500 hover:shadow-lg transition-all"
-                        title={t('exitVoiceMode')}
-                    >
-                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
+                    <div className="mt-8 flex items-center justify-center gap-4 animate-slide-up relative z-20" style={{ animationDelay: '0.2s', animationFillMode: 'both' }}>
+                        <button
+                            onClick={onClose}
+                            className="w-12 h-12 rounded-full border border-black/[0.1] bg-white text-ink-primary hover:bg-surface-cloud hover:text-indigo-600 flex items-center justify-center transition-all duration-200 shadow-sm"
+                            title={t('exitVoiceMode')}
+                        >
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                    </div>
 
                     {/* The Voice-Reactive Sphere Container */}
                     <div
@@ -334,48 +406,23 @@ export default function LiveOverlay({
                             transition: 'transform 0.08s ease-out'
                         }}
                     >
-                        {/* Outer Glow Ring */}
-                        <div
-                            className="absolute inset-0 rounded-full bg-gradient-to-br from-red-400/30 to-rose-500/30 blur-xl"
-                            style={{
-                                transform: `scale(${1.2 + audioLevel * 0.3})`,
-                                opacity: sphereStyles.glowOpacity,
-                                transition: 'all 0.1s ease-out'
-                            }}
-                        ></div>
+                        {/* Ambient Glow */}
+                        <div className="absolute inset-0 bg-indigo-500/10 rounded-full blur-[80px] animate-pulse-subtle scale-[1.5]" />
 
-                        {/* Main Morphing Sphere */}
+                        {/* Outer Sphere — Indigo/Blue/Cyan morph */}
                         <div
-                            className="absolute inset-2 bg-gradient-to-br from-red-500 via-rose-500 to-orange-400"
+                            className={`absolute inset-0 rounded-full bg-gradient-to-tr from-indigo-500 via-blue-500 to-cyan-400 opacity-90 transition-all duration-300 ${isSpeaking ? 'scale-[1.15] animate-spin-slow' :
+                                isListening ? 'scale-100' : 'scale-[0.85] opacity-60'
+                                }`}
                             style={{
-                                borderRadius: sphereStyles.borderRadius,
-                                filter: `blur(8px) drop-shadow(0 0 ${sphereStyles.glowSize}px rgba(220, 38, 38, ${sphereStyles.glowOpacity}))`,
-                                animation: `liquid-morph ${sphereStyles.animationDuration}s ease-in-out infinite`,
-                                transition: 'border-radius 0.1s ease-out, filter 0.1s ease-out'
+                                clipPath: `polygon(${sphereStyles.borderRadius.split(' / ')[0].split(' ').map((p, i) => `${p} ${sphereStyles.borderRadius.split(' / ')[1].split(' ')[i]}`).join(', ')})`,
+                                boxShadow: `0 0 ${40 + audioLevel * 60}px rgba(79, 70, 229, ${0.4 + audioLevel * 0.4})`
                             }}
-                        ></div>
+                        />
 
-                        {/* Inner Bright Core */}
-                        <div
-                            className="absolute inset-6 bg-gradient-to-tr from-rose-400 via-orange-300 to-yellow-300"
-                            style={{
-                                borderRadius: sphereStyles.borderRadius,
-                                opacity: 0.7 + (audioLevel * 0.3),
-                                filter: 'blur(4px)',
-                                animation: `liquid-morph ${sphereStyles.animationDuration}s ease-in-out infinite reverse`,
-                                transition: 'all 0.1s ease-out'
-                            }}
-                        ></div>
-
-                        {/* Center Highlight */}
-                        <div
-                            className="absolute w-8 h-8 bg-white/80 rounded-full blur-md"
-                            style={{
-                                transform: `scale(${0.8 + audioLevel * 0.4})`,
-                                opacity: 0.6 + (audioLevel * 0.4),
-                                transition: 'all 0.1s ease-out'
-                            }}
-                        ></div>
+                        {/* Inner Core — Blue/Cyan/Violet */}
+                        <div className="absolute inset-3 rounded-full bg-gradient-to-br from-blue-400 via-cyan-300 to-violet-300 opacity-80 mix-blend-overlay" />
+                        <div className="absolute inset-6 rounded-full bg-white opacity-20 blur-sm" />
 
                         {/* Status Icon Overlay */}
                         <div className="absolute inset-0 flex items-center justify-center z-10 text-white drop-shadow-lg">
@@ -406,7 +453,7 @@ export default function LiveOverlay({
                     {isListening && (
                         <div className="mt-6 w-32 h-2 bg-gray-200/50 rounded-full overflow-hidden mx-auto">
                             <div
-                                className="h-full bg-gradient-to-r from-red-400 via-rose-500 to-orange-400 rounded-full"
+                                className="h-full bg-gradient-to-r from-indigo-400 via-blue-500 to-cyan-400 rounded-full"
                                 style={{
                                     width: `${Math.max(5, audioLevel * 100)}%`,
                                     transition: 'width 0.05s ease-out'

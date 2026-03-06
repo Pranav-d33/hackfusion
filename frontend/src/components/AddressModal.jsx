@@ -89,26 +89,26 @@ export default function AddressModal({ isOpen, onClose, onConfirm, cart, user, i
     return (
         <div className={`fixed inset-0 z-50 flex ${isVoiceMode ? 'items-end md:items-center justify-end p-0 md:p-4 md:pr-6' : 'items-end md:items-center justify-center p-0 md:px-4'}`}>
             {/* Backdrop */}
-            <div className={`absolute inset-0 ${isVoiceMode ? 'bg-black/20 backdrop-blur-sm' : 'bg-black/40 backdrop-blur-sm'}`} onClick={onClose} />
+            <div className={`absolute inset-0 transition-opacity duration-300 ${isVoiceMode ? 'bg-black/20 backdrop-blur-sm' : 'bg-black/40 backdrop-blur-sm'}`} onClick={onClose} />
 
-            {/* Modal */}
-            <div className={`relative w-full ${isVoiceMode ? 'md:max-w-md animate-slide-up md:animate-slide-in-right h-[85vh] md:h-[calc(100vh-2rem)] md:my-4 rounded-t-3xl md:rounded-3xl' : 'md:max-w-lg animate-slide-up md:animate-fade-in-up md:max-h-[90vh] rounded-t-3xl md:rounded-3xl max-h-[90vh]'} bg-white shadow-glass-lg overflow-hidden flex flex-col`} dir={dir}>
+            {/* Bottom Sheet Modal */}
+            <div className={`relative w-full ${isVoiceMode ? 'md:max-w-md animate-slide-up-spring md:animate-slide-in-right h-[85vh] md:h-[calc(100vh-2rem)] md:my-4 rounded-t-[2rem] md:rounded-[2rem]' : 'md:max-w-lg animate-slide-up-spring md:animate-fade-in-up h-[90vh] md:h-auto md:max-h-[90vh] rounded-t-[2rem] md:rounded-[2rem]'} bg-white shadow-apple-2xl overflow-hidden flex flex-col will-change-transform`} dir={dir}>
+
+                {/* iOS Sheet Drag Handle (Mobile Only) */}
+                <div className="w-full flex justify-center pt-3 pb-1 md:hidden absolute top-0 z-10 bg-white/80 backdrop-blur-md">
+                    <div className="w-12 h-1.5 bg-black/15 rounded-full" />
+                </div>
+
                 {/* Header */}
-                <div className="p-5 border-b border-gray-100 bg-gradient-to-r from-white to-gray-50 flex-shrink-0">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2.5 bg-red-50 text-red-500 rounded-xl">
-                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                            </svg>
-                        </div>
-                        <div>
-                            <h2 className="font-bold text-gray-800 text-lg">{t('deliveryAddress')}</h2>
-                            <p className="text-xs text-gray-400">{t('whereDeliverOrder')}</p>
+                <div className="pt-8 md:pt-6 pb-4 px-6 border-b border-black/[0.04] bg-white/95 backdrop-blur-xl flex-shrink-0 z-0">
+                    <div className="flex items-center justify-between">
+                        <div className="flex flex-col">
+                            <h2 className="font-brand font-bold text-ink-primary text-[22px] tracking-[-0.01em]">{t('deliveryAddress')}</h2>
+                            <p className="text-[13px] font-body text-ink-secondary mt-0.5">{t('whereDeliverOrder')}</p>
                         </div>
                         <button
                             onClick={onClose}
-                            className="ml-auto p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-xl transition-colors"
+                            className="p-2 bg-surface-snow hover:bg-surface-fog text-ink-secondary rounded-full transition-colors hidden md:block" // Hidden on mobile where you'd just swipe down
                         >
                             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -118,24 +118,23 @@ export default function AddressModal({ isOpen, onClose, onConfirm, cart, user, i
                 </div>
 
                 {/* Body — scrollable */}
-                <div className="p-5 space-y-4 overflow-y-auto flex-1">
-                    {/* Default Address Option */}
+                <div className="p-6 space-y-5 overflow-y-auto flex-1 bg-surface-snow/30">
                     {hasDefaultAddress && (
                         <button
                             onClick={() => setMode('default')}
-                            className={`w-full text-left p-4 rounded-xl border-2 transition-all duration-200 ${mode === 'default'
-                                ? 'border-red-400 bg-red-50/50 shadow-sm'
-                                : 'border-gray-200 hover:border-gray-300'
+                            className={`w-full text-left p-5 rounded-[1.25rem] border transition-all duration-300 shadow-sm ${mode === 'default'
+                                ? 'border-accent-sapphire bg-accent-sapphire-light/20 shadow-apple-md'
+                                : 'border-black/[0.06] bg-white hover:border-black/[0.12] hover:shadow-apple-md'
                                 }`}
                         >
-                            <div className="flex items-start gap-3">
-                                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors ${mode === 'default' ? 'border-red-500' : 'border-gray-300'
+                            <div className="flex items-start gap-3.5">
+                                <div className={`w-5 h-5 rounded-full border-[1.5px] flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors ${mode === 'default' ? 'border-accent-sapphire' : 'border-ink-faint'
                                     }`}>
-                                    {mode === 'default' && <div className="w-2.5 h-2.5 rounded-full bg-red-500" />}
+                                    {mode === 'default' && <div className="w-2.5 h-2.5 rounded-full bg-accent-sapphire" />}
                                 </div>
-                                <div>
-                                    <p className="font-semibold text-gray-800 text-sm">{t('savedAddress')}</p>
-                                    <p className="text-sm text-gray-500 mt-1">{user?.name} — {defaultAddress}</p>
+                                <div className="flex-1 min-w-0">
+                                    <p className="font-brand font-semibold text-ink-primary text-[15px]">{t('savedAddress')}</p>
+                                    <p className="text-[13px] font-body text-ink-secondary mt-1 leading-relaxed">{user?.name} — {defaultAddress}</p>
                                 </div>
                             </div>
                         </button>
@@ -161,9 +160,8 @@ export default function AddressModal({ isOpen, onClose, onConfirm, cart, user, i
                         </div>
                     </button>
 
-                    {/* Manual Address Form */}
                     {mode === 'manual' && (
-                        <div className="space-y-3 animate-fade-in-up bg-gray-50/50 rounded-xl p-4 border border-gray-100">
+                        <div className="space-y-4 animate-fade-in-up bg-white rounded-[1.25rem] p-5 border border-black/[0.06] shadow-sm">
                             {/* Name & Phone Row */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
@@ -300,19 +298,19 @@ export default function AddressModal({ isOpen, onClose, onConfirm, cart, user, i
                 </div>
 
                 {/* Footer */}
-                <div className="p-5 border-t border-gray-100 bg-gray-50 flex-shrink-0">
+                <div className="p-4 md:p-6 border-t border-black/[0.04] bg-white/95 backdrop-blur-xl flex-shrink-0 pb-8 md:pb-6">
                     <button
                         onClick={handleConfirm}
                         disabled={!canConfirm}
-                        className={`w-full py-3.5 rounded-xl font-bold text-sm transition-all duration-200 ${canConfirm
-                            ? 'bg-gradient-to-r from-red-500 to-rose-600 text-white shadow-lg shadow-red-200 hover:shadow-red-300 active:scale-[0.98]'
-                            : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                        className={`w-full py-4 rounded-[1.25rem] font-brand font-bold text-[15px] transition-all duration-300 ${canConfirm
+                            ? 'bg-indigo-600 text-white shadow-apple hover:shadow-apple-lg hover:bg-indigo-700 active:scale-[0.98]'
+                            : 'bg-surface-fog text-ink-faint cursor-not-allowed'
                             }`}
                     >
                         {t('confirmPlaceOrder')}
                     </button>
                 </div>
             </div>
-        </div>
+        </div >
     );
 }
