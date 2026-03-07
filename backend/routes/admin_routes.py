@@ -4,8 +4,11 @@ Product catalog, inventory, and admin management endpoints.
 Queries V2 schema: product_catalog, inventory_items.
 """
 from fastapi import APIRouter, HTTPException
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import Optional, List
+import traceback
 import sys
 sys.path.insert(0, str(__file__).rsplit('/', 2)[0])
 
@@ -23,6 +26,10 @@ except ImportError:
             return 0
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
+
+
+def _safe_json(payload):
+    return JSONResponse(content=jsonable_encoder(payload))
 
 
 # ============ Models ============
@@ -54,26 +61,34 @@ class InventoryUpdate(BaseModel):
 @router.get("/medications")
 async def list_medications():
     """List all products with inventory info."""
-    products = await execute_query("""
-        SELECT
-            pc.id, pc.product_name, pc.external_product_id,
-            pc.pzn, pc.package_size, pc.description,
-            pc.base_price_eur, pc.default_language, pc.rx_required,
-            COALESCE(inv.stock_quantity, 0) as stock_quantity,
-            COALESCE(inv.reorder_threshold, 0) as reorder_threshold,
-            COALESCE(inv.reorder_quantity, 0) as reorder_quantity,
-            inv.last_restocked_at as last_restocked_at,
-            inv.last_updated as last_updated,
-            COALESCE(lst_name.translated_text, pc.product_name) as product_name_en
-        FROM product_catalog pc
-        LEFT JOIN inventory_items inv ON pc.id = inv.product_catalog_id
-        LEFT JOIN localized_strings ls_name ON ls_name.string_key = pc.product_name_i18n_key
-            AND ls_name.namespace = 'product_export'
-        LEFT JOIN localized_string_translations lst_name ON lst_name.localized_string_id = ls_name.id
-            AND lst_name.language_code = 'en'
-        ORDER BY pc.product_name
-    """)
-    return {"medications": products}
+    try:
+        products = await execute_query("""
+            SELECT
+                pc.id, pc.product_name, pc.external_product_id,
+                pc.pzn, pc.package_size, pc.description,
+                pc.base_price_eur, pc.default_language, pc.rx_required,
+                COALESCE(inv.stock_quantity, 0) as stock_quantity,
+                COALESCE(inv.reorder_threshold, 0) as reorder_threshold,
+                COALESCE(inv.reorder_quantity, 0) as reorder_quantity,
+                inv.last_restocked_at as last_restocked_at,
+                inv.last_updated as last_updated,
+                COALESCE(lst_name.translated_text, pc.product_name) as product_name_en
+            FROM product_catalog pc
+            LEFT JOIN inventory_items inv ON pc.id = inv.product_catalog_id
+            LEFT JOIN localized_strings ls_name ON ls_name.string_key = pc.product_name_i18n_key
+                AND ls_name.namespace = 'product_export'
+            LEFT JOIN localized_string_translations lst_name ON lst_name.localized_string_id = ls_name.id
+                AND lst_name.language_code = 'en'
+            ORDER BY pc.product_name
+        """)
+        return _safe_json({"medications": products})
+    except Exception as exc:
+        print("list_medications failed:")
+        print(traceback.format_exc())
+        return JSONResponse(
+            status_code=500,
+            content={"detail": f"Failed to load medications: {str(exc)}"},
+        )
 
 
 @router.get("/medications/{med_id}")
@@ -152,13 +167,21 @@ async def delete_medication(med_id: int):
 @router.get("/inventory")
 async def list_inventory():
     """List all inventory."""
-    inv = await execute_query("""
-        SELECT inv.*, pc.product_name, pc.package_size, pc.pzn
-        FROM inventory_items inv
-        JOIN product_catalog pc ON inv.product_catalog_id = pc.id
-        ORDER BY pc.product_name
-    """)
-    return {"inventory": inv}
+    try:
+        inv = await execute_query("""
+            SELECT inv.*, pc.product_name, pc.package_size, pc.pzn
+            FROM inventory_items inv
+            JOIN product_catalog pc ON inv.product_catalog_id = pc.id
+            ORDER BY pc.product_name
+        """)
+        return _safe_json({"inventory": inv})
+    except Exception as exc:
+        print("list_inventory failed:")
+        print(traceback.format_exc())
+        return JSONResponse(
+            status_code=500,
+            content={"detail": f"Failed to load inventory: {str(exc)}"},
+        )
 
 
 @router.put("/inventory/{med_id}")
