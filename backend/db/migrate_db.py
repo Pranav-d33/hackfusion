@@ -35,7 +35,8 @@ async def migrate():
             col_name = col_sql.split("ADD COLUMN ")[1].split(" ")[0]
             print(f"✅ Added {col_name} column to customers")
         except Exception as e:
-            if "duplicate column" in str(e).lower():
+            err = str(e).lower()
+            if "duplicate column" in err or "already exists" in err:
                 pass
             else:
                 print(f"ℹ️ Column may already exist: {e}")
@@ -44,7 +45,7 @@ async def migrate():
     try:
         await execute_write("""
         CREATE TABLE IF NOT EXISTS user_sessions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             user_id INTEGER NOT NULL,
             session_token TEXT NOT NULL UNIQUE,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

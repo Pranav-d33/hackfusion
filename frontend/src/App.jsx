@@ -905,7 +905,7 @@ export default function App() {
             {/* ═══════════════════════════════════
                  1. FLOATING HEADER — Apple Glass
                 ═══════════════════════════════════ */}
-            <header className={`fixed top-2 md:top-4 left-3 md:left-4 right-3 md:right-4 md:left-1/2 md:-translate-x-1/2 md:w-full md:max-w-4xl z-50 transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] ${liveMode ? 'opacity-0 -translate-y-full' : 'opacity-100'}`}>
+            <header className={`fixed top-2 md:top-4 left-1/2 -translate-x-1/2 w-[calc(100%-1.5rem)] md:w-full max-w-4xl z-50 transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] ${liveMode ? 'opacity-0 -translate-y-full' : 'opacity-100'}`}>
                 <div className="bg-white/60 backdrop-blur-3xl border border-white/50 shadow-apple-lg rounded-full md:rounded-[2rem] px-2 md:px-6 h-14 md:h-16 flex items-center justify-between">
                     <div className="max-w-[95rem] mx-auto px-2 md:px-6 h-12 md:h-14 flex items-center justify-between w-full">
                         {/* Logo + Tagline */}
@@ -1093,42 +1093,43 @@ export default function App() {
 
 
                         {/* System Active & Prescription Actions Combined */}
-                        <div className="w-full bg-white border border-mediloon-100 rounded-2xl shadow-sm p-3 mb-2 flex items-center justify-between gap-4 relative overflow-hidden group hover:border-mediloon-200 transition-colors">
+                        <div className="w-full bg-white border border-mediloon-100 rounded-2xl shadow-sm p-2 sm:p-3 mb-2 flex items-center justify-between gap-2 sm:gap-4 relative overflow-hidden group hover:border-mediloon-200 transition-colors">
                             {/* Ambient Glow */}
                             <div className="absolute -left-10 -top-10 w-32 h-32 bg-mediloon-100/30 rounded-full blur-3xl group-hover:bg-mediloon-100/50 transition-colors pointer-events-none" />
 
                             {/* Left Side: System Active Orb & Text */}
-                            <div className="flex items-center gap-3 relative z-10 pl-2">
-                                <div className="relative w-10 h-10 flex flex-shrink-0 items-center justify-center">
+                            <div className="flex items-center gap-1.5 sm:gap-3 relative z-10 pl-1 sm:pl-2 shrink-0">
+                                <div className="relative w-8 h-8 sm:w-10 sm:h-10 flex flex-shrink-0 items-center justify-center">
                                     {/* Outer rings */}
                                     <div className="absolute inset-0 rounded-full border border-mediloon-500/20 scale-100 group-hover:scale-110 transition-transform duration-700" />
                                     <div className="absolute inset-0 rounded-full border border-mediloon-500/10 scale-75 group-hover:scale-90 transition-transform duration-700 delay-75" />
                                     {/* Inner pulse */}
-                                    <div className="w-2.5 h-2.5 rounded-full bg-mediloon-500 animate-[pulse_2s_ease-in-out_infinite] shadow-[0_0_15px_rgba(239,68,68,0.5)]" />
+                                    <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-mediloon-500 animate-[pulse_2s_ease-in-out_infinite] shadow-[0_0_15px_rgba(239,68,68,0.5)]" />
                                 </div>
-                                <div className="flex flex-col">
+                                <div className="flex flex-col hidden sm:flex">
                                     <span className="text-[11px] font-brand tracking-[0.15em] text-mediloon-600 font-bold uppercase leading-tight">{t('systemActive')}</span>
                                     <span className="text-[10px] font-body text-ink-muted leading-tight">Ready to assist</span>
                                 </div>
                             </div>
 
                             {/* Right Side: Prescription Options */}
-                            <div className="flex items-center gap-2 relative z-10">
+                            <div className="flex items-center gap-1 sm:gap-2 relative z-10 shrink">
                                 <button
                                     onClick={openStartWithPrescription}
                                     disabled={isLoading}
-                                    className="px-3 py-2 bg-mediloon-50 hover:bg-mediloon-100 text-mediloon-700 rounded-xl text-xs font-brand font-semibold flex items-center gap-1.5 transition-colors active:scale-95 disabled:opacity-50"
+                                    className="px-2 py-1.5 sm:px-3 sm:py-2 bg-mediloon-50 hover:bg-mediloon-100 text-mediloon-700 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-brand font-semibold flex items-center gap-1 sm:gap-1.5 transition-colors active:scale-95 disabled:opacity-50 whitespace-nowrap"
                                 >
-                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                                    <span>{t('startWithPrescription')}</span>
-                                    <span className="bg-red-500 text-white text-[9px] px-1 rounded uppercase min-w-max ml-0.5">{t('new')}</span>
+                                    <svg className="w-3 h-3 sm:w-3.5 sm:h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                    <span className="hidden sm:inline">{t('startWithPrescription')}</span>
+                                    <span className="sm:hidden">Start flow</span>
+                                    <span className="bg-red-500 text-white text-[8px] sm:text-[9px] px-1 rounded uppercase min-w-max ml-0.5">{t('new')}</span>
                                 </button>
                                 <button
                                     onClick={openAddPrescription}
                                     disabled={isLoading}
-                                    className="px-3 py-2 bg-mediloon-50 hover:bg-mediloon-100 text-mediloon-700 rounded-xl text-xs font-brand font-semibold flex items-center gap-1.5 transition-colors active:scale-95 disabled:opacity-50"
+                                    className="px-2 py-1.5 sm:px-3 sm:py-2 bg-mediloon-50 hover:bg-mediloon-100 text-mediloon-700 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-brand font-semibold flex items-center gap-1 sm:gap-1.5 transition-colors active:scale-95 disabled:opacity-50 whitespace-nowrap"
                                 >
-                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 7a2 2 0 012-2h2l1.5-1.5A2 2 0 0110 3h4a2 2 0 011.5.5L17 5h2a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" /><circle cx="12" cy="12" r="3" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                                    <svg className="w-3 h-3 sm:w-3.5 sm:h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M3 7a2 2 0 012-2h2l1.5-1.5A2 2 0 0110 3h4a2 2 0 011.5.5L17 5h2a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" /><circle cx="12" cy="12" r="3" strokeLinecap="round" strokeLinejoin="round" /></svg>
                                     <span className="hidden sm:inline">{t('addPrescription')}</span>
                                     <span className="sm:hidden">Add Rx</span>
                                 </button>
@@ -1164,37 +1165,43 @@ export default function App() {
                         {/* Chat Messages */}
                         {messages.length <= 1 && (
                             <div className="flex flex-col gap-6 lg:gap-8 mb-8 w-full max-w-4xl mx-auto mt-8 lg:mt-16">
-                                <div className="text-center mb-4 animate-fade-in-up" style={{ animationDelay: '0.1s', animationFillMode: 'both' }}>
-                                    <h3 className="text-4xl lg:text-[3.2rem] font-brand font-bold text-ink-primary mb-3 tracking-[-0.03em] leading-tight">
+                                <div className="text-center mb-3 sm:mb-4 animate-fade-in-up" style={{ animationDelay: '0.1s', animationFillMode: 'both' }}>
+                                    <h3 className="text-3xl sm:text-4xl lg:text-[3.2rem] font-brand font-bold text-ink-primary mb-1.5 sm:mb-3 tracking-[-0.03em] leading-tight">
                                         Good {new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 18 ? 'afternoon' : 'evening'}
                                         {user ? `, ${user.name.split(' ')[0]}` : ''}.
                                     </h3>
-                                    <p className="text-[17px] font-body text-ink-secondary">How can MedAura assist you today?</p>
+                                    <p className="text-[15px] sm:text-[17px] font-body text-ink-secondary">How can MedAura assist you today?</p>
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-6 px-2">
-                                    <div className="bg-white/60 backdrop-blur-2xl border border-white/50 rounded-3xl p-6 lg:p-7 shadow-apple-lg hover:shadow-apple-xl transition-all duration-400 ease-[cubic-bezier(0.16,1,0.3,1)] animate-fade-in-up group cursor-pointer hover:-translate-y-1" style={{ animationDelay: '0.2s', animationFillMode: 'both' }}>
-                                        <div className="w-12 h-12 rounded-2xl bg-indigo-50/80 text-indigo-600 flex items-center justify-center mb-4 group-hover:bg-indigo-600 group-hover:text-white transition-colors duration-400 shadow-sm border border-indigo-100/50">
-                                            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 lg:gap-6 px-2">
+                                    <div className="bg-white/60 backdrop-blur-2xl border border-white/50 rounded-2xl md:rounded-3xl p-4 md:p-6 lg:p-7 shadow-apple-lg hover:shadow-apple-xl transition-all duration-400 ease-[cubic-bezier(0.16,1,0.3,1)] animate-fade-in-up group cursor-pointer hover:-translate-y-1 flex md:block items-center gap-4 md:gap-0" style={{ animationDelay: '0.2s', animationFillMode: 'both' }}>
+                                        <div className="w-10 h-10 md:w-12 md:h-12 shrink-0 rounded-xl md:rounded-2xl bg-indigo-50/80 text-indigo-600 flex items-center justify-center md:mb-4 group-hover:bg-indigo-600 group-hover:text-white transition-colors duration-400 shadow-sm border border-indigo-100/50">
+                                            <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
                                         </div>
-                                        <h4 className="text-ink-primary font-brand font-bold text-[17px] mb-1.5 tracking-[-0.01em]">Voice Ordering</h4>
-                                        <p className="text-ink-muted text-[14px] font-body leading-relaxed">Speak naturally — our AI understands medicines in any language.</p>
+                                        <div>
+                                            <h4 className="text-ink-primary font-brand font-bold text-[15px] md:text-[17px] mb-0.5 md:mb-1.5 tracking-[-0.01em]">Voice Ordering</h4>
+                                            <p className="text-ink-muted text-[13px] md:text-[14px] font-body leading-tight md:leading-relaxed">Speak naturally — our AI understands medicines in any language.</p>
+                                        </div>
                                     </div>
 
-                                    <div className="bg-white/60 backdrop-blur-2xl border border-white/50 rounded-3xl p-6 lg:p-7 shadow-apple-lg hover:shadow-apple-xl transition-all duration-400 ease-[cubic-bezier(0.16,1,0.3,1)] animate-fade-in-up group cursor-pointer hover:-translate-y-1" style={{ animationDelay: '0.3s', animationFillMode: 'both' }}>
-                                        <div className="w-12 h-12 rounded-2xl bg-blue-50/80 text-blue-600 flex items-center justify-center mb-4 group-hover:bg-blue-600 group-hover:text-white transition-colors duration-400 shadow-sm border border-blue-100/50">
-                                            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+                                    <div className="bg-white/60 backdrop-blur-2xl border border-white/50 rounded-2xl md:rounded-3xl p-4 md:p-6 lg:p-7 shadow-apple-lg hover:shadow-apple-xl transition-all duration-400 ease-[cubic-bezier(0.16,1,0.3,1)] animate-fade-in-up group cursor-pointer hover:-translate-y-1 flex md:block items-center gap-4 md:gap-0" style={{ animationDelay: '0.3s', animationFillMode: 'both' }}>
+                                        <div className="w-10 h-10 md:w-12 md:h-12 shrink-0 rounded-xl md:rounded-2xl bg-blue-50/80 text-blue-600 flex items-center justify-center md:mb-4 group-hover:bg-blue-600 group-hover:text-white transition-colors duration-400 shadow-sm border border-blue-100/50">
+                                            <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                                         </div>
-                                        <h4 className="text-ink-primary font-brand font-bold text-[17px] mb-1.5 tracking-[-0.01em]">Smart Refills</h4>
-                                        <p className="text-ink-muted text-[14px] font-body leading-relaxed">AI predicts when you'll run out and reminds you to reorder.</p>
+                                        <div>
+                                            <h4 className="text-ink-primary font-brand font-bold text-[15px] md:text-[17px] mb-0.5 md:mb-1.5 tracking-[-0.01em]">Smart Refills</h4>
+                                            <p className="text-ink-muted text-[13px] md:text-[14px] font-body leading-tight md:leading-relaxed">AI predicts when you'll run out and reminds you to reorder.</p>
+                                        </div>
                                     </div>
 
-                                    <div className="bg-white/60 backdrop-blur-2xl border border-white/50 rounded-3xl p-6 lg:p-7 shadow-apple-lg hover:shadow-apple-xl transition-all duration-400 ease-[cubic-bezier(0.16,1,0.3,1)] animate-fade-in-up group cursor-pointer hover:-translate-y-1" style={{ animationDelay: '0.4s', animationFillMode: 'both' }} onClick={openAddPrescription}>
-                                        <div className="w-12 h-12 rounded-2xl bg-violet-50/80 text-violet-600 flex items-center justify-center mb-4 group-hover:bg-violet-600 group-hover:text-white transition-colors duration-400 shadow-sm border border-violet-100/50">
-                                            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                                    <div className="bg-white/60 backdrop-blur-2xl border border-white/50 rounded-2xl md:rounded-3xl p-4 md:p-6 lg:p-7 shadow-apple-lg hover:shadow-apple-xl transition-all duration-400 ease-[cubic-bezier(0.16,1,0.3,1)] animate-fade-in-up group cursor-pointer hover:-translate-y-1 flex md:block items-center gap-4 md:gap-0" style={{ animationDelay: '0.4s', animationFillMode: 'both' }} onClick={openAddPrescription}>
+                                        <div className="w-10 h-10 md:w-12 md:h-12 shrink-0 rounded-xl md:rounded-2xl bg-violet-50/80 text-violet-600 flex items-center justify-center md:mb-4 group-hover:bg-violet-600 group-hover:text-white transition-colors duration-400 shadow-sm border border-violet-100/50">
+                                            <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                                         </div>
-                                        <h4 className="text-ink-primary font-brand font-bold text-[17px] mb-1.5 tracking-[-0.01em]">Prescription OCR</h4>
-                                        <p className="text-ink-muted text-[14px] font-body leading-relaxed">Snap a photo of your prescription and we'll extract the medicines.</p>
+                                        <div>
+                                            <h4 className="text-ink-primary font-brand font-bold text-[15px] md:text-[17px] mb-0.5 md:mb-1.5 tracking-[-0.01em]">Prescription OCR</h4>
+                                            <p className="text-ink-muted text-[13px] md:text-[14px] font-body leading-tight md:leading-relaxed">Snap a photo of your prescription and we'll extract the medicines.</p>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -1208,7 +1215,7 @@ export default function App() {
                 </section>
 
                 {/* ─── DYNAMIC DOCK (Input Area) ─── */}
-                <div className={`fixed bottom-4 md:bottom-6 left-3 md:left-4 right-3 md:right-4 md:left-1/2 md:-translate-x-1/2 md:w-full md:max-w-2xl z-40 pointer-events-auto transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] ${liveMode ? 'opacity-0 translate-y-[150%]' : 'opacity-100 translate-y-0'}`}>
+                <div className={`fixed bottom-4 md:bottom-6 left-1/2 -translate-x-1/2 w-[calc(100%-1.5rem)] md:w-full max-w-2xl z-40 pointer-events-auto transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] ${liveMode ? 'opacity-0 translate-y-[150%]' : 'opacity-100 translate-y-0'}`}>
                     <div className="dynamic-dock rounded-3xl md:rounded-[2.5rem] p-2 md:p-3 flex flex-col">
                         {candidates.length > 0 && (
                             <div className="mb-3 px-2">

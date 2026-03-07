@@ -11,7 +11,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from config import CORS_ORIGINS, API_HOST, API_PORT
-from db.database import init_db
+from db.database import init_db, close_pool, USE_POSTGRES
 from db.seed_data import seed_all
 from agents.procurement_agent import seed_suppliers
 from routes.agent_routes import router as agent_router
@@ -81,6 +81,9 @@ async def lifespan(app: FastAPI):
     
     # Shutdown
     print("👋 Shutting down Mediloon Backend...")
+    if USE_POSTGRES:
+        await close_pool()
+        print("✅ PostgreSQL pool closed")
 
 
 # Create FastAPI app

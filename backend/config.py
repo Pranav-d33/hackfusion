@@ -61,6 +61,11 @@ NLU_FORCE_REGEX = os.getenv("NLU_FORCE_REGEX", "").lower() in ("1", "true", "yes
 VECTOR_TOP_K = 3
 SIMILARITY_THRESHOLD = 0.5
 
+# ── Supabase (PostgreSQL) ────────────────────────────────────
+# If set, the backend uses asyncpg + Supabase instead of local SQLite.
+# Use the **Transaction pooler** URI (port 6543) for serverless.
+SUPABASE_DATABASE_URL = os.getenv("SUPABASE_DATABASE_URL", "")
+
 # Langfuse Observability
 LANGFUSE_PUBLIC_KEY = os.getenv("LANGFUSE_PUBLIC_KEY", "")
 LANGFUSE_SECRET_KEY = os.getenv("LANGFUSE_SECRET_KEY", "")

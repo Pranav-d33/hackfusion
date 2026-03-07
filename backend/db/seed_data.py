@@ -11,7 +11,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from db.database import init_db, execute_query
+from db.database import init_db, execute_query, USE_POSTGRES
 from config import IS_VERCEL
 
 
@@ -23,8 +23,9 @@ async def seed_all(
     """
     Run the full data pipeline.
     Idempotent: skips if data already exists.
-    On Vercel, the pre-seeded DB is copied at import time, so this
-    just verifies data is present and skips the heavy pipeline.
+
+    With Supabase (USE_POSTGRES=True) the seed runs the normal pipeline
+    once — subsequent starts see data already present and skip.
 
     Args:
         target_languages: Languages to translate into (default: ["en"])
@@ -44,10 +45,9 @@ async def seed_all(
     except Exception:
         pass  # table doesn't exist yet, proceed
 
-    # On Vercel, don't attempt the heavy Excel ingestion pipeline —
-    # if the pre-seeded DB copy didn't work, we can't fix it at runtime.
-    if IS_VERCEL:
-        print("⚠️ Vercel: pre-seeded DB had no data — admin features will be limited")
+    # On Vercel WITHOUT Postgres, don't attempt heavy pipeline
+    if IS_VERCEL and not USE_POSTGRES:
+        print("⚠️ Vercel (SQLite): pre-seeded DB had no data — admin features limited")
         return
 
     # Local-only: import heavy pipeline modules and run full seed

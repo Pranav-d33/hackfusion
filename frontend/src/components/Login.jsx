@@ -224,7 +224,7 @@ export default function Login({ onLogin, onCancel }) {
 
     return (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-md z-[100] flex items-center justify-center p-4 animate-fade-in">
-            <div className="bg-white rounded-[2rem] w-full max-w-md overflow-hidden shadow-apple-2xl animate-scale-in border border-black/[0.04]" dir={dir}>
+            <div className="bg-white rounded-[2rem] w-full max-w-md mx-auto overflow-hidden shadow-apple-2xl animate-scale-in border border-black/[0.04]" dir={dir}>
                 {/* Red accent bar */}
                 <div className="h-1.5 bg-gradient-to-r from-mediloon-400 via-mediloon-600 to-mediloon-400" />
 
