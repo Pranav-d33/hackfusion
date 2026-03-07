@@ -1,48 +1,49 @@
 """
-Vercel Serverless Entry Point
+Vercel Serverless Entry Point – staged import for debugging
 """
 import sys
 import os
 import traceback
+import json as _json
 from pathlib import Path
 
-# ── Step 1: ultra-minimal diagnostic endpoint ─────────────────
-# If even this fails, the problem is at Vercel's Python runtime level
+# ── Phase 0: A working FastAPI app no matter what ──────────────
 from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 
-_startup_error = None
-_startup_tb = None
+_errors: list[str] = []
 _main_app = None
 
-# ── Step 2: try importing the real app ─────────────────────────
+# ── Phase 1: Try importing the real app ────────────────────────
 backend_dir = str(Path(__file__).parent.parent / "backend")
 if backend_dir not in sys.path:
     sys.path.insert(0, backend_dir)
 
 try:
-    from main import app as _main_app
+    from main import app as _real_app
+    _main_app = _real_app
 except Exception as exc:
-    _startup_error = f"{type(exc).__name__}: {exc}"
-    _startup_tb = traceback.format_exc()
+    _errors.append(f"main import: {type(exc).__name__}: {exc}\n{traceback.format_exc()}")
 
+# ── Phase 2: Choose which app to serve ─────────────────────────
 if _main_app is not None:
     app = _main_app
 else:
     app = FastAPI()
 
+    @app.get("/api/health")
+    @app.get("/api/debug")
     @app.api_route("/api/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
-    @app.get("/")
     async def _debug_error(path: str = ""):
-        return {
-            "error": "Backend failed to start",
-            "detail": _startup_error,
-            "traceback": _startup_tb.split("\n") if _startup_tb else [],
+        return JSONResponse(content={
+            "ok": False,
+            "errors": _errors,
             "python": sys.version,
             "cwd": os.getcwd(),
-            "backend_dir_exists": os.path.isdir(backend_dir),
-            "backend_dir_contents": os.listdir(backend_dir) if os.path.isdir(backend_dir) else [],
-            "env_set": sorted([k for k in os.environ if k.startswith(("SUPABASE", "VERCEL", "GROQ", "OPENROUTER", "LANGFUSE", "PINECONE"))]),
-        }
+            "env_keys": sorted([k for k in os.environ if k.startswith(
+                ("SUPABASE", "VERCEL", "GROQ", "OPENROUTER", "LANGFUSE", "PINECONE")
+            )]),
+        })
 
-# Handler for Vercel — must be named `handler` or `app`
+# ── Vercel handler ─────────────────────────────────────────────
 handler = app
