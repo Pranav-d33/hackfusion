@@ -12,10 +12,14 @@
     }
   ],
   "functions": {
-    "api/**/*.py": {
+    "api/test.py": {
+      "runtime": "@vercel/python@4.6.0",
+      "maxDuration": 60
+    },
+    "api/index.py": {
       "runtime": "@vercel/python@4.6.0",
       "maxDuration": 60,
-      "excludeFiles": "{tests/**,backend/tests/**,backend/venv/**,backend/__pycache__/**,backend/test_*.py,**/*.test.py,uploads/**,backend/uploads/**,data/chroma_db/**,frontend/**,node_modules/**}"
+      "excludeFiles": "{tests/**,backend/tests/**,backend/venv/**,backend/__pycache__/**,backend/test_*.py,uploads/**,backend/uploads/**,data/chroma_db/**}"
     }
   }
 }
