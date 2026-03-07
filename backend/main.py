@@ -1,16 +1,17 @@
 """
 Mediloon Backend - Main FastAPI Application
 """
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 import sys
 from pathlib import Path
+import os
 
 # Add backend to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from config import CORS_ORIGINS, API_HOST, API_PORT
+from config import CORS_ORIGINS, API_HOST, API_PORT, IS_VERCEL
 from db.database import init_db, close_pool, USE_POSTGRES
 from db.seed_data import seed_all
 from agents.procurement_agent import seed_suppliers
@@ -43,39 +44,67 @@ except ImportError:
         init_pinecone = None
 
 
+def _env_flag(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan - startup and shutdown."""
+    app.state.startup_errors = []
+    app.state.startup_steps = []
+
+    async def run_step(name, fn):
+        try:
+            await fn()
+            app.state.startup_steps.append({"step": name, "status": "ok"})
+            print(f"✅ {name}")
+            return True
+        except Exception as exc:
+            app.state.startup_steps.append({"step": name, "status": "error", "error": str(exc)})
+            app.state.startup_errors.append(f"{name}: {exc}")
+            print(f"❌ {name} failed: {exc}")
+            return False
+
     # Startup
     print("🚀 Starting Mediloon Backend...")
-    
-    # Initialize database
-    await init_db()
-    print("✅ Database initialized")
-    
-    # Seed database (skip LLM translation on startup for speed)
-    await seed_all(skip_translation=True)
-    print("Database seeded")
 
-    # Seed suppliers if not already present
-    seeded = await seed_suppliers()
-    if seeded:
-        print(f"Suppliers seeded: {seeded} records")
-    
-    # Initialize vector store
-    if VECTOR_BACKEND == "pinecone" and init_pinecone:
-        if init_pinecone():
-            await index_medications()
-            print("✅ Pinecone vector store ready")
+    db_ready = await run_step("database init", init_db)
+
+    run_seed_on_startup = _env_flag("RUN_STARTUP_SEED", not IS_VERCEL)
+    run_supplier_seed = _env_flag("RUN_SUPPLIER_SEED", not IS_VERCEL)
+    run_vector_startup = _env_flag("RUN_VECTOR_STARTUP", not IS_VERCEL)
+
+    if db_ready and run_seed_on_startup:
+        await run_step("database seed", lambda: seed_all(skip_translation=True))
+    elif IS_VERCEL:
+        print("ℹ️ Skipping database seed on Vercel cold start")
+
+    if db_ready and run_supplier_seed:
+        await run_step("supplier seed", seed_suppliers)
+    elif IS_VERCEL:
+        print("ℹ️ Skipping supplier seed on Vercel cold start")
+
+    if db_ready and run_vector_startup:
+        if VECTOR_BACKEND == "pinecone" and init_pinecone:
+            if init_pinecone():
+                await run_step("vector index", index_medications)
+            else:
+                print("⚠️ Pinecone not configured - using SQL fallback")
+        elif VECTOR_BACKEND == "chromadb" and index_medications:
+            await run_step("vector index", index_medications)
         else:
-            print("⚠️ Pinecone not configured - using SQL fallback")
-    elif VECTOR_BACKEND == "chromadb" and index_medications:
-        await index_medications()
-        print("✅ ChromaDB vector store indexed")
+            print("ℹ️ Running with SQL-only search (no vector store)")
+    elif IS_VERCEL:
+        print("ℹ️ Skipping vector initialization on Vercel cold start")
+
+    if app.state.startup_errors:
+        print("⚠️ Backend started in degraded mode")
     else:
-        print("ℹ️ Running with SQL-only search (no vector store)")
-    
-    print("🎯 Mediloon Backend ready!")
+        print("🎯 Mediloon Backend ready!")
     
     yield
     
@@ -119,19 +148,26 @@ app.include_router(upload_router)
 
 
 @app.get("/")
-async def root():
+async def root(request: Request):
     """Health check endpoint."""
+    startup_errors = list(getattr(request.app.state, "startup_errors", []))
     return {
-        "status": "healthy",
+        "status": "degraded" if startup_errors else "healthy",
         "app": "Mediloon Agentic Ordering MVP",
         "version": "1.0.0",
+        "startup_errors": startup_errors,
     }
 
 
 @app.get("/health")
-async def health():
+async def health(request: Request):
     """Health check endpoint."""
-    return {"status": "ok"}
+    startup_errors = list(getattr(request.app.state, "startup_errors", []))
+    return {
+        "status": "degraded" if startup_errors else "ok",
+        "startup_errors": startup_errors,
+        "startup_steps": list(getattr(request.app.state, "startup_steps", [])),
+    }
 
 
 if __name__ == "__main__":

@@ -168,8 +168,25 @@ export default function AdminDashboard({ onSwitchToUser, user }) {
   const toggleSection = (key) => setExpandedSections(p => ({ ...p, [key]: !p[key] }));
 
   // ═══ Data Fetchers ═══
-  const safeFetchJson = async (url) => { const r = await fetch(url); if (!r.ok) throw new Error(`${r.status} ${r.statusText}`); return r.json(); };
-  const fetchMedications = async () => { try { const d = await safeFetchJson(`${API_BASE}/admin/medications`); setMedications(d.medications || []); } catch (e) { console.error('fetchMedications:', e); } };
+  const safeFetchJson = async (url) => {
+    const r = await fetch(url);
+    if (!r.ok) {
+      const body = await r.text().catch(() => '');
+      const detail = body ? ` ${body.slice(0, 180)}` : '';
+      throw new Error(`${r.status} ${r.statusText}${detail}`);
+    }
+    return r.json();
+  };
+  const fetchMedications = async () => {
+    try {
+      const d = await safeFetchJson(`${API_BASE}/admin/medications`);
+      setMedications(d.medications || []);
+      if (message?.tab === 'inventory' && message?.type === 'error') setMessage(null);
+    } catch (e) {
+      console.error('fetchMedications:', e);
+      setScopedMessage({ type: 'error', text: `Failed to load inventory: ${e.message}`, tab: 'inventory' });
+    }
+  };
   const fetchLowStockPredictions = async () => { try { const d = await safeFetchJson(`${API_BASE}/refill/predictions`); setLowStockPredictions(d.predictions || []); } catch (e) { console.error('fetchLowStockPredictions:', e); } };
   const fetchProcurementQueue = async () => { try { const d = await safeFetchJson(`${API_BASE}/procurement/queue`); setProcurementQueue(d.orders || []); } catch (e) { console.error('fetchProcurementQueue:', e); } };
   const fetchRefillAlerts = async () => { try { const d = await safeFetchJson(`${API_BASE}/refill/alerts?days_ahead=14`); setRefillAlerts(d.alerts || []); } catch (e) { console.error('fetchRefillAlerts:', e); } };

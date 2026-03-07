@@ -1,8 +1,7 @@
 """
-Vercel Serverless Entry Point
+Vercel catch-all serverless entry point for /api/*
 """
 import sys
-import os
 import traceback
 from pathlib import Path
 
@@ -13,10 +12,9 @@ if backend_dir not in sys.path:
 try:
     from main import app as backend_app
 except Exception:
-    # If the full app fails, provide a debug endpoint
     from fastapi import FastAPI
-    from fastapi.responses import JSONResponse
     from fastapi.middleware.cors import CORSMiddleware
+    from fastapi.responses import JSONResponse
 
     _tb = traceback.format_exc()
     backend_app = FastAPI()
@@ -35,6 +33,7 @@ except Exception:
             "traceback": _tb.split("\n"),
             "python": sys.version,
         })
+
 
 _PASSTHROUGH_PATHS = {"/", "/health", "/docs", "/openapi.json", "/redoc"}
 _ROOT_ALIAS_PATHS = {
