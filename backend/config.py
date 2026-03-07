@@ -23,6 +23,9 @@ else:
 DB_PATH = DATA_DIR / "mediloon.db"
 CHROMA_PATH = DATA_DIR / "chroma_db"
 
+# Path to the pre-seeded database committed in the repo (read-only on Vercel)
+SEED_DB_SOURCE = BASE_DIR / "data" / "mediloon.db"
+
 # ── Groq Configuration (PRIMARY — fast, generous free tier) ─────────
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 GROQ_BASE_URL = "https://api.groq.com/openai/v1"

@@ -12,9 +12,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from db.database import init_db, execute_query
-from db.ingest_excel import run_ingestion
-from db.translate_service import run_translations
-from db.populate_domain import run_populate
+from config import IS_VERCEL
 
 
 async def seed_all(
@@ -25,6 +23,8 @@ async def seed_all(
     """
     Run the full data pipeline.
     Idempotent: skips if data already exists.
+    On Vercel, the pre-seeded DB is copied at import time, so this
+    just verifies data is present and skips the heavy pipeline.
 
     Args:
         target_languages: Languages to translate into (default: ["en"])
@@ -43,6 +43,17 @@ async def seed_all(
             return
     except Exception:
         pass  # table doesn't exist yet, proceed
+
+    # On Vercel, don't attempt the heavy Excel ingestion pipeline —
+    # if the pre-seeded DB copy didn't work, we can't fix it at runtime.
+    if IS_VERCEL:
+        print("⚠️ Vercel: pre-seeded DB had no data — admin features will be limited")
+        return
+
+    # Local-only: import heavy pipeline modules and run full seed
+    from db.ingest_excel import run_ingestion
+    from db.translate_service import run_translations
+    from db.populate_domain import run_populate
 
     print("╔══════════════════════════════════════════════════╗")
     print("║       MEDILOON V2 — DATA PIPELINE               ║")
