@@ -26,11 +26,19 @@ USE_POSTGRES = bool(SUPABASE_DATABASE_URL)
 if USE_POSTGRES:
     import pg8000.dbapi    # 100% pure Python, no C extensions, no libpq
     _pg_url = urlparse(SUPABASE_DATABASE_URL)
+    _PG_HOST = _pg_url.hostname or ""
+    _PG_PORT = _pg_url.port or 5432
+    _USING_SUPABASE_DIRECT_URL_ON_VERCEL = (
+        IS_VERCEL
+        and _PG_HOST.startswith("db.")
+        and _PG_HOST.endswith(".supabase.co")
+        and _PG_PORT == 5432
+    )
     _PG_PARAMS = dict(
         user=_pg_url.username,
         password=_pg_url.password,
-        host=_pg_url.hostname,
-        port=_pg_url.port or 5432,
+        host=_PG_HOST,
+        port=_PG_PORT,
         database=_pg_url.path.lstrip("/"),
         ssl_context=True,
     )
@@ -97,7 +105,16 @@ def _adapt_sql(sql: str, params: tuple = ()) -> tuple:
 
 def _pg_connect():
     """Open a new pg8000 connection with dict-row support."""
-    return pg8000.dbapi.connect(**_PG_PARAMS)
+    try:
+        return pg8000.dbapi.connect(**_PG_PARAMS)
+    except Exception as exc:
+        if _USING_SUPABASE_DIRECT_URL_ON_VERCEL:
+            raise RuntimeError(
+                "Supabase direct Postgres URL detected on Vercel serverless. "
+                "Replace SUPABASE_DATABASE_URL with the Supabase transaction pooler "
+                "connection string (serverless/shared pooler, port 6543)."
+            ) from exc
+        raise
 
 
 def _rows_to_dicts(cursor):
