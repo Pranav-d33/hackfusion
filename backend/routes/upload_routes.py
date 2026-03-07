@@ -6,8 +6,9 @@ import uuid
 
 router = APIRouter(prefix="/api/upload", tags=["upload"])
 
-UPLOAD_DIR = Path("uploads")
-UPLOAD_DIR.mkdir(exist_ok=True)
+IS_VERCEL = os.getenv("VERCEL", "") == "1"
+UPLOAD_DIR = Path("/tmp/uploads") if IS_VERCEL else Path("uploads")
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 @router.post("/prescription")
 async def upload_prescription(file: UploadFile = File(...)):

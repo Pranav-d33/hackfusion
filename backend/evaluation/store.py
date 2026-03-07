@@ -5,7 +5,8 @@ from typing import Dict, Any, List
 from datetime import datetime
 
 # Path to store evaluation history
-METRICS_FILE = "data/evaluation_metrics.json"
+IS_VERCEL = os.getenv("VERCEL", "") == "1"
+METRICS_FILE = "/tmp/data/evaluation_metrics.json" if IS_VERCEL else "data/evaluation_metrics.json"
 
 def save_metrics(metrics: Dict[str, Any]):
     """Save evaluation metrics to JSON file."""
