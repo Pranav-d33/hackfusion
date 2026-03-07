@@ -197,7 +197,7 @@ async def initiate_refill(customer_id: int, medication_id: int) -> Dict[str, Any
                 (customer_id,)
             )
             med = await execute_query(
-                "SELECT * FROM medications WHERE id = ?",
+                "SELECT * FROM product_catalog WHERE id = ?",
                 (medication_id,)
             )
             
@@ -207,10 +207,10 @@ async def initiate_refill(customer_id: int, medication_id: int) -> Dict[str, Any
             matching_alert = {
                 "customer_id": customer_id,
                 "customer_name": customer[0]['name'],
-                "customer_phone": customer[0]['phone'],
+                "customer_phone": customer[0].get('phone', ''),
                 "medication_id": medication_id,
-                "brand_name": med[0]['brand_name'],
-                "dosage": med[0]['dosage'],
+                "brand_name": med[0].get('brand_name', med[0].get('name', '')),
+                "dosage": med[0].get('dosage', med[0].get('package_size', '')),
                 "days_until_depletion": 0,
                 "last_quantity": 30,
             }

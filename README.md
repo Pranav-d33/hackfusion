@@ -1,8 +1,8 @@
-# Mediloon — AI-Driven Agentic Pharmacy System
+# Medaura — AI-Driven Agentic Pharmacy System
 
 An autonomous pharmacy ecosystem powered by multi-agent AI. Customers order medications through natural voice or text conversation in **English, German, Arabic, and Hindi**. The system predicts refill needs, enforces prescription rules, and autonomously executes backend procurement — with minimal human intervention.
 
-> **Hackfusion 2026** — AI-Driven Agentic Ordering & Autonomous Pharmacy System
+> **Medaura 2026** — AI-Driven Agentic Ordering & Autonomous Pharmacy System
 
 ---
 
@@ -74,7 +74,7 @@ An autonomous pharmacy ecosystem powered by multi-agent AI. Customers order medi
 
 ```bash
 git clone <repo-url>
-cd hackfusion
+cd medaura
 
 # Create .env in project root
 cp .env.example .env
@@ -204,7 +204,7 @@ No hardcoded or external data is used.
 ## 📁 Project Structure
 
 ```
-hackfusion/
+medaura/
 ├── backend/
 │   ├── agents/           # Multi-agent system
 │   │   ├── orchestrator.py      # Main pipeline
@@ -231,4 +231,4 @@ hackfusion/
 
 ## License
 
-MIT — Hackfusion 2026 Demo
+MIT — Medaura 2026 Demo

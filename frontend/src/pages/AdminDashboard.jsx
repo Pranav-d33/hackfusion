@@ -299,7 +299,7 @@ export default function AdminDashboard({ onSwitchToUser, user }) {
         <div className="p-4 flex items-center justify-center border-b border-gray-100">
           <img
             src="/admin_logo.png"
-            alt="Mediloon Admin"
+            alt="Medaura Admin"
             className="w-48 h-48 object-contain pointer-events-none transform scale-110"
             onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/mediloon-logo.webp'; }}
           />

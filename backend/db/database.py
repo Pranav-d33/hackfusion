@@ -3,6 +3,7 @@ Database module for Mediloon
 Dual-mode: PostgreSQL (Supabase) when SUPABASE_DATABASE_URL is set,
            SQLite (aiosqlite) otherwise (local dev).
 
+Uses psycopg3 (pure-Python, no C deps) for Postgres — works on Vercel.
 The adapter layer auto-converts SQLite-style SQL (? placeholders,
 INSERT OR IGNORE, date('now'), etc.) to PostgreSQL equivalents so the
 rest of the codebase needs zero changes.
@@ -20,9 +21,10 @@ from config import SUPABASE_DATABASE_URL, IS_VERCEL
 USE_POSTGRES = bool(SUPABASE_DATABASE_URL)
 
 if USE_POSTGRES:
-    import asyncpg  # type: ignore[import-untyped]
+    import psycopg        # pure-python, no C extensions needed
+    from psycopg.rows import dict_row
 else:
-    import aiosqlite  # type: ignore[import-untyped]
+    import aiosqlite      # type: ignore[import-untyped]
     import shutil
     from config import DB_PATH, DATA_DIR, SEED_DB_SOURCE
     DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -36,7 +38,7 @@ def _adapt_sql(sql: str, params: tuple = ()) -> tuple:
     """Convert SQLite-flavoured SQL to PostgreSQL on the fly.
 
     Handles:
-      ? → $1, $2, …
+      ? → %s  (psycopg uses %s placeholders)
       INSERT OR IGNORE INTO → INSERT INTO … ON CONFLICT DO NOTHING
       date('now')            → CURRENT_DATE
       date('now', '-N days') → (CURRENT_DATE - INTERVAL 'N days')
@@ -68,12 +70,8 @@ def _adapt_sql(sql: str, params: tuple = ()) -> tuple:
     # 5. Strip AUTOINCREMENT keyword (PG SERIAL handles it)
     adapted = re.sub(r'\bAUTOINCREMENT\b', '', adapted, flags=re.IGNORECASE)
 
-    # 6. Replace ? placeholders with $1, $2, …
-    counter = [0]
-    def _next(m):
-        counter[0] += 1
-        return f'${counter[0]}'
-    adapted = re.sub(r'\?', _next, adapted)
+    # 6. Replace ? placeholders with %s  (psycopg convention)
+    adapted = adapted.replace('?', '%s')
 
     # 7. Append ON CONFLICT DO NOTHING for former INSERT OR IGNORE
     if was_ignore:
@@ -83,31 +81,52 @@ def _adapt_sql(sql: str, params: tuple = ()) -> tuple:
 
 
 # ---------------------------------------------------------------------------
-# Postgres connection pool
+# Postgres connection (psycopg3 — sync wrapper with async-like API)
 # ---------------------------------------------------------------------------
-_pg_pool = None  # asyncpg.Pool | None
+# psycopg3 AsyncConnection requires a running event loop at connect time.
+# For Vercel serverless (cold starts), a simple sync connection per-request
+# is more reliable than pools. We wrap it to match the async interface.
+
+async def _pg_query(sql: str, params: tuple = ()):
+    """Execute a Postgres read query and return list[dict]."""
+    adapted_sql, adapted_params = _adapt_sql(sql, params)
+    with psycopg.connect(SUPABASE_DATABASE_URL, row_factory=dict_row) as conn:
+        with conn.cursor() as cur:
+            cur.execute(adapted_sql, adapted_params)
+            return cur.fetchall()
 
 
-async def _get_pool():
-    global _pg_pool
-    if _pg_pool is None:
-        _pg_pool = await asyncpg.create_pool(
-            SUPABASE_DATABASE_URL,
-            min_size=1,
-            max_size=10,
-            command_timeout=30,
-            # Supabase transaction-pooler (port 6543) needs this
-            statement_cache_size=0,
-        )
-    return _pg_pool
+async def _pg_write(sql: str, params: tuple = ()):
+    """Execute a Postgres write query and return last inserted id."""
+    adapted_sql, adapted_params = _adapt_sql(sql, params)
+    with psycopg.connect(SUPABASE_DATABASE_URL, row_factory=dict_row, autocommit=True) as conn:
+        with conn.cursor() as cur:
+            trimmed = adapted_sql.strip().upper()
+            if trimmed.startswith('INSERT') and 'RETURNING' not in trimmed:
+                adapted_sql = adapted_sql.rstrip().rstrip(';') + ' RETURNING id'
+                try:
+                    cur.execute(adapted_sql, adapted_params)
+                    row = cur.fetchone()
+                    return row['id'] if row else None
+                except Exception:
+                    conn.rollback()
+                    clean = adapted_sql.rsplit('RETURNING id', 1)[0].strip()
+                    cur.execute(clean, adapted_params)
+                    return None
+            else:
+                cur.execute(adapted_sql, adapted_params)
+                return None
+
+
+async def _pg_execute_schema(sql_text: str):
+    """Execute a multi-statement DDL script on Postgres."""
+    with psycopg.connect(SUPABASE_DATABASE_URL, autocommit=True) as conn:
+        conn.execute(sql_text)
 
 
 async def close_pool():
-    """Gracefully close the PG pool (call on app shutdown)."""
-    global _pg_pool
-    if _pg_pool is not None:
-        await _pg_pool.close()
-        _pg_pool = None
+    """No-op for psycopg sync mode (connections are per-request)."""
+    pass
 
 
 # ---------------------------------------------------------------------------
@@ -137,8 +156,7 @@ if not USE_POSTGRES:
 async def get_db():
     """Return a raw connection (caller must close / release)."""
     if USE_POSTGRES:
-        pool = await _get_pool()
-        return await pool.acquire()
+        return psycopg.connect(SUPABASE_DATABASE_URL, row_factory=dict_row)
     else:
         db = await aiosqlite.connect(DB_PATH)
         db.row_factory = aiosqlite.Row
@@ -149,11 +167,9 @@ async def init_db():
     """Run DDL schema to ensure all tables exist."""
     if USE_POSTGRES:
         schema_path = Path(__file__).parent / "schema_postgres.sql"
-        pool = await _get_pool()
-        async with pool.acquire() as conn:
-            with open(schema_path, "r") as f:
-                schema = f.read()
-            await conn.execute(schema)
+        with open(schema_path, "r") as f:
+            schema = f.read()
+        await _pg_execute_schema(schema)
         print("✅ Database schema applied on Supabase (PostgreSQL)")
     else:
         schema_path = Path(__file__).parent / "schema.sql"
@@ -168,11 +184,7 @@ async def init_db():
 async def execute_query(query: str, params: tuple = ()):
     """Execute a read query → list[dict]."""
     if USE_POSTGRES:
-        adapted_sql, adapted_params = _adapt_sql(query, params)
-        pool = await _get_pool()
-        async with pool.acquire() as conn:
-            rows = await conn.fetch(adapted_sql, *adapted_params)
-            return [dict(r) for r in rows]
+        return await _pg_query(query, params)
     else:
         async with aiosqlite.connect(DB_PATH) as db:
             db.row_factory = aiosqlite.Row
@@ -184,23 +196,7 @@ async def execute_query(query: str, params: tuple = ()):
 async def execute_write(query: str, params: tuple = ()):
     """Execute a write query → last inserted id (or None)."""
     if USE_POSTGRES:
-        adapted_sql, adapted_params = _adapt_sql(query, params)
-        pool = await _get_pool()
-        async with pool.acquire() as conn:
-            trimmed = adapted_sql.strip().upper()
-            if trimmed.startswith('INSERT') and 'RETURNING' not in trimmed:
-                adapted_sql = adapted_sql.rstrip().rstrip(';') + ' RETURNING id'
-                try:
-                    row = await conn.fetchrow(adapted_sql, *adapted_params)
-                    return row['id'] if row else None
-                except Exception:
-                    # Table may lack `id` col or conflict → retry without RETURNING
-                    clean = adapted_sql.rsplit('RETURNING id', 1)[0].strip()
-                    await conn.execute(clean, *adapted_params)
-                    return None
-            else:
-                await conn.execute(adapted_sql, *adapted_params)
-                return None
+        return await _pg_write(query, params)
     else:
         async with aiosqlite.connect(DB_PATH) as db:
             cursor = await db.execute(query, params)
