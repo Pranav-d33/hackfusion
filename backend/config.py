@@ -62,7 +62,7 @@ VECTOR_TOP_K = 3
 SIMILARITY_THRESHOLD = 0.5
 
 # ── Supabase (PostgreSQL) ────────────────────────────────────
-# If set, the backend uses asyncpg + Supabase instead of local SQLite.
+# If set, the backend uses pg8000 + Supabase instead of local SQLite.
 # Use the **Transaction pooler** URI (port 6543) for serverless.
 SUPABASE_DATABASE_URL = os.getenv("SUPABASE_DATABASE_URL", "")
 
