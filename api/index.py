@@ -79,6 +79,3 @@ def _normalize_vercel_scope(scope):
 
 async def app(scope, receive, send):
     await backend_app(_normalize_vercel_scope(scope), receive, send)
-
-
-handler = app
