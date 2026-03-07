@@ -4,11 +4,11 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "/api"
+      "destination": "/api/index.py"
     }
   ],
   "functions": {
-    "api/index.py": {
+    "api/**/*.py": {
       "runtime": "@vercel/python@4.6.0",
       "maxDuration": 60,
       "excludeFiles": "{frontend/**,node_modules/**,backend/venv/**,backend/__pycache__/**,backend/tests/**,backend/test_*.py,tests/**,uploads/**,backend/uploads/**,data/chroma_db/**}"
