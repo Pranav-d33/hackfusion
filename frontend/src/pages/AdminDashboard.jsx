@@ -69,6 +69,41 @@ function MiniBar({ value, max, color = 'teal', showLabel = true }) {
   );
 }
 
+function TrendBars({ title, subtitle, values = [], labels = [], tone = 'teal' }) {
+  const safeValues = values.map(v => Number(v) || 0);
+  const max = Math.max(...safeValues, 1);
+  const toneMap = {
+    teal: 'from-teal-500 to-cyan-400',
+    indigo: 'from-indigo-500 to-blue-400',
+    amber: 'from-amber-500 to-orange-400',
+    rose: 'from-rose-500 to-pink-400'
+  };
+
+  return (
+    <div className="rounded-3xl border border-slate-200/70 bg-white/80 backdrop-blur-xl p-5 shadow-sm">
+      <div className="mb-4">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{title}</p>
+        <p className="text-sm text-slate-600 mt-1">{subtitle}</p>
+      </div>
+      <div className="h-36 flex items-end gap-2">
+        {safeValues.map((value, idx) => {
+          const height = Math.max(8, (value / max) * 100);
+          return (
+            <div key={`${title}-${idx}`} className="flex-1 flex flex-col items-center justify-end gap-2 min-w-0">
+              <div
+                className={`w-full rounded-t-xl bg-gradient-to-t ${toneMap[tone] || toneMap.teal} shadow-[0_8px_16px_-8px_rgba(15,23,42,0.45)] transition-all duration-500 hover:opacity-90`}
+                style={{ height: `${height}%` }}
+                title={`${labels[idx] || `#${idx + 1}`}: ${value}`}
+              />
+              <span className="text-[10px] text-slate-400 font-medium truncate w-full text-center">{labels[idx] || idx + 1}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 /* ─── Stat Card Component (Enhanced with Ring Visual) ─── */
 function StatCard({ icon, label, value, sub, color = 'teal', ringPct, ringMax }) {
   const colorMap = {
@@ -295,6 +330,22 @@ export default function AdminDashboard({ onSwitchToUser, user }) {
   const lowStockCount = medications.filter(m => m.stock_quantity <= 10).length;
   const criticalPreds = lowStockPredictions.filter(p => p.urgency === 'critical').length;
   const pendingOrders = procurementQueue.filter(o => o.status === 'pending').length;
+  const stockHealthBands = [
+    medications.filter(m => m.stock_quantity > 30).length,
+    medications.filter(m => m.stock_quantity > 10 && m.stock_quantity <= 30).length,
+    medications.filter(m => m.stock_quantity <= 10).length,
+  ];
+  const stockHealthLabels = ['Healthy', 'Watch', 'Critical'];
+  const weekLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const weeklyEventLoad = weekLabels.map((_, day) =>
+    events.filter((ev) => {
+      const date = new Date(ev.created_at || Date.now());
+      return date.getDay() === day;
+    }).length
+  );
+  const riskTop = [...lowStockPredictions]
+    .sort((a, b) => (a.days_until_stockout ?? 999) - (b.days_until_stockout ?? 999))
+    .slice(0, 5);
 
   const tabs = [
     { id: 'overview', label: 'Overview', icon: <Activity size={18} /> },
@@ -306,75 +357,116 @@ export default function AdminDashboard({ onSwitchToUser, user }) {
 
 
   return (
-    <div className="flex h-screen bg-gradient-to-br from-[#FCFAFA] to-[#F5F5F5] font-sans relative overflow-hidden">
-      {/* Decorative Blur Backgrounds for luxury feel */}
-      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-teal-200/20 rounded-full mix-blend-multiply filter blur-[100px] opacity-70 pointer-events-none" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-200/20 rounded-full mix-blend-multiply filter blur-[100px] opacity-70 pointer-events-none" />
+    <div className="min-h-screen bg-[radial-gradient(circle_at_15%_10%,rgba(99,102,241,0.15),transparent_35%),radial-gradient(circle_at_90%_0%,rgba(14,165,233,0.14),transparent_35%),radial-gradient(circle_at_40%_90%,rgba(16,185,129,0.14),transparent_38%),#f8fafc] font-sans text-slate-900">
+      <main className="max-w-[1600px] mx-auto px-4 md:px-6 lg:px-8 py-5 md:py-7">
+        {/* Apple-like top glass bar */}
+        <header className="sticky top-4 z-30 mb-5">
+          <div className="rounded-[1.75rem] border border-white/70 bg-white/65 backdrop-blur-2xl shadow-[0_20px_40px_-20px_rgba(15,23,42,0.35)] px-4 md:px-6 py-4">
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-800 text-white flex items-center justify-center shadow-lg">
+                    <BarChart2 size={18} />
+                  </div>
+                  <div>
+                    <p className="text-[11px] uppercase tracking-[0.18em] text-slate-400 font-semibold">Pharmacy Operations</p>
+                    <h1 className="text-lg md:text-xl font-bold tracking-tight">Intelligence Dashboard</h1>
+                  </div>
+                </div>
 
-      {/* ═══ Slim Sidebar ═══ */}
-      <aside className="w-56 bg-white/80 backdrop-blur-xl border-r border-white/40 flex flex-col shadow-[1px_0_15px_-3px_rgba(0,0,0,0.03)] relative z-10">
-        <div className="p-4 flex items-center justify-center border-b border-gray-100">
-          <img
-            src="/admin_logo.png"
-            alt="Medaura Admin"
-            className="w-48 h-48 object-contain pointer-events-none transform scale-110"
-            onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = '/mediloon-logo.webp'; }}
-          />
-        </div>
+                <div className="flex items-center gap-2 md:gap-3 flex-wrap">
+                  <div className="px-3 py-1.5 rounded-xl bg-slate-100/80 border border-slate-200 text-xs font-semibold text-slate-600">
+                    {new Date().toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
+                  </div>
+                  <button onClick={refreshAllData} className={`p-2 text-slate-500 hover:text-sky-700 hover:bg-sky-50 rounded-xl transition-all ${loading ? 'animate-spin' : ''}`}>
+                    <RefreshCw size={16} />
+                  </button>
+                  <div className="px-3 py-1.5 rounded-xl bg-slate-900 text-white text-xs font-semibold flex items-center gap-2 shadow">
+                    <span className="w-5 h-5 rounded-lg bg-white/10 flex items-center justify-center text-[10px] font-bold">{user?.name?.[0] || 'A'}</span>
+                    <span className="max-w-[120px] truncate">{user?.name || 'Admin'}</span>
+                  </div>
+                  <button onClick={onSwitchToUser} className="px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-xs font-semibold text-slate-700 hover:text-slate-900 hover:shadow-sm transition-all active:scale-95 flex items-center gap-1.5">
+                    <Users size={14} /> User View
+                  </button>
+                </div>
+              </div>
 
-        <nav className="flex-1 p-3 space-y-1">
-          {tabs.map(t => (
-            <button key={t.id} onClick={() => { setActiveTab(t.id); setMessage(null); }}
-              className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm transition-all duration-200 ${activeTab === t.id ? 'bg-teal-50 text-teal-700 font-semibold shadow-sm ring-1 ring-teal-200' : 'text-gray-500 hover:bg-gray-50 hover:text-gray-800'}`}>
-              {t.icon}<span>{t.label}</span>
-            </button>
-          ))}
-        </nav>
-
-        <div className="p-3 border-t border-gray-100 space-y-2">
-          <div className="px-3 py-2 bg-gray-50 rounded-xl">
-            <div className="text-[9px] text-gray-400 uppercase font-bold tracking-wider mb-0.5">Logged in</div>
-            <div className="flex items-center gap-2">
-              <div className="w-5 h-5 rounded-full bg-teal-100 flex items-center justify-center text-teal-700 font-bold text-[10px]">{user?.name?.[0] || 'A'}</div>
-              <span className="text-xs font-medium text-gray-700 truncate">{user?.name || 'Admin'}</span>
+              <div className="bg-slate-100/80 rounded-2xl p-1.5 border border-white/70 inline-flex gap-1.5 flex-wrap w-full md:w-auto">
+                {tabs.map(t => (
+                  <button
+                    key={t.id}
+                    onClick={() => { setActiveTab(t.id); setMessage(null); }}
+                    className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 inline-flex items-center gap-2 ${activeTab === t.id
+                      ? 'bg-white text-slate-900 shadow-[0_6px_16px_-8px_rgba(15,23,42,0.45)]'
+                      : 'text-slate-500 hover:text-slate-800 hover:bg-white/70'
+                      }`}
+                  >
+                    {t.icon}
+                    <span>{t.label}</span>
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
-          <button onClick={onSwitchToUser} className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-gray-900 text-white rounded-xl text-xs font-semibold hover:bg-gray-800 transition-colors shadow active:scale-95">
-            <Users size={14} /> User View
-          </button>
-        </div>
-      </aside>
-
-      {/* ═══ Main Content ═══ */}
-      <main className="flex-1 flex flex-col overflow-hidden relative z-10">
-        {/* Header */}
-        <header className="h-16 bg-white/60 backdrop-blur-md border-b border-white/40 px-8 flex items-center justify-between shadow-[0_4px_20px_-10px_rgba(0,0,0,0.05)] sticky top-0 z-20">
-          <div className="flex items-center gap-2">
-            {tabs.find(t => t.id === activeTab)?.icon}
-            <h2 className="text-lg font-bold text-gray-800">{tabs.find(t => t.id === activeTab)?.label}</h2>
-          </div>
-          <div className="flex items-center gap-3">
-            <button onClick={refreshAllData} className={`p-1.5 text-gray-400 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition-all ${loading ? 'animate-spin' : ''}`}>
-              <RefreshCw size={16} />
-            </button>
-            <span className="text-xs text-gray-400">{new Date().toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</span>
           </div>
         </header>
 
-        {/* Toast */}
-        {message && (
-          <div className={`mx-6 mt-3 p-3 rounded-xl flex items-center justify-between text-sm shadow-sm animate-fade-in-up ${message.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
-            <span className="font-medium">{message.text}</span>
-            <button onClick={() => setMessage(null)} className="opacity-60 hover:opacity-100"><X size={16} /></button>
-          </div>
-        )}
+        <div className="rounded-[2rem] border border-white/70 bg-white/45 backdrop-blur-xl shadow-[0_30px_60px_-35px_rgba(15,23,42,0.45)]">
+          {/* Toast */}
+          {message && (
+            <div className={`mx-6 mt-5 p-3 rounded-xl flex items-center justify-between text-sm shadow-sm animate-fade-in-up ${message.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+              <span className="font-medium">{message.text}</span>
+              <button onClick={() => setMessage(null)} className="opacity-60 hover:opacity-100"><X size={16} /></button>
+            </div>
+          )}
 
-        {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+          {/* Scrollable Content */}
+          <div className="p-4 md:p-6 lg:p-7 space-y-4">
+
 
           {/* ═══════════ OVERVIEW TAB ═══════════ */}
           {activeTab === 'overview' && (
             <div className="space-y-6 animate-fade-in-up px-2 pb-6">
+              {/* Dashboard Graph Row */}
+              <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+                <TrendBars
+                  title="Inventory Distribution"
+                  subtitle="Healthy vs warning vs critical products"
+                  values={stockHealthBands}
+                  labels={stockHealthLabels}
+                  tone="teal"
+                />
+                <TrendBars
+                  title="Weekly Event Activity"
+                  subtitle="Operational load by weekday"
+                  values={weeklyEventLoad}
+                  labels={weekLabels}
+                  tone="indigo"
+                />
+                <div className="rounded-3xl border border-slate-200/70 bg-white/80 backdrop-blur-xl p-5 shadow-sm">
+                  <div className="mb-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Critical Risk Queue</p>
+                    <p className="text-sm text-slate-600 mt-1">Top medications by days to stockout</p>
+                  </div>
+                  <div className="space-y-3">
+                    {riskTop.length === 0 ? (
+                      <div className="rounded-2xl bg-emerald-50/70 border border-emerald-100 px-4 py-5 text-sm font-semibold text-emerald-700">No immediate depletion risk detected.</div>
+                    ) : riskTop.map((item, idx) => {
+                      const daysLeft = item.days_until_stockout ?? 0;
+                      const barColor = daysLeft <= 3 ? 'red' : daysLeft <= 7 ? 'amber' : 'blue';
+                      return (
+                        <div key={`${item.brand_name}-${idx}`} className="rounded-2xl border border-slate-100 bg-white/70 px-3.5 py-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-sm font-semibold text-slate-800 truncate pr-2">{item.brand_name}</span>
+                            <span className="text-[11px] font-bold text-slate-500">{daysLeft}d</span>
+                          </div>
+                          <MiniBar value={30 - Math.max(0, daysLeft)} max={30} color={barColor} showLabel={false} />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
               {/* ★ Priority Procurement Section (High Visibility) */}
               <div className="bg-white/80 backdrop-blur-xl border border-white/60 rounded-[1.5rem] p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative overflow-hidden mb-2 group transition-all duration-500 hover:shadow-[0_12px_40px_rgb(0,0,0,0.06)] hover:-translate-y-1">
                 {/* Decorative Elements */}
@@ -427,7 +519,7 @@ export default function AdminDashboard({ onSwitchToUser, user }) {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {/* Live Events */}
                 <Section id="events" title="Live Events" icon={<Zap size={16} />} badge={events.length} isExpanded={expandedSections.events} onToggle={toggleSection}>
-                  <div className="max-h-[400px] overflow-y-auto divide-y divide-gray-100/50">
+                  <div className="divide-y divide-gray-100/50">
                     {events.length === 0 ? <div className="py-10 text-center text-gray-400 text-sm">No events yet</div> : events.slice(0, 15).map((ev, i) => (
                       <div key={i} className="flex gap-4 px-6 py-4 hover:bg-teal-50/30 transition-colors text-sm group">
                         <span className="text-[10px] font-mono text-gray-400 whitespace-nowrap pt-0.5">{new Date(ev.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
@@ -445,7 +537,7 @@ export default function AdminDashboard({ onSwitchToUser, user }) {
 
                 {/* Stock Forecast Preview */}
                 <Section id="forecast" title="Stock Forecasts" icon={<TrendingUp size={16} />} badge={lowStockPredictions.length} isExpanded={expandedSections.forecast} onToggle={toggleSection}>
-                  <div className="max-h-[400px] overflow-y-auto p-4 space-y-3">
+                  <div className="p-4 space-y-3">
                     {lowStockPredictions.length === 0 ? (
                       <div className="py-8 text-center"><CheckCircle size={32} className="mx-auto text-green-400/50 mb-3" /><p className="text-sm font-bold text-[#6B6B6B]">All stocks healthy</p></div>
                     ) : lowStockPredictions.slice(0, 8).map((pred, i) => {
@@ -477,7 +569,7 @@ export default function AdminDashboard({ onSwitchToUser, user }) {
 
               {/* Webhook Logs */}
               <Section id="webhook" title="Webhook Traffic" icon={<MessageSquare size={16} />} badge={webhookLogs.length} isExpanded={expandedSections.webhook} onToggle={toggleSection}>
-                <div className="max-h-[300px] overflow-y-auto">
+                <div>
                   {webhookLogs.length === 0 ? <div className="py-8 text-center text-gray-400 text-sm">No logs</div> : (
                     <table className="w-full text-xs text-left">
                       <thead className="bg-gray-50/50 text-gray-500 font-bold uppercase tracking-wider sticky top-0 backdrop-blur-md"><tr><th className="px-6 py-3">Time</th><th className="px-6 py-3">Method</th><th className="px-6 py-3">Endpoint</th><th className="px-6 py-3 text-right">Payload</th></tr></thead>
@@ -757,6 +849,7 @@ export default function AdminDashboard({ onSwitchToUser, user }) {
               </Section>
             </div>
           )}
+          </div>
         </div>
       </main>
 

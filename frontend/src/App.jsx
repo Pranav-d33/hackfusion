@@ -218,6 +218,7 @@ export default function App() {
     const [showOrderSummary, setShowOrderSummary] = useState(false);
     const [pendingAddress, setPendingAddress] = useState('');
     const [pendingOrderData, setPendingOrderData] = useState(null);
+    const [dockHeight, setDockHeight] = useState(120);
 
     // Selection State
     const [selectedMedId, setSelectedMedId] = useState(null);
@@ -225,6 +226,7 @@ export default function App() {
     // Animation State
     const [flyingItems, setFlyingItems] = useState([]);
     const cartRef = useRef(null);
+    const dockRef = useRef(null);
     const liveModeRef = useRef(false);
 
     // --- Hooks ---
@@ -322,14 +324,47 @@ export default function App() {
     }, [pendingVoiceIntro, showProfileModal, user]);
 
     // Auto-scroll chat
-    const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    };
+    const scrollToBottom = useCallback((behavior = 'smooth') => {
+        messagesEndRef.current?.scrollIntoView({ behavior });
+    }, []);
     useEffect(() => {
         if (messages.length > 1 || isLoading) {
             scrollToBottom();
         }
-    }, [messages, isLoading]);
+    }, [messages, isLoading, scrollToBottom]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return undefined;
+        const dockEl = dockRef.current;
+        if (!dockEl) return undefined;
+
+        const measureDock = () => {
+            const nextHeight = Math.ceil(dockEl.getBoundingClientRect().height || 0);
+            setDockHeight(prev => (prev === nextHeight ? prev : nextHeight));
+        };
+
+        measureDock();
+
+        if (typeof ResizeObserver === 'undefined') {
+            window.addEventListener('resize', measureDock);
+            return () => window.removeEventListener('resize', measureDock);
+        }
+
+        const observer = new ResizeObserver(measureDock);
+        observer.observe(dockEl);
+        window.addEventListener('resize', measureDock);
+
+        return () => {
+            observer.disconnect();
+            window.removeEventListener('resize', measureDock);
+        };
+    }, []);
+
+    useEffect(() => {
+        if (dockHeight > 0 && (messages.length > 1 || isLoading || candidates.length > 0)) {
+            scrollToBottom();
+        }
+    }, [dockHeight, messages.length, isLoading, candidates.length, scrollToBottom]);
 
     // Handle Transcript from Voice
     useEffect(() => {
@@ -984,7 +1019,10 @@ export default function App() {
             {/* ═══════════════════════════════════
                 2. AMBIENT LAYOUT — Floating Streams
                ═══════════════════════════════════ */}
-            <main className={`relative w-full h-[calc(100vh)] overflow-hidden transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] ${liveMode && !isAnyModalOpen ? 'blur-xl scale-95 opacity-40 pointer-events-none' : ''}`}>
+            <main
+                className={`relative w-full overflow-hidden transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] ${liveMode && !isAnyModalOpen ? 'blur-xl scale-95 opacity-40 pointer-events-none' : ''}`}
+                style={{ height: 'var(--app-height)' }}
+            >
 
                 {/* ─── LEFT FLOATING WIDGET (Desktop Only) ─── */}
                 {isDesktop && (
@@ -1086,7 +1124,10 @@ export default function App() {
 
                 {/* ─── CENTER CHAT STREAM ─── */}
                 <section className="absolute inset-0 z-20 flex flex-col lg:px-[400px] overflow-hidden">
-                    <div className="flex-1 w-full max-w-3xl mx-auto h-full overflow-y-auto pt-24 md:pt-28 pb-32 md:pb-40 px-3 sm:px-4 md:px-8 scroll-smooth scrollbar-hide mask-gradient-to-b flex flex-col">
+                    <div
+                        className="flex-1 w-full max-w-3xl mx-auto h-full overflow-y-auto pt-24 md:pt-28 px-3 sm:px-4 md:px-8 scroll-smooth scrollbar-hide mask-gradient-to-b flex flex-col"
+                        style={{ paddingBottom: `calc(${dockHeight}px + var(--safe-area-bottom) + 1rem)` }}
+                    >
 
                         {/* Feature Highlights (removed to favor the new inline boxes) */}
 
@@ -1215,10 +1256,14 @@ export default function App() {
                 </section>
 
                 {/* ─── DYNAMIC DOCK (Input Area) ─── */}
-                <div className={`fixed bottom-4 md:bottom-6 left-1/2 -translate-x-1/2 w-[calc(100%-1.5rem)] md:w-full max-w-2xl z-40 pointer-events-auto transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] ${liveMode ? 'opacity-0 translate-y-[150%]' : 'opacity-100 translate-y-0'}`}>
+                <div
+                    ref={dockRef}
+                    className={`fixed left-1/2 -translate-x-1/2 w-[calc(100%-1.5rem)] md:w-full max-w-2xl z-40 pointer-events-auto transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] ${liveMode ? 'opacity-0 translate-y-[150%]' : 'opacity-100 translate-y-0'}`}
+                    style={{ bottom: 'calc(var(--safe-area-bottom) + 1rem)' }}
+                >
                     <div className="dynamic-dock rounded-3xl md:rounded-[2.5rem] p-2 md:p-3 flex flex-col">
                         {candidates.length > 0 && (
-                            <div className="mb-3 px-2">
+                            <div className="mb-3 px-1 md:px-2 max-h-[34vh] overflow-y-auto overscroll-contain scrollbar-hide">
                                 <ResultsList
                                     candidates={candidates}
                                     onSelect={(med) => { setSelectedMedId(med.id); handleDirectAddToCart(med); }}

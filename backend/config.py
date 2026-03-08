@@ -33,6 +33,7 @@ GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 GROQ_PRIMARY_MODEL = os.getenv("GROQ_PRIMARY_MODEL", "llama-3.3-70b-versatile")
 # Groq fallback: ultra-fast 8B
 GROQ_FALLBACK_MODEL = os.getenv("GROQ_FALLBACK_MODEL", "llama-3.1-8b-instant")
+GROQ_STT_MODEL = os.getenv("GROQ_STT_MODEL", "whisper-large-v3-turbo")
 
 # ── OpenRouter Configuration (SECONDARY — fallback when Groq is down) ─
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")

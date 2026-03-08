@@ -2,7 +2,7 @@
 Agent API Routes
 Chat and voice endpoints for the agent.
 """
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 import sys
@@ -14,6 +14,7 @@ from tools.cart_tools import get_cart, clear_cart, update_cart_quantity, remove_
 from tools.query_tools import vector_search
 from tools.query_tools import get_medication_details
 from agents.safety_agent import validate_add_to_cart
+from services.speech_service import transcribe_audio_file
 
 router = APIRouter(prefix="/api", tags=["agent"])
 
@@ -110,6 +111,12 @@ async def voice(request: ChatRequest):
     """
     request.source = "voice"
     return await chat(request)
+
+
+@router.post("/voice/transcribe")
+async def transcribe_voice(file: UploadFile = File(...), language: Optional[str] = Form(None)):
+    """Transcribe raw audio uploaded by the frontend fallback voice recorder."""
+    return await transcribe_audio_file(file, language=language)
 
 
 @router.get("/cart/{session_id}")

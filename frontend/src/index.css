@@ -10,8 +10,19 @@
 
 /* --- Base Layer --- */
 @layer base {
+    :root {
+        --app-height: 100vh;
+        --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+    }
+
+    @supports (height: 100dvh) {
+        :root {
+            --app-height: 100dvh;
+        }
+    }
+
     #root {
-        min-height: 100vh;
+        min-height: var(--app-height);
     }
 
     html {
@@ -23,7 +34,7 @@
 
     body {
         @apply font-body text-ink-primary bg-surface-snow;
-        min-height: 100vh;
+        min-height: var(--app-height);
         overflow-x: hidden;
         overscroll-behavior-y: auto;
     }
@@ -71,7 +82,7 @@
 @layer components {
     .ambient-canvas {
         position: relative;
-        min-height: 100vh;
+        min-height: var(--app-height);
         background: linear-gradient(180deg, #f7f8fb 0%, #f3f4f8 100%);
         isolation: isolate;
     }
