@@ -69,6 +69,7 @@ const translations = {
     // Voice Mode
     listening: 'Listening...',
     speaking: 'Speaking...',
+    transcribing: 'Transcribing...',
     processing: 'Processing...',
     exitVoiceMode: 'Exit Voice Mode',
     items: 'items',
@@ -339,6 +340,7 @@ const translations = {
     // Voice Mode
     listening: 'Höre zu...',
     speaking: 'Spreche...',
+    transcribing: 'Transkribiere...',
     processing: 'Verarbeite...',
     exitVoiceMode: 'Sprachmodus beenden',
     items: 'Artikel',
@@ -609,6 +611,7 @@ const translations = {
     // Voice Mode
     listening: 'أستمع...',
     speaking: 'أتحدث...',
+    transcribing: 'جارٍ النسخ...',
     processing: 'جارٍ المعالجة...',
     exitVoiceMode: 'إنهاء الوضع الصوتي',
     items: 'عناصر',
@@ -879,6 +882,7 @@ const translations = {
     // Voice Mode
     listening: 'सुन रहे हैं...',
     speaking: 'बोल रहे हैं...',
+    transcribing: 'लिख रहे हैं...',
     processing: 'प्रोसेसिंग...',
     exitVoiceMode: 'वॉइस मोड बंद करें',
     items: 'आइटम',

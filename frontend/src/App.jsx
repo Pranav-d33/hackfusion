@@ -233,6 +233,7 @@ export default function App() {
     const {
         isListening,
         isSpeaking,
+        isTranscribing,
         transcript,
         audioLevel,
         detectedLanguage,
@@ -396,15 +397,17 @@ export default function App() {
         }
     }, [isAuthModalOpen, isListening, isSpeaking, liveMode, stopListening, stopSpeaking, restartListeningIfLive]);
 
-    // Voice mode stall recovery: if idle for > 8s, auto-restart listening
+    // Voice mode stall recovery: auto-restart listening when idle
+    // Quick restart (500ms) when no transcript (e.g. no-speech), slower (5s) safety net
     useEffect(() => {
         if (!liveMode || isListening || isSpeaking || isLoading) return;
+        const delay = transcript ? 5000 : 500;
         const timer = setTimeout(() => {
             console.warn('[VoiceMode] Stall detected — auto-restarting listening');
             startListening();
-        }, 8000);
+        }, delay);
         return () => clearTimeout(timer);
-    }, [liveMode, isListening, isSpeaking, isLoading, startListening]);
+    }, [liveMode, isListening, isSpeaking, isLoading, transcript, startListening]);
 
     // Keep short-command detector in sync with latest transcript.
     useEffect(() => {
@@ -1360,6 +1363,7 @@ export default function App() {
                 isListening={isListening}
                 isSpeaking={isSpeaking}
                 isLoading={isLoading}
+                isTranscribing={isTranscribing}
                 transcript={transcript}
                 messages={messages}
                 onUpload={handleFileUpload}

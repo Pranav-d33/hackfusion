@@ -35,6 +35,7 @@ export default function LiveOverlay({
     isListening,
     isSpeaking,
     isLoading = false,
+    isTranscribing = false,
     transcript,
     messages,
     onUpload,
@@ -252,7 +253,7 @@ export default function LiveOverlay({
                             </div>
                         ))}
                         {/* Real-time transcript with native script support */}
-                        {isListening && transcript && (
+                        {(isListening || isTranscribing) && transcript && (
                             <div className="flex justify-end w-full animate-slide-up" style={{ animationFillMode: 'both' }}>
                                 <div className="px-5 py-3.5 bg-white/50 backdrop-blur-md text-ink-primary rounded-[1.4rem] rounded-tr-sm shadow-sm border border-white max-w-[85%] text-[15px] font-body flex items-center gap-3">
                                     <span className="opacity-70">{transcript}</span>
@@ -426,7 +427,12 @@ export default function LiveOverlay({
 
                         {/* Status Icon Overlay */}
                         <div className="absolute inset-0 flex items-center justify-center z-10 text-white drop-shadow-lg">
-                            {isListening ? (
+                            {isTranscribing ? (
+                                <svg className="w-10 h-10 animate-spin" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+                                    <path className="opacity-90" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                </svg>
+                            ) : isListening ? (
                                 <svg
                                     className="w-10 h-10"
                                     fill="none"
@@ -463,7 +469,12 @@ export default function LiveOverlay({
                     )}
 
                     <p className="text-center mt-4 font-medium text-gray-500">
-                        {isListening ? (
+                        {isTranscribing ? (
+                            <span className="flex items-center justify-center gap-2">
+                                <svg className="w-4 h-4 animate-spin text-indigo-500" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                                {t('transcribing')}
+                            </span>
+                        ) : isListening ? (
                             <span className="flex items-center justify-center gap-2">
                                 <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
                                 {t('listening')}
