@@ -246,7 +246,6 @@ async def register(request: RegisterRequest):
 @router.post("/login", response_model=AuthResponse)
 async def login(request: LoginRequest):
     """Login user. Supports email/password and Google social auth."""
-
     # ── Google social provider ───────────────────────────────────────────────
     if request.provider == 'google':
         if not request.email:

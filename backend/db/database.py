@@ -205,12 +205,18 @@ async def _pg_write(sql: str, params: tuple = ()):
                 row = cur.fetchone()
                 conn.commit()
                 return row[0] if row else None
-            except Exception:
+            except Exception as first_exc:
                 conn.rollback()
                 clean = adapted_sql.rsplit('RETURNING id', 1)[0].strip()
-                cur.execute(clean, adapted_params)
-                conn.commit()
-                return None
+                try:
+                    cur.execute(clean, adapted_params)
+                    conn.commit()
+                    return None
+                except Exception as second_exc:
+                    conn.rollback()
+                    raise RuntimeError(
+                        f"Postgres INSERT failed. primary={first_exc}; fallback={second_exc}; sql={clean}"
+                    ) from second_exc
         elif trimmed.startswith('INSERT') and not has_conflict:
             # Already has RETURNING clause
             cur.execute(adapted_sql, adapted_params)
@@ -226,12 +232,27 @@ async def _pg_write(sql: str, params: tuple = ()):
 
 
 async def _pg_execute_schema(sql_text: str):
-    """Execute a multi-statement DDL script on Postgres."""
+    """Execute a multi-statement DDL script on Postgres.
+    
+    pg8000 requires executing statements one at a time, so we split on ';'
+    and execute each statement individually.
+    """
     conn = _pg_connect()
     try:
         conn.autocommit = True
         cur = conn.cursor()
-        cur.execute(sql_text)
+        
+        # Split by semicolon and execute each statement separately
+        statements = [s.strip() for s in sql_text.split(';') if s.strip()]
+        for stmt in statements:
+            if stmt:  # Skip empty statements
+                try:
+                    cur.execute(stmt)
+                except Exception as e:
+                    # Log but don't fail on individual statement errors
+                    # (e.g., "table already exists" is OK)
+                    if "already exists" not in str(e).lower():
+                        print(f"Warning: Schema statement failed: {e}")
     finally:
         conn.close()
 
