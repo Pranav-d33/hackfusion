@@ -411,7 +411,7 @@ async def suggest_similar_medications(query: str, limit: int = 3) -> List[str]:
     return [lower_to_display[c] for c in close]
 
 
-async def get_inventory(med_id: int) -> Dict[str, Any]:
+async def get_inventory(med_id) -> Dict[str, Any]:
     """
     Get inventory information for a product.
 
@@ -421,6 +421,10 @@ async def get_inventory(med_id: int) -> Dict[str, Any]:
     Returns:
         Inventory info with stock quantity
     """
+    try:
+        med_id = int(med_id)
+    except (TypeError, ValueError):
+        return {"error": "Invalid product ID", "med_id": med_id}
     result = await execute_query("""
         SELECT pc.id, pc.product_name, pc.base_price_eur, pc.rx_required,
                COALESCE(inv.stock_quantity, 0) as stock_quantity
@@ -441,7 +445,7 @@ async def get_inventory(med_id: int) -> Dict[str, Any]:
     }
 
 
-async def get_rx_flag(med_id: int) -> Dict[str, Any]:
+async def get_rx_flag(med_id) -> Dict[str, Any]:
     """
     Check if a product requires prescription.
     V2 doesn't have rx_required per product — returns False by default.
@@ -452,6 +456,10 @@ async def get_rx_flag(med_id: int) -> Dict[str, Any]:
     Returns:
         RX requirement info
     """
+    try:
+        med_id = int(med_id)
+    except (TypeError, ValueError):
+        return {"error": "Invalid product ID", "med_id": med_id}
     result = await execute_query(
         "SELECT id, product_name, rx_required FROM product_catalog WHERE id = ?",
         (med_id,)
@@ -467,7 +475,7 @@ async def get_rx_flag(med_id: int) -> Dict[str, Any]:
     }
 
 
-async def get_medication_details(med_id: int) -> Optional[Dict[str, Any]]:
+async def get_medication_details(med_id) -> Optional[Dict[str, Any]]:
     """
     Get full product details.
 
@@ -477,6 +485,10 @@ async def get_medication_details(med_id: int) -> Optional[Dict[str, Any]]:
     Returns:
         Complete product info
     """
+    try:
+        med_id = int(med_id)
+    except (TypeError, ValueError):
+        return None
     result = await execute_query("""
         SELECT
             pc.*, COALESCE(inv.stock_quantity, 0) as stock_quantity
@@ -506,7 +518,7 @@ async def get_medication_details(med_id: int) -> Optional[Dict[str, Any]]:
     }
 
 
-async def get_tier1_alternatives(med_id: int) -> List[Dict[str, Any]]:
+async def get_tier1_alternatives(med_id) -> List[Dict[str, Any]]:
     """
     Get alternatives — products with similar names or in same price range.
     Since V2 has no active_ingredient column, we search by product name similarity.
@@ -517,6 +529,10 @@ async def get_tier1_alternatives(med_id: int) -> List[Dict[str, Any]]:
     Returns:
         List of alternative products
     """
+    try:
+        med_id = int(med_id)
+    except (TypeError, ValueError):
+        return []
     prod = await execute_query(
         "SELECT product_name, base_price_eur FROM product_catalog WHERE id = ?",
         (med_id,)

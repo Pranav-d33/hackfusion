@@ -222,7 +222,7 @@ async def direct_add_to_cart(session_id: str, request: AddToCartRequest):
         detail = _direct_add_error(reason, preferred_lang, med.get("brand_name", "This medication"))
         raise HTTPException(status_code=400, detail=detail)
 
-    cart = await add_to_cart(session_id, str(request.med_id), request.qty, dose=request.dose)
+    cart = await add_to_cart(session_id, request.med_id, request.qty, dose=request.dose)
     if not cart.get("added", True):
         detail = cart.get("warning") or _direct_add_error("default", preferred_lang)
         raise HTTPException(status_code=400, detail=detail)

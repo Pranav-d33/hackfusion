@@ -20,8 +20,17 @@ def _estimate_delivery_date(days: int = 3) -> str:
     return (datetime.now() + timedelta(days=days)).strftime("%Y-%m-%d")
 
 
-async def add_to_cart(session_id: str, med_id: str, qty: int, dose: str = None) -> Dict[str, Any]:
+async def add_to_cart(session_id: str, med_id, qty: int, dose: str = None) -> Dict[str, Any]:
     """Adds an item to the cart, checking inventory and existing quantities."""
+    # Ensure med_id is int — PostgreSQL SERIAL/INTEGER columns reject string params via pg8000
+    try:
+        med_id = int(med_id)
+    except (TypeError, ValueError):
+        return {
+            **(await get_cart(session_id)),
+            "warning": f"Invalid product ID: {med_id}",
+            "added": False,
+        }
     print(f"[DEBUG] add_to_cart called: session_id={session_id}, med_id={med_id}, qty={qty}")
     qty = int(qty) if qty is not None else 1
     if qty <= 0:
@@ -223,8 +232,9 @@ async def get_cart(session_id: str) -> Dict[str, Any]:
     }
 
 
-async def remove_from_cart(session_id: str, cart_item_id: int) -> Dict[str, Any]:
+async def remove_from_cart(session_id: str, cart_item_id) -> Dict[str, Any]:
     """Remove an item from the cart."""
+    cart_item_id = int(cart_item_id)
     await execute_write(
         "DELETE FROM cart WHERE session_id = ? AND id = ?",
         (session_id, cart_item_id)
@@ -232,8 +242,10 @@ async def remove_from_cart(session_id: str, cart_item_id: int) -> Dict[str, Any]
     return await get_cart(session_id)
 
 
-async def update_cart_quantity(session_id: str, cart_item_id: int, qty: int) -> Dict[str, Any]:
+async def update_cart_quantity(session_id: str, cart_item_id, qty) -> Dict[str, Any]:
     """Update quantity of a cart item."""
+    cart_item_id = int(cart_item_id)
+    qty = int(qty)
     if qty <= 0:
         return await remove_from_cart(session_id, cart_item_id)
 
@@ -323,8 +335,8 @@ async def checkout(session_id: str, customer_id: int = None, delivery_address: s
 
     # Deduct from inventory for each item
     for item in cart['items']:
-        product_id = item['medication_id']
-        qty = item['quantity']
+        product_id = int(item['medication_id'])
+        qty = int(item['quantity'])
 
         await execute_write(
             """UPDATE inventory_items SET stock_quantity = stock_quantity - ?,
@@ -350,10 +362,10 @@ async def checkout(session_id: str, customer_id: int = None, delivery_address: s
                        VALUES (?, ?, ?, ?, ?)""",
                     (
                         customer_order_id,
-                        item['medication_id'],
+                        int(item['medication_id']),
                         item.get('brand_name', 'Unknown'),
-                        item['quantity'],
-                        item.get('item_total', 0),
+                        int(item['quantity']),
+                        float(item.get('item_total', 0)),
                     )
                 )
             print(f"[DEBUG] Saved customer_order #{customer_order_id} with {len(cart['items'])} line items")

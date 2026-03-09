@@ -53,6 +53,32 @@ else:
 # SQLite ➜ PostgreSQL  automatic SQL adapter
 # ---------------------------------------------------------------------------
 
+def _coerce_params(params):
+    """Coerce parameter types for pg8000's strict type checking.
+
+    pg8000 sends Python types to PostgreSQL and the server rejects
+    mismatches (e.g. a str '42' for an INTEGER column).  This helper
+    converts obvious string-encoded numbers to int/float so that
+    parameterised queries work correctly.
+    """
+    out = []
+    for p in params:
+        if isinstance(p, str):
+            # Try int first, then float — leave genuine strings alone
+            try:
+                out.append(int(p))
+                continue
+            except (ValueError, TypeError):
+                pass
+            try:
+                out.append(float(p))
+                continue
+            except (ValueError, TypeError):
+                pass
+        out.append(p)
+    return out
+
+
 def _adapt_sql(sql: str, params: tuple = ()) -> tuple:
     """Convert SQLite-flavoured SQL to PostgreSQL on the fly.
 
@@ -63,6 +89,7 @@ def _adapt_sql(sql: str, params: tuple = ()) -> tuple:
       date('now', '-N days') → (CURRENT_DATE - INTERVAL 'N days')
       datetime('now')        → NOW()
       AUTOINCREMENT          → stripped (SERIAL handles it)
+      Parameter type coercion for pg8000 strict typing
     """
     adapted = sql
 
@@ -96,7 +123,10 @@ def _adapt_sql(sql: str, params: tuple = ()) -> tuple:
     if was_ignore:
         adapted = adapted.rstrip().rstrip(';') + ' ON CONFLICT DO NOTHING'
 
-    return adapted, list(params)
+    # 8. Coerce parameter types for pg8000 strict type checking
+    coerced = _coerce_params(list(params))
+
+    return adapted, coerced
 
 
 # ---------------------------------------------------------------------------
@@ -118,11 +148,32 @@ def _pg_connect():
 
 
 def _rows_to_dicts(cursor):
-    """Convert pg8000 cursor results to list[dict]."""
+    """Convert pg8000 cursor results to list[dict].
+
+    Also converts:
+      - Decimal → float  (PostgreSQL NUMERIC → JSON-serialisable)
+      - datetime → ISO string  (consistent with SQLite text behaviour)
+    so the rest of the codebase works identically regardless of backend.
+    """
     if cursor.description is None:
         return []
+    from decimal import Decimal
+    from datetime import datetime, date
     cols = [d[0] for d in cursor.description]
-    return [dict(zip(cols, row)) for row in cursor.fetchall()]
+    rows = []
+    for row in cursor.fetchall():
+        converted = {}
+        for col, val in zip(cols, row):
+            if isinstance(val, Decimal):
+                converted[col] = float(val)
+            elif isinstance(val, datetime):
+                converted[col] = val.isoformat()
+            elif isinstance(val, date):
+                converted[col] = val.isoformat()
+            else:
+                converted[col] = val
+        rows.append(converted)
+    return rows
 
 
 async def _pg_query(sql: str, params: tuple = ()):
@@ -144,7 +195,10 @@ async def _pg_write(sql: str, params: tuple = ()):
     try:
         cur = conn.cursor()
         trimmed = adapted_sql.strip().upper()
-        if trimmed.startswith('INSERT') and 'RETURNING' not in trimmed:
+        # Don't append RETURNING id when ON CONFLICT DO NOTHING is present
+        # (conflicting rows return no rows, making fetchone() return None)
+        has_conflict = 'ON CONFLICT' in trimmed
+        if trimmed.startswith('INSERT') and 'RETURNING' not in trimmed and not has_conflict:
             adapted_sql = adapted_sql.rstrip().rstrip(';') + ' RETURNING id'
             try:
                 cur.execute(adapted_sql, adapted_params)
@@ -157,6 +211,12 @@ async def _pg_write(sql: str, params: tuple = ()):
                 cur.execute(clean, adapted_params)
                 conn.commit()
                 return None
+        elif trimmed.startswith('INSERT') and not has_conflict:
+            # Already has RETURNING clause
+            cur.execute(adapted_sql, adapted_params)
+            row = cur.fetchone()
+            conn.commit()
+            return row[0] if row else None
         else:
             cur.execute(adapted_sql, adapted_params)
             conn.commit()
