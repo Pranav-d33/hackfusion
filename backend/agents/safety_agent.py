@@ -259,8 +259,10 @@ async def validate_prescription(
     # Create lookup map for prescribed meds (by brand and generic)
     prescribed_names = set()
     for m in prescribed_meds:
-        prescribed_names.add(m['brand_name'].lower())
-        prescribed_names.add(m['generic_name'].lower())
+        for key in ("brand_name", "generic_name", "searched_name", "medicine_name", "name"):
+            val = m.get(key, "")
+            if val:
+                prescribed_names.add(val.lower())
     
     # 2. Validate each RX item
     approved_items = []
@@ -271,8 +273,17 @@ async def validate_prescription(
         generic = item.get('generic_name', '').lower()
         
         # Check if brand or generic is in prescribed list
-        # Note: This is a strict check. In real world, we'd use stronger entity linking.
+        # Uses both exact and substring matching to handle OCR variations
         is_covered = (brand in prescribed_names) or (generic in prescribed_names)
+        # Also check partial matches (e.g. "Aspirin 500mg" vs "aspirin")
+        if not is_covered:
+            for pname in prescribed_names:
+                if pname and brand and (brand in pname or pname in brand):
+                    is_covered = True
+                    break
+                if pname and generic and (generic in pname or pname in generic):
+                    is_covered = True
+                    break
         
         if is_covered:
             approved_items.append(item)
@@ -295,7 +306,7 @@ async def validate_prescription(
         return {"valid": True, "message": "No prescription items in cart."}
 
     if blocked_items:
-        blocked_names = ", ".join([i['brand_name'] for i in blocked_items])
+        blocked_names = ", ".join([i.get('brand_name', 'Unknown') for i in blocked_items])
         return {
             "valid": False,
             "message": f"Prescription valid, but does not cover: {blocked_names}. Please upload a prescription for these items.",

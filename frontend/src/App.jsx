@@ -559,7 +559,9 @@ export default function App() {
 
     const handleSend = useCallback(async (text) => {
         if (!text.trim() || isLoading) return;
-        const userMsg = { id: Date.now(), text, isUser: true };
+        // Strip base64 payload from display text (keep it only for the API call)
+        const displayText = text.replace(/\s*\|BASE64:[^\s]*/, '');
+        const userMsg = { id: Date.now(), text: displayText, isUser: true };
         setMessages(prev => [...prev, userMsg]);
         setIsLoading(true);
         const controller = new AbortController();
@@ -721,8 +723,18 @@ export default function App() {
             const uploadTimeout = setTimeout(() => uploadController.abort(), 30000);
             const response = await fetch(`${API_BASE}/upload/prescription`, { method: 'POST', body: formData, signal: uploadController.signal });
             clearTimeout(uploadTimeout);
+            if (!response.ok) {
+                const errData = await response.json().catch(() => ({}));
+                throw new Error(errData.detail || 'Upload failed');
+            }
             const data = await response.json();
-            handleSend(`Please analyze this prescription file: ${data.filepath}`);
+            // Reset isLoading before calling handleSend so it doesn't get blocked
+            setIsLoading(false);
+            // Send base64 image data inline so OCR works on Vercel (no ephemeral filesystem dependency)
+            const msg = data.image_base64
+                ? `Please analyze this prescription file: ${data.filepath} |BASE64:${data.mime_type}:${data.image_base64}`
+                : `Please analyze this prescription file: ${data.filepath}`;
+            handleSend(msg);
         } catch (error) {
             console.error(error);
             setMessages(prev => [...prev, { id: Date.now() + 1, text: t('uploadFailed'), isUser: false }]);

@@ -1077,14 +1077,32 @@ async def process_message(
     # ── Step 1.5a: Prescription file fast-path (bypass LLM) ─────────
     _rx_match = re.match(r"(?i)please analyze this prescription file:\s*(.+)", user_input)
     if _rx_match:
-        file_path = _rx_match.group(1).strip()
-        log_trace(session_id, "prescription_intercept", {"file_path": file_path})
+        raw_payload = _rx_match.group(1).strip()
+        # Parse inline base64 if present: "filepath |BASE64:mime:data"
+        _b64_marker = "|BASE64:"
+        image_base64 = None
+        mime_type = None
+        file_path = raw_payload
+        if _b64_marker in raw_payload:
+            file_path, b64_part = raw_payload.split(_b64_marker, 1)
+            file_path = file_path.strip()
+            # b64_part = "image/jpeg:<base64data>"
+            if ":" in b64_part:
+                mime_type, image_base64 = b64_part.split(":", 1)
+            else:
+                image_base64 = b64_part
+        log_trace(session_id, "prescription_intercept", {"file_path": file_path, "has_base64": bool(image_base64)})
+        rx_args = {"file_path": file_path}
+        if image_base64:
+            rx_args["image_base64"] = image_base64
+            rx_args["mime_type"] = mime_type or "image/jpeg"
         rx_result = await _handle_prescription_upload(
-            session_id, {"file_path": file_path}, state
+            session_id, rx_args, state
         )
-        # Add to conversation history
+        # Add to conversation history (strip base64 data to save memory)
         history = state.setdefault("conversation_history", [])
-        history.append({"role": "user", "content": user_input})
+        clean_input = re.sub(r"\s*\|BASE64:[^\s]*", "", user_input)  # strip inline base64
+        history.append({"role": "user", "content": clean_input})
         history.append({"role": "assistant", "content": rx_result.get("message", "")})
         if len(history) > 20:
             state["conversation_history"] = history[-20:]
@@ -2269,10 +2287,13 @@ async def _handle_prescription_upload(
         or args.get("path")
         or "mock_prescription.jpg"
     )
+    # Accept inline base64 data (sent from frontend to survive Vercel ephemeral fs)
+    image_base64 = args.get("image_base64")
+    mime_type = args.get("mime_type", "image/jpeg")
 
     from services.ocr_service import extract_text_from_image, parse_prescription_text
 
-    ocr_result = await extract_text_from_image(image_path)
+    ocr_result = await extract_text_from_image(image_path, image_base64=image_base64, mime_type=mime_type)
     if "error" in ocr_result:
         return {"message": f"Failed to read prescription: {ocr_result['error']}", "action_taken": "upload_failed"}
 
@@ -2344,7 +2365,9 @@ async def _handle_prescription_upload(
             parts.append(f"❌ Not found in catalog: {', '.join(unknown)}. You can try searching by generic name or ask me to find alternatives.")
         if added:
             update_session_state(session_id, {"pending_rx_check": None})
-        return {"message": "\n".join(parts) or "No items found.", "action_taken": "scan_to_cart_processed"}
+        # Return the updated cart so the frontend refreshes immediately
+        updated_cart = await get_cart(session_id)
+        return {"message": "\n".join(parts) or "No items found.", "action_taken": "scan_to_cart_processed", "cart": updated_cart}
     else:
         # Verify existing cart — also check against pending_rx_check medicine
         from agents.safety_agent import validate_prescription

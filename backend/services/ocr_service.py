@@ -58,9 +58,19 @@ def _is_aggressive_name_rewrite(extracted_name: str, original_ocr_name: str) -> 
     # If similarity is low and prefixes differ, this is likely an unsafe rewrite.
     return similarity < 0.6 and not same_prefix
 
-async def extract_text_from_image(image_path: str) -> Dict[str, Any]:
-    """Extract text from an image using Gemma 3 27B Vision via OpenRouter."""
-    if not os.path.exists(image_path):
+async def extract_text_from_image(image_path: str, image_base64: str = None, mime_type: str = "image/jpeg") -> Dict[str, Any]:
+    """Extract text from an image using Gemma 3 27B Vision via OpenRouter.
+    
+    Args:
+        image_path: Path to the image file on disk.
+        image_base64: Pre-encoded base64 image data (used when file may not exist on disk, e.g. Vercel).
+        mime_type: MIME type of the image (used with image_base64).
+    """
+    # If we have inline base64 data, use it directly (no filesystem dependency)
+    if image_base64:
+        encoded_string = image_base64
+        data_url = f"data:{mime_type};base64,{encoded_string}"
+    elif not os.path.exists(image_path):
         if "mock_prescription" in image_path:
             return {
                 "text": "Dr. Mueller\nRx:\n1. Vitamin D3\n2. Calcium 600mg\n3. Omega-3\n\nSign...",
@@ -75,18 +85,22 @@ async def extract_text_from_image(image_path: str) -> Dict[str, Any]:
                 "confidence": 0.99,
                 "source": "mock"
             }
-        return {"error": "File not found"}
+        return {"error": f"File not found: {image_path}"}
+    else:
+        try:
+            print(f"📖 Reading image from disk for OCR: {image_path}")
+            with open(image_path, "rb") as image_file:
+                encoded_string = base64.b64encode(image_file.read()).decode("utf-8")
+            
+            mt = "image/jpeg"
+            if image_path.lower().endswith(".png"):
+                mt = "image/png"
+            data_url = f"data:{mt};base64,{encoded_string}"
+        except Exception as e:
+            return {"error": f"Failed to read file: {e}"}
 
     try:
-        print(f"📖 Reading image for OCR (Gemma 3 Vision): {image_path}")
-        with open(image_path, "rb") as image_file:
-            encoded_string = base64.b64encode(image_file.read()).decode("utf-8")
-        
-        mime_type = "image/jpeg"
-        if image_path.lower().endswith(".png"):
-            mime_type = "image/png"
-            
-        data_url = f"data:{mime_type};base64,{encoded_string}"
+        print(f"📖 Running OCR (Gemma 3 Vision) — source: {'base64-inline' if image_base64 else image_path}")
         
         headers = {
             "Authorization": f"Bearer {OPENROUTER_API_KEY}",
