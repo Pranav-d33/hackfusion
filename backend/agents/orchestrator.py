@@ -1178,11 +1178,19 @@ async def process_message(
         lang = _detect_user_lang(user_input, state)
         msg = result.get("message", "")
         tts = result.get("tts_message", "")
-        # Only inject if the LLM didn't already include the name
-        if customer_name.lower() not in (msg or "").lower():
+        # Check if LLM already included ANY part of the name (first or full)
+        name_lower = customer_name.lower()
+        first_name = name_lower.split()[0] if name_lower else name_lower
+        msg_lower = (msg or "").lower()
+        already_greeted = first_name in msg_lower or name_lower in msg_lower
+        if not already_greeted:
             greeting = _localize("greeting_named", lang, name=customer_name)
             result["message"] = f"{greeting}\n\n{msg}" if msg else greeting
             result["tts_message"] = f"{greeting} {tts}" if tts else greeting
+        elif any(w in msg_lower for w in ["welcome", "willkommen", "مرحب", "स्वागत", "hello", "hallo"]):
+            # LLM already included a greeting with the name — strip redundant orchestrator greeting
+            # Just use the LLM's response as-is
+            pass
 
     # Add assistant response to history
     assistant_msg = result.get("message", "")

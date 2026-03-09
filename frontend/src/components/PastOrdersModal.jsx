@@ -112,7 +112,7 @@ export default function PastOrdersModal({ orders, activeOrders, timeline, stats,
 
       {/* ── Modal ── */}
       {isOpen && (
-        <div className={`fixed inset-0 z-[70] flex items-center ${isVoiceMode ? 'justify-end p-4 pr-6 bg-transparent' : 'justify-center p-3 sm:p-6 bg-black/60 backdrop-blur-sm'}`} onClick={handleClose}>
+        <div className={`fixed inset-0 z-[100] flex items-center ${isVoiceMode ? 'justify-end p-4 pr-6 bg-black/20 backdrop-blur-sm' : 'justify-center p-3 sm:p-6 bg-black/60 backdrop-blur-sm'}`} onClick={handleClose}>
           <div
             className={`w-full ${isVoiceMode ? 'max-w-md animate-slide-in-right h-[calc(100vh-2rem)] my-4' : 'max-w-[1000px] animate-slide-up-spring h-[90vh] sm:max-h-[85vh]'} bg-white rounded-[2rem] shadow-apple-2xl border border-black/[0.04] flex flex-col`}
             onClick={e => e.stopPropagation()}

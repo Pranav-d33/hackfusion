@@ -372,11 +372,12 @@ export default function App() {
         liveModeRef.current = liveMode;
     }, [liveMode]);
 
-    const restartListeningIfLive = useCallback((delayMs = 300) => {
+    const restartListeningIfLive = useCallback((delayMs = 500) => {
         setTimeout(() => {
-            if (liveModeRef.current) startListening();
+            // Safety check: never restart while speaking (prevents echo)
+            if (liveModeRef.current && !isSpeaking) startListening();
         }, delayMs);
-    }, [startListening]);
+    }, [startListening, isSpeaking]);
 
     // Pause voice agent while auth/profile modals are active
     const isAuthModalOpen = showLogin || showLoginForCheckout || showProfileModal;
@@ -582,27 +583,31 @@ export default function App() {
             if (data.session_id) setSessionId(data.session_id);
             // Only add a text message if data.message actually has text (UI actions often have empty text)
             if (data.message) {
-                setMessages(prev => [...prev, {
-                    id: Date.now() + 1,
-                    text: data.message,
-                    isUser: false,
-                    latency: data.latency_ms,
-                }]);
+                setMessages(prev => {
+                    // On first real response, replace the static welcome message
+                    const filtered = prev.length > 0 && prev[0].id === 0 && !prev[0].isUser
+                        ? prev.filter(m => m.isUser)  // keep only user messages, drop static welcome
+                        : prev;
+                    return [...filtered, {
+                        id: Date.now() + 1,
+                        text: data.message,
+                        isUser: false,
+                        latency: data.latency_ms,
+                    }];
+                });
             }
 
             // Handle voice response AND ensuring we restart listening
             if (liveMode) {
                 const msgToSpeak = data.tts_message || data.message;
                 if (msgToSpeak) {
-                    // CRITICAL: Stop listening BEFORE speaking to prevent echo/feedback
-                    stopListening();
                     const ttsLangByResponse =
                         data.language === 'de' ? 'de-DE'
                             : data.language === 'ar' ? 'ar-SA'
                                 : data.language === 'hi' ? 'hi-IN'
                                     : null;
                     const ttsLang = bcp47 || ttsLangByResponse || detectedLanguage || scriptInfo?.lang || 'en-US';
-                    speak(msgToSpeak, { rate: DEFAULT_TTS_RATE, lang: ttsLang, onEnd: () => restartListeningIfLive(300) });
+                    speak(msgToSpeak, { rate: DEFAULT_TTS_RATE, lang: ttsLang, onEnd: () => restartListeningIfLive(700) });
                 } else {
                     // No speech needed, but we MUST restart listening so it doesn't get stuck in "Processing..."
                     restartListeningIfLive(300);
@@ -661,11 +666,10 @@ export default function App() {
             setMessages(prev => [...prev, { id: Date.now() + 1, text: errorMsg, isUser: false }]);
             // CRITICAL: In voice mode, always restart listening after errors
             if (liveMode) {
-                stopListening();
                 speak(errorMsg, {
                     rate: DEFAULT_TTS_RATE,
                     lang: bcp47 || detectedLanguage || scriptInfo?.lang || 'en-US',
-                    onEnd: () => restartListeningIfLive(300),
+                    onEnd: () => restartListeningIfLive(700),
                 });
             }
         } finally {
@@ -683,7 +687,7 @@ export default function App() {
         }
     }, [isLoading, handleSend]);
     useEffect(() => {
-        if (transcript && !isListening) {
+        if (transcript && !isListening && !isSpeaking) {
             if (isLoading) {
                 // Queue transcripts while processing so we don't drop rapid utterances.
                 pendingTranscriptQueueRef.current.push(transcript);
@@ -696,7 +700,7 @@ export default function App() {
                 setTranscript('');
             }
         }
-    }, [isListening, transcript, isLoading, handleSend, setTranscript]);
+    }, [isListening, isSpeaking, transcript, isLoading, handleSend, setTranscript]);
 
     // Process queued voice transcript when loading finishes
     useEffect(() => {
@@ -815,7 +819,6 @@ export default function App() {
                 }]);
                 // Speak confirmation in voice mode
                 if (liveMode) {
-                    stopListening();
                     const ttsMsg = isGerman
                         ? `${med.brand_name} wurde hinzugefügt. Jetzt sind ${updatedCart.item_count} Artikel im Warenkorb. Möchtest du mehr hinzufügen oder zur Kasse gehen?`
                         : isArabic
@@ -824,7 +827,7 @@ export default function App() {
                                 ? `${med.brand_name} कार्ट में जोड़ दिया गया है। अब कार्ट में ${updatedCart.item_count} आइटम हैं। क्या आप और जोड़ना चाहेंगे या चेकआउट करेंगे?`
                                 : `Added ${med.brand_name} to your cart. ${updatedCart.item_count} item${updatedCart.item_count !== 1 ? 's' : ''} total. Add more or say checkout.`;
                     const ttsLang = bcp47 || detectedLanguage || scriptInfo?.lang || 'en-US';
-                    speak(ttsMsg, { rate: DEFAULT_TTS_RATE, lang: ttsLang, onEnd: () => restartListeningIfLive(300) });
+                    speak(ttsMsg, { rate: DEFAULT_TTS_RATE, lang: ttsLang, onEnd: () => restartListeningIfLive(700) });
                 }
             } else {
                 let failMsg = isGerman
@@ -842,9 +845,8 @@ export default function App() {
                 } catch (_) { }
                 setMessages(prev => [...prev, { id: Date.now(), text: failMsg, isUser: false }]);
                 if (liveMode) {
-                    stopListening();
                     const ttsLang = bcp47 || detectedLanguage || scriptInfo?.lang || 'en-US';
-                    speak(failMsg, { rate: DEFAULT_TTS_RATE, lang: ttsLang, onEnd: () => restartListeningIfLive(300) });
+                    speak(failMsg, { rate: DEFAULT_TTS_RATE, lang: ttsLang, onEnd: () => restartListeningIfLive(700) });
                 }
             }
         } catch (err) {

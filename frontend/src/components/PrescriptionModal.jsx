@@ -17,7 +17,7 @@ export default function PrescriptionModal({
     if (!isOpen) return null;
 
     return (
-        <div className={`fixed inset-0 z-[60] flex items-center ${isVoiceMode ? 'justify-end pr-8 bg-black/10' : 'justify-center backdrop-blur-md bg-black/40'} animate-fade-in`}>
+        <div className={`fixed inset-0 z-[100] flex items-center ${isVoiceMode ? 'justify-end pr-8 bg-black/10' : 'justify-center backdrop-blur-md bg-black/40'} animate-fade-in`}>
             <div className={`rounded-3xl p-8 max-w-md text-center shadow-glass-lg m-4 relative overflow-hidden ${isVoiceMode ? 'bg-[#0D0D1A] border border-gray-800 animate-slide-in-right' : 'bg-white animate-scale-in'
                 }`} dir={dir}>
                 <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-mediloon-400 via-mediloon-600 to-mediloon-400" />

@@ -2,11 +2,11 @@ import React, { useRef } from 'react';
 
 const EXAMPLE_SUGGESTIONS = [
     { icon: '💊', text: 'Order Dolo 650 for fever' },
-    { icon: '🛒', text: 'Add Crocin to my cart' },
+    { icon: '🛒', text: 'Show me my cart' },
+    { icon: '📦', text: 'Show my past orders' },
     { icon: '🤧', text: 'What do you have for cold?' },
-    { icon: '📋', text: 'Show me my cart' },
     { icon: '💉', text: 'I need Combiflam tablets' },
-    { icon: '🧴', text: 'Do you have Betadine?' },
+    { icon: '✅', text: 'Proceed to checkout' },
 ];
 
 export default function VoiceModeOverlay({
@@ -35,7 +35,7 @@ export default function VoiceModeOverlay({
     const isIdle = !transcript && !lastResponse && !isListening && !isSpeaking;
 
     return (
-        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center glass-overlay transition-opacity duration-300">
+        <div className="fixed inset-0 z-40 flex flex-col items-center justify-center glass-overlay transition-opacity duration-300">
             {/* Close Button */}
             <button
                 onClick={onClose}

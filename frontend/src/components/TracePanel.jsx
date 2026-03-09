@@ -37,7 +37,7 @@ export default function TracePanel({ trace, latency, traceId, traceUrl, external
         <>
             {/* Zoomed Modal View */}
             {isZoomed && createPortal(
-                <div className={`fixed inset-0 flex items-center ${isVoiceMode ? 'justify-end p-4 pr-6 bg-transparent z-[60]' : 'justify-center p-8 bg-black/80 backdrop-blur-sm z-50'} animate-fade-in`}>
+                <div className={`fixed inset-0 flex items-center ${isVoiceMode ? 'justify-end p-4 pr-6 bg-transparent z-[100]' : 'justify-center p-8 bg-black/80 backdrop-blur-sm z-50'} animate-fade-in`}>
                     <div className={`w-full bg-[#0D0D1A] rounded-3xl shadow-glass-lg border border-gray-800/50 flex flex-col overflow-hidden ${isVoiceMode ? 'max-w-md animate-slide-in-right h-[calc(100vh-2rem)] my-4' : 'max-w-4xl h-[80vh] animate-scale-in'}`}>
                         <div className="flex items-center justify-between px-5 py-3 bg-[#08081A] border-b border-gray-800/50">
                             <div className="flex items-center gap-3">

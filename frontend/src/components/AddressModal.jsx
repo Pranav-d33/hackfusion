@@ -87,7 +87,7 @@ export default function AddressModal({ isOpen, onClose, onConfirm, cart, user, i
         }`;
 
     return (
-        <div className={`fixed inset-0 z-50 flex ${isVoiceMode ? 'items-end md:items-center justify-end p-0 md:p-4 md:pr-6' : 'items-end md:items-center justify-center p-0 md:px-4'}`}>
+        <div className={`fixed inset-0 z-[100] flex ${isVoiceMode ? 'items-end md:items-center justify-end p-0 md:p-4 md:pr-6' : 'items-end md:items-center justify-center p-0 md:px-4'}`}>
             {/* Backdrop */}
             <div className={`absolute inset-0 transition-opacity duration-300 ${isVoiceMode ? 'bg-black/20 backdrop-blur-sm' : 'bg-black/40 backdrop-blur-sm'}`} onClick={onClose} />
 

@@ -62,7 +62,7 @@ export default function UserProfileModal({ user, sessionToken, onUpdate, onSkip,
     };
 
     return (
-        <div className={`fixed inset-0 z-50 flex ${isVoiceMode ? 'items-end md:items-center justify-end p-0 md:pr-6 bg-black/10' : 'items-end md:items-center justify-center p-0 md:px-4 bg-black/20 backdrop-blur-sm'}`}>
+        <div className={`fixed inset-0 z-[100] flex ${isVoiceMode ? 'items-end md:items-center justify-end p-0 md:pr-6 bg-black/10' : 'items-end md:items-center justify-center p-0 md:px-4 bg-black/20 backdrop-blur-sm'}`}>
             <div className={`bg-white rounded-t-[2rem] md:rounded-[2rem] w-full ${isVoiceMode ? 'md:max-w-md animate-slide-up-spring md:animate-slide-in-right h-[85vh] md:h-auto md:max-h-[85vh]' : 'md:max-w-2xl animate-slide-up-spring md:animate-scale-in max-h-[90vh]'} overflow-hidden shadow-apple-2xl flex flex-col will-change-transform`} dir={dir}>
 
                 {/* iOS Sheet Drag Handle (Mobile Only) */}

@@ -53,7 +53,7 @@ export default function CartDetailModal({ isOpen, onClose, cart, sessionId, onCa
     };
 
     return (
-        <div className={`fixed inset-0 z-50 flex items-center ${isVoiceMode ? 'justify-end p-4 pr-6' : 'justify-center px-4'}`}>
+        <div className={`fixed inset-0 z-[100] flex items-center ${isVoiceMode ? 'justify-end p-4 pr-6' : 'justify-center px-4'}`}>
             {/* Backdrop */}
             <div className={`absolute inset-0 ${isVoiceMode ? 'bg-transparent' : 'bg-black/40 backdrop-blur-sm'}`} onClick={onClose} />
 

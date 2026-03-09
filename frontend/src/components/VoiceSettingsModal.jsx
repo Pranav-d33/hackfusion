@@ -59,7 +59,7 @@ export default function VoiceSettingsModal({ isOpen, onClose, voices, currentVoi
     });
 
     return (
-        <div className={`fixed inset-0 z-[60] flex ${isVoiceMode ? 'items-end md:items-center justify-end pr-0 md:pr-8' : 'items-end md:items-center justify-center p-0 md:p-4'}`}>
+        <div className={`fixed inset-0 z-[100] flex ${isVoiceMode ? 'items-end md:items-center justify-end pr-0 md:pr-8' : 'items-end md:items-center justify-center p-0 md:p-4'}`}>
             {/* Backdrop */}
             <div
                 className={`absolute inset-0 ${isVoiceMode ? 'bg-black/10' : 'bg-black/40 backdrop-blur-sm'} transition-opacity`}
