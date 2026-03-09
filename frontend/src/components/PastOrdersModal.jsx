@@ -6,6 +6,7 @@
  * Tooltip-safe: timeline section uses overflow-visible so hover cards render.
  */
 import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import {
   History, X, Pill, Calendar, Clock,
   Package, ChevronDown, ChevronUp, ShoppingBag,
@@ -111,8 +112,8 @@ export default function PastOrdersModal({ orders, activeOrders, timeline, stats,
       </button>
 
       {/* ── Modal ── */}
-      {isOpen && (
-        <div className={`fixed inset-0 z-[100] flex items-center ${isVoiceMode ? 'justify-end p-4 pr-6 bg-black/20 backdrop-blur-sm' : 'justify-center p-3 sm:p-6 bg-black/60 backdrop-blur-sm'}`} onClick={handleClose}>
+      {isOpen && createPortal(
+        <div className={`fixed inset-0 z-[200] flex items-center ${isVoiceMode ? 'justify-end p-4 pr-6 bg-black/20 backdrop-blur-sm' : 'justify-center p-3 sm:p-6 bg-black/60 backdrop-blur-sm'}`} onClick={handleClose}>
           <div
             className={`w-full ${isVoiceMode ? 'max-w-md animate-slide-in-right h-[calc(100vh-2rem)] my-4' : 'max-w-[1000px] animate-slide-up-spring h-[90vh] sm:max-h-[85vh]'} bg-white rounded-[2rem] shadow-apple-2xl border border-black/[0.04] flex flex-col`}
             onClick={e => e.stopPropagation()}
@@ -393,7 +394,8 @@ export default function PastOrdersModal({ orders, activeOrders, timeline, stats,
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );
