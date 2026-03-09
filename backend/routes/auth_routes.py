@@ -210,8 +210,8 @@ async def register(request: RegisterRequest):
     profile_completed = all([request.age, request.gender, request.address])
     user_id = await execute_write("""
         INSERT INTO customers (name, email, phone, age, gender, address, city, state, postal_code, country, password_hash, notification_enabled, profile_completed)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)
-    """, (request.name, request.email.lower(), request.phone, request.age, request.gender, request.address, request.city, request.state, request.postal_code, request.country or 'Germany', password_hash, 1 if profile_completed else 0))
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (request.name, request.email.lower(), request.phone, request.age, request.gender, request.address, request.city, request.state, request.postal_code, request.country or 'Germany', password_hash, True, profile_completed))
     
     # Create session (JWT)
     session_token = create_access_token(data={"sub": str(user_id)})
@@ -260,8 +260,8 @@ async def login(request: LoginRequest):
             display_name = request.name or request.email.split('@')[0]
             user_id = await execute_write("""
                 INSERT INTO customers (name, email, notification_enabled, profile_completed)
-                VALUES (?, ?, 1, 0)
-            """, (display_name, request.email.lower()))
+                VALUES (?, ?, ?, ?)
+            """, (display_name, request.email.lower(), True, False))
             result = await execute_query(
                 "SELECT id, name, email, phone, age, gender, address, city, state, postal_code, country, notification_enabled, profile_completed FROM customers WHERE id = ?",
                 (user_id,)
@@ -299,8 +299,8 @@ async def login(request: LoginRequest):
         display_name = request.name or request.email.split('@')[0]
         user_id = await execute_write("""
             INSERT INTO customers (name, email, password_hash, notification_enabled, profile_completed)
-            VALUES (?, ?, ?, 1, 0)
-        """, (display_name, request.email.lower(), password_hash))
+            VALUES (?, ?, ?, ?, ?)
+        """, (display_name, request.email.lower(), password_hash, True, False))
         
         result = await execute_query("SELECT * FROM customers WHERE id = ?", (user_id,))
         if not result:
@@ -403,11 +403,11 @@ async def update_profile(request: UpdateProfileRequest, user: dict = Depends(get
     
     if request.notification_enabled is not None:
         updates.append("notification_enabled = ?")
-        params.append(1 if request.notification_enabled else 0)
+        params.append(request.notification_enabled)
     
     if request.profile_completed is not None:
         updates.append("profile_completed = ?")
-        params.append(1 if request.profile_completed else 0)
+        params.append(request.profile_completed)
     
     if updates:
         params.append(user['id'])
