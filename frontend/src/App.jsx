@@ -594,6 +594,8 @@ export default function App() {
             if (liveMode) {
                 const msgToSpeak = data.tts_message || data.message;
                 if (msgToSpeak) {
+                    // CRITICAL: Stop listening BEFORE speaking to prevent echo/feedback
+                    stopListening();
                     const ttsLangByResponse =
                         data.language === 'de' ? 'de-DE'
                             : data.language === 'ar' ? 'ar-SA'
@@ -659,6 +661,7 @@ export default function App() {
             setMessages(prev => [...prev, { id: Date.now() + 1, text: errorMsg, isUser: false }]);
             // CRITICAL: In voice mode, always restart listening after errors
             if (liveMode) {
+                stopListening();
                 speak(errorMsg, {
                     rate: DEFAULT_TTS_RATE,
                     lang: bcp47 || detectedLanguage || scriptInfo?.lang || 'en-US',
@@ -669,7 +672,7 @@ export default function App() {
             clearTimeout(timeoutId);
             setIsLoading(false);
         }
-    }, [sessionId, isLoading, liveMode, speak, scriptInfo, detectedLanguage, bcp47, handleCheckoutFlow, user, user?.id, refreshRefills, executeUIAction, restartListeningIfLive, t]);
+    }, [sessionId, isLoading, liveMode, speak, stopListening, scriptInfo, detectedLanguage, bcp47, handleCheckoutFlow, user, user?.id, refreshRefills, executeUIAction, restartListeningIfLive, t]);
 
     // Flush any queued checkout chat message from handleCheckoutFlow
     useEffect(() => {
@@ -812,6 +815,7 @@ export default function App() {
                 }]);
                 // Speak confirmation in voice mode
                 if (liveMode) {
+                    stopListening();
                     const ttsMsg = isGerman
                         ? `${med.brand_name} wurde hinzugefügt. Jetzt sind ${updatedCart.item_count} Artikel im Warenkorb. Möchtest du mehr hinzufügen oder zur Kasse gehen?`
                         : isArabic
@@ -838,6 +842,7 @@ export default function App() {
                 } catch (_) { }
                 setMessages(prev => [...prev, { id: Date.now(), text: failMsg, isUser: false }]);
                 if (liveMode) {
+                    stopListening();
                     const ttsLang = bcp47 || detectedLanguage || scriptInfo?.lang || 'en-US';
                     speak(failMsg, { rate: DEFAULT_TTS_RATE, lang: ttsLang, onEnd: () => restartListeningIfLive(300) });
                 }
@@ -846,7 +851,7 @@ export default function App() {
             console.error('Direct add-to-cart failed:', err);
             handleSend(`Add ${med.brand_name}`);
         }
-    }, [sessionId, handleSend, liveMode, speak, bcp47, detectedLanguage, scriptInfo, restartListeningIfLive, user?.id]);
+    }, [sessionId, handleSend, liveMode, speak, stopListening, bcp47, detectedLanguage, scriptInfo, restartListeningIfLive, user?.id]);
 
     const handleSearchAdd = useCallback((med) => { handleDirectAddToCart(med); setShowSearch(false); }, [handleDirectAddToCart]);
 
