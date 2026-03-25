@@ -1316,6 +1316,17 @@ async def execute_action(
     force_localized = _force_ui_language(state)
     action = plan.get("action", "respond")
 
+    async def _rx_still_pending_response(med: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        med_name = (med or {}).get("brand_name", "This medication")
+        prompt_msg = _localize("rx_ask_upload", lang, med=med_name)
+        return {
+            "message": prompt_msg,
+            "tts_message": prompt_msg,
+            "action_taken": "rx_upload_required",
+            "ui_action": "open_upload_prescription",
+            "needs_input": True,
+        }
+
     # ── Guard: avoid LLM-only false "not found" responses on order intent ──
     # If the model returned a plain response while user appears to be ordering a
     # medicine, force a real catalog lookup against live DB/vector tools.
@@ -1414,8 +1425,8 @@ async def execute_action(
         })
         # Ask user to upload prescription — don't just ask "do you have one?"
         default_msg = _localize("rx_ask_upload", lang, med=med.get("brand_name", "This medication"))
-        msg = _prefer_llm_text(plan.get("message"), default_msg, lang, force_localized)
-        tts = _prefer_llm_tts(plan.get("tts_message"), plan.get("message"), default_msg, lang, force_localized)
+        msg = default_msg
+        tts = default_msg
         return {
             "message": msg,
             "tts_message": tts,
@@ -1435,6 +1446,15 @@ async def execute_action(
                 or state.get("pending_qty_dose_check")
                 or (state.get("candidates", [{}])[0] if state.get("candidates") else {})
             ) or med
+        med_id = med.get("id")
+        rx_verified_ids = state.get("rx_verified_med_ids", set())
+        med_details = await get_medication_details(med_id) if med_id else None
+        med_requires_rx = bool(med.get("rx_required") or (med_details or {}).get("rx_required"))
+        if med_requires_rx and (not med_id or med_id not in rx_verified_ids):
+            pending_med = state.get("pending_rx_check") or med or med_details
+            if pending_med:
+                update_session_state(session_id, {"pending_rx_check": pending_med, "selected_medication": pending_med})
+            return await _rx_still_pending_response(pending_med or med)
         update_session_state(session_id, {
             "pending_qty_dose_check": med or None,
             "selected_medication": med or None,
@@ -1463,6 +1483,15 @@ async def execute_action(
                 or state.get("pending_qty_dose_check")
                 or (state.get("candidates", [{}])[0] if state.get("candidates") else {})
             ) or med
+        med_id = med.get("id")
+        rx_verified_ids = state.get("rx_verified_med_ids", set())
+        med_details = await get_medication_details(med_id) if med_id else None
+        med_requires_rx = bool(med.get("rx_required") or (med_details or {}).get("rx_required"))
+        if med_requires_rx and (not med_id or med_id not in rx_verified_ids):
+            pending_med = state.get("pending_rx_check") or med or med_details
+            if pending_med:
+                update_session_state(session_id, {"pending_rx_check": pending_med, "selected_medication": pending_med})
+            return await _rx_still_pending_response(pending_med or med)
         qty = plan.get("quantity", 1)
         update_session_state(session_id, {
             "pending_qty_dose_check": med or None,
@@ -1924,19 +1953,23 @@ async def execute_tool_call(
                     "selected_medication": med,
                 })
                 default_msg = _localize(
-                    "single_rx",
+                    "rx_ask_upload",
                     lang,
-                    med=med["brand_name"],
-                    dosage=med.get("dosage", ""),
-                    price=float(med.get("price") or 0),
+                    med=med.get("brand_name", "This medication"),
                 )
                 llm_msg = plan.get("message")
                 msg = default_msg if _is_not_found_style_message(llm_msg) else _prefer_llm_text(llm_msg, default_msg, lang, force_localized)
                 return {
                     "message": msg,
-                    "tts_message": _prefer_non_progress_tts(plan.get("tts_message"), plan.get("message"), msg, lang, force_localized),
+                    "tts_message": _localize(
+                        "rx_ask_upload",
+                        lang,
+                        med=med.get("brand_name", "This medication"),
+                    ),
                     "candidates": results,
-                    "action_taken": "ask_rx",
+                    "action_taken": "rx_upload_required",
+                    "ui_action": "open_upload_prescription",
+                    "needs_input": True,
                 }
             else:
                 update_session_state(session_id, {
@@ -2325,7 +2358,14 @@ async def _handle_prescription_upload(
 
     ocr_result = await extract_text_from_image(image_path, image_base64=image_base64, mime_type=mime_type)
     if "error" in ocr_result:
-        return {"message": f"Failed to read prescription: {ocr_result['error']}", "action_taken": "upload_failed"}
+        err_text = str(ocr_result.get("error") or "")
+        lowered = err_text.lower()
+        if "429" in lowered or "rate" in lowered:
+            return {
+                "message": "Prescription OCR is busy right now due to rate limits. Please wait 20-30 seconds and upload again.",
+                "action_taken": "upload_failed",
+            }
+        return {"message": f"Failed to read prescription: {err_text}", "action_taken": "upload_failed"}
 
     parsed_rx = await parse_prescription_text(ocr_result)
     meds_found = parsed_rx.get("medications", [])

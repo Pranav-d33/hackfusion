@@ -35,7 +35,11 @@ from config import (
     NLU_MODEL,
     NLU_FALLBACK_MODELS,
 )
-from observability.langfuse_client import get_client as get_langfuse, is_enabled as langfuse_enabled
+from observability.langfuse_client import (
+    get_client as get_langfuse,
+    is_enabled as langfuse_enabled,
+    start_generation as start_langfuse_generation,
+)
 
 # ── Language-aware fallback messages ────────────────────────────────────
 _FALLBACK_MESSAGES = {
@@ -389,16 +393,13 @@ async def _call_groq(
         try:
             # Start Langfuse generation span
             if langfuse and trace_id:
-                try:
-                    generation = langfuse.start_generation(
-                        trace_context={"trace_id": trace_id},
-                        name="groq_llm_call",
-                        model=m,
-                        input=messages,
-                        metadata={"provider": "groq", "temperature": 0.3, "max_tokens": 600}
-                    )
-                except Exception as e:
-                    print(f"[Langfuse] Failed to create generation span: {e}")
+                generation = start_langfuse_generation(
+                    trace_id=trace_id,
+                    name="groq_llm_call",
+                    model=m,
+                    input=messages,
+                    metadata={"provider": "groq", "temperature": 0.3, "max_tokens": 600},
+                )
 
             async with httpx.AsyncClient(timeout=timeout) as client:
                     json_payload = {
@@ -498,16 +499,13 @@ async def _call_openrouter(
         try:
             # Start Langfuse generation span
             if langfuse and trace_id:
-                try:
-                    generation = langfuse.start_generation(
-                        trace_context={"trace_id": trace_id},
-                        name="openrouter_llm_call",
-                        model=m,
-                        input=messages,
-                        metadata={"provider": "openrouter", "temperature": 0.3, "max_tokens": 600}
-                    )
-                except Exception as e:
-                    print(f"[Langfuse] Failed to create generation span: {e}")
+                generation = start_langfuse_generation(
+                    trace_id=trace_id,
+                    name="openrouter_llm_call",
+                    model=m,
+                    input=messages,
+                    metadata={"provider": "openrouter", "temperature": 0.3, "max_tokens": 600},
+                )
 
             async with httpx.AsyncClient(timeout=timeout) as client:
                     json_payload = {

@@ -49,6 +49,15 @@ NLU_FALLBACK_MODELS = [
         "meta-llama/llama-3.1-8b-instruct,openai/gpt-4o-mini"
     ).split(",") if m.strip()
 ]
+# OCR vision models (OpenRouter) for prescription image extraction.
+# Tried in order with backoff on 429 responses.
+OCR_VISION_MODELS = [
+    m.strip() for m in os.getenv(
+        "OCR_VISION_MODELS",
+        "google/gemma-3-27b-it:free,meta-llama/llama-3.2-11b-vision-instruct:free"
+    ).split(",") if m.strip()
+]
+OCR_VISION_MAX_429_RETRIES = int(os.getenv("OCR_VISION_MAX_429_RETRIES", "2"))
 # Legacy — kept for backward compat but no longer used separately
 PLANNER_MODEL = os.getenv("PLANNER_MODEL", "openrouter/auto")
 

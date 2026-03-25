@@ -21,12 +21,15 @@ import httpx
 import asyncio
 from config import (
     OPENROUTER_API_KEY,
+    OPENROUTER_BASE_URL,
     GROQ_API_KEY,
     GROQ_BASE_URL,
     GROQ_PRIMARY_MODEL,
     GROQ_FALLBACK_MODEL,
     NLU_MODEL,
     NLU_FALLBACK_MODELS,
+    OCR_VISION_MODELS,
+    OCR_VISION_MAX_429_RETRIES,
 )
 
 
@@ -100,75 +103,133 @@ async def extract_text_from_image(image_path: str, image_base64: str = None, mim
         except Exception as e:
             return {"error": f"Failed to read file: {e}"}
 
+    if not OPENROUTER_API_KEY:
+        return {"error": "OCR provider is not configured. Please set OPENROUTER_API_KEY."}
+
+    print(f"📖 Running OCR (OpenRouter Vision) — source: {'base64-inline' if image_base64 else image_path}")
+
+    headers = {
+        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+        "Content-Type": "application/json",
+    }
+
+    prompt_text = (
+        "Extract all the text from this prescription image. Just return the text accurately, "
+        "keeping the original layout or list items if possible. Do not include any conversational filler.\n\n"
+        "Please also structure the extracted information into a JSON format with the following keys:\n"
+        "- `medications`: A list of objects with `-medicine_name` and `dosage`.\n"
+        "- `disease_or_illness`: The identified condition or primary illness based on the prescription "
+        "(can be null if not found).\n"
+        "- `raw_text`: The exact text extracted from the image.\n\n"
+        "Please wrap the JSON object in a markdown code block (```json ... ```)."
+    )
+
+    models_to_try = [m for m in OCR_VISION_MODELS if m] or ["google/gemma-3-27b-it:free"]
+    saw_rate_limit = False
+    last_error = None
+
     try:
-        print(f"📖 Running OCR (Gemma 3 Vision) — source: {'base64-inline' if image_base64 else image_path}")
-        
-        headers = {
-            "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-            "Content-Type": "application/json"
-        }
-        
-        payload = {
-            "model": "google/gemma-3-27b-it:free",
-            "messages": [
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": "Extract all the text from this prescription image. Just return the text accurately, keeping the original layout or list items if possible. Do not include any conversational filler.\n\nPlease also structure the extracted information into a JSON format with the following keys:\n- `medications`: A list of objects with `-medicine_name` and `dosage`.\n- `disease_or_illness`: The identified condition or primary illness based on the prescription (can be null if not found).\n- `raw_text`: The exact text extracted from the image.\n\nPlease wrap the JSON object in a markdown code block (```json ... ```)."
-                        },
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": data_url
-                            }
-                        }
-                    ]
-                }
-            ]
-        }
-        
         async with httpx.AsyncClient(timeout=120.0) as client:
-            response = await client.post(
-                "https://openrouter.ai/api/v1/chat/completions",
-                headers=headers,
-                json=payload
-            )
-            response.raise_for_status()
-            result_json = response.json()
-            
-            extracted_text = result_json["choices"][0]["message"]["content"].strip()
-            
-            # Simple heuristic to extract JSON block from thinking model output
-            structured_data = None
-            json_match = re.search(r'```(?:json)?\s*(.*?)\s*```', extracted_text, re.DOTALL)
-            
-            if json_match:
-                try:
-                    structured_data = json.loads(json_match.group(1).strip())
-                except json.JSONDecodeError as e:
-                    print(f"❌ OCR Log: JSON Decoder error: {e}")
-            else:
-                 # Try to parse the entire text as JSON
-                try:
-                    structured_data = json.loads(extracted_text)
-                except json.JSONDecodeError:
-                    pass
+            for model in models_to_try:
+                payload = {
+                    "model": model,
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "text", "text": prompt_text},
+                                {"type": "image_url", "image_url": {"url": data_url}},
+                            ],
+                        }
+                    ],
+                }
 
-            # fallback to returning just the extracted string text if json parse failed completely
-            final_text = structured_data.get("raw_text", extracted_text) if structured_data else extracted_text
+                max_attempts = max(1, OCR_VISION_MAX_429_RETRIES + 1)
+                for attempt in range(1, max_attempts + 1):
+                    try:
+                        response = await client.post(
+                            f"{OPENROUTER_BASE_URL}/chat/completions",
+                            headers=headers,
+                            json=payload,
+                        )
 
-            return {
-                "text": final_text,
-                "structured_data": structured_data,
-                "confidence": 0.95,
-                "source": "gemma3-27b-vision-openrouter"
-            }
-            
+                        if response.status_code == 429:
+                            saw_rate_limit = True
+                            if attempt < max_attempts:
+                                backoff_delay = min(2 ** attempt, 12)
+                                print(
+                                    f"⚠️ OCR Vision 429 on {model}; retrying in {backoff_delay}s "
+                                    f"(attempt {attempt}/{max_attempts})..."
+                                )
+                                await asyncio.sleep(backoff_delay)
+                                continue
+                            print(f"⚠️ OCR Vision still rate-limited on {model}; trying next model...")
+                            break
+
+                        if response.status_code >= 400:
+                            err_body = response.text[:300]
+                            last_error = f"HTTP {response.status_code}: {err_body}"
+                            print(f"⚠️ OCR Vision failed on {model}: {last_error}")
+                            break
+
+                        result_json = response.json()
+                        content = (
+                            result_json.get("choices", [{}])[0]
+                            .get("message", {})
+                            .get("content", "")
+                        )
+                        extracted_text = str(content or "").strip()
+                        if not extracted_text:
+                            last_error = f"Empty OCR response from {model}"
+                            print(f"⚠️ {last_error}")
+                            break
+
+                        # Simple heuristic to extract JSON block from model output.
+                        structured_data = None
+                        json_match = re.search(r'```(?:json)?\s*(.*?)\s*```', extracted_text, re.DOTALL)
+                        if json_match:
+                            try:
+                                structured_data = json.loads(json_match.group(1).strip())
+                            except json.JSONDecodeError as e:
+                                print(f"❌ OCR Log: JSON Decoder error ({model}): {e}")
+                        else:
+                            try:
+                                structured_data = json.loads(extracted_text)
+                            except json.JSONDecodeError:
+                                pass
+
+                        # Fallback to extracted string text if JSON parse fails.
+                        final_text = structured_data.get("raw_text", extracted_text) if structured_data else extracted_text
+
+                        return {
+                            "text": final_text,
+                            "structured_data": structured_data,
+                            "confidence": 0.95,
+                            "source": f"{model}-openrouter",
+                        }
+
+                    except httpx.HTTPError as e:
+                        last_error = f"{type(e).__name__}: {e}"
+                        print(f"⚠️ OCR Vision HTTP error on {model}: {e}")
+                        break
+                    except Exception as e:
+                        last_error = f"{type(e).__name__}: {e}"
+                        print(f"⚠️ OCR Vision unexpected error on {model}: {e}")
+                        break
+
     except Exception as e:
-        print(f"❌ OCR Log: Error processing image with Gemma 3: {e}")
-        return {"error": str(e)}
+        last_error = f"{type(e).__name__}: {e}"
+        print(f"❌ OCR Log: Error creating OCR client: {e}")
+
+    if saw_rate_limit:
+        return {
+            "error": (
+                "Prescription OCR is temporarily rate-limited. "
+                "Please wait about 20-30 seconds and upload again."
+            )
+        }
+
+    return {"error": last_error or "Unable to process prescription image with OCR models."}
 
 
 async def _llm_extract_medicines(raw_text: str, structured_data: Optional[Dict] = None) -> Dict[str, Any]:
@@ -367,13 +428,38 @@ async def parse_prescription_text(ocr_result: Dict[str, Any]) -> Dict[str, Any]:
     text = ocr_result.get("text", "")
     structured_data = ocr_result.get("structured_data")
 
-    # ── Step 1: LLM-based extraction ──────────────────────────────
-    llm_extracted = await _llm_extract_medicines(text, structured_data)
-    llm_meds = llm_extracted.get("medications", [])
-    disease_or_illness = llm_extracted.get("disease_or_illness")
+    # ── Step 1: Medicine extraction ────────────────────────────────
+    # Use OCR model's structured medications directly when available to avoid
+    # an extra LLM request (reduces OpenRouter rate-limit pressure).
+    llm_meds: List[Dict[str, Any]] = []
+    disease_or_illness = None
 
-    # Fallback disease from structured_data if LLM didn't find one
-    if not disease_or_illness and structured_data:
+    if isinstance(structured_data, dict):
+        disease_or_illness = structured_data.get("disease_or_illness")
+        for med in (structured_data.get("medications") or []):
+            if not isinstance(med, dict):
+                continue
+            med_name = (med.get("medicine_name") or med.get("name") or "").strip()
+            if not med_name:
+                continue
+            llm_meds.append({
+                "name": med_name,
+                "dosage": (med.get("dosage") or "").strip(),
+                "original_ocr_name": (med.get("medicine_name") or med_name).strip(),
+            })
+
+    if llm_meds:
+        print(f"✅ OCR extraction: using {len(llm_meds)} structured medicine(s) from vision response")
+        llm_extracted_count = len(llm_meds)
+    else:
+        llm_extracted = await _llm_extract_medicines(text, structured_data)
+        llm_meds = llm_extracted.get("medications", [])
+        llm_extracted_count = len(llm_meds)
+        if not disease_or_illness:
+            disease_or_illness = llm_extracted.get("disease_or_illness")
+
+    # Fallback disease from structured_data if still missing.
+    if not disease_or_illness and isinstance(structured_data, dict):
         disease_or_illness = structured_data.get("disease_or_illness")
 
     # ── Step 2: Build product index from DB ───────────────────────
@@ -443,6 +529,6 @@ async def parse_prescription_text(ocr_result: Dict[str, Any]) -> Dict[str, Any]:
         "medications": found_products,
         "disease_or_illness": disease_or_illness,
         "unknown_items": unknown_items,
-        "llm_extracted_count": len(llm_meds),
+        "llm_extracted_count": llm_extracted_count,
         "requires_review": len(unknown_items) > 0 or len(found_products) == 0
     }
