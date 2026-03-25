@@ -30,6 +30,8 @@ from config import (
     NLU_FALLBACK_MODELS,
     OCR_VISION_MODELS,
     OCR_VISION_MAX_429_RETRIES,
+    OCR_PROVIDER_ORDER,
+    OCR_GROQ_VISION_MODELS,
 )
 
 
@@ -103,15 +105,42 @@ async def extract_text_from_image(image_path: str, image_base64: str = None, mim
         except Exception as e:
             return {"error": f"Failed to read file: {e}"}
 
-    if not OPENROUTER_API_KEY:
-        return {"error": "OCR provider is not configured. Please set OPENROUTER_API_KEY."}
+    provider_specs: List[Dict[str, Any]] = []
+    for provider in OCR_PROVIDER_ORDER or ["groq", "openrouter"]:
+        if provider == "groq" and GROQ_API_KEY:
+            provider_specs.append({
+                "name": "groq",
+                "url": f"{GROQ_BASE_URL}/chat/completions",
+                "headers": {
+                    "Authorization": f"Bearer {GROQ_API_KEY}",
+                    "Content-Type": "application/json",
+                },
+                "models": [m for m in OCR_GROQ_VISION_MODELS if m],
+            })
+        elif provider == "openrouter" and OPENROUTER_API_KEY:
+            provider_specs.append({
+                "name": "openrouter",
+                "url": f"{OPENROUTER_BASE_URL}/chat/completions",
+                "headers": {
+                    "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                    "Content-Type": "application/json",
+                },
+                "models": [m for m in OCR_VISION_MODELS if m] or ["google/gemma-3-27b-it:free"],
+            })
 
-    print(f"📖 Running OCR (OpenRouter Vision) — source: {'base64-inline' if image_base64 else image_path}")
+    if not provider_specs:
+        return {
+            "error": (
+                "OCR provider is not configured. Set GROQ_API_KEY or OPENROUTER_API_KEY "
+                "and OCR provider models in env."
+            )
+        }
 
-    headers = {
-        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-        "Content-Type": "application/json",
-    }
+    provider_chain = " -> ".join(spec["name"] for spec in provider_specs)
+    print(
+        f"📖 Running OCR Vision — source: {'base64-inline' if image_base64 else image_path} "
+        f"(providers: {provider_chain})"
+    )
 
     prompt_text = (
         "Extract all the text from this prescription image. Just return the text accurately, "
@@ -124,98 +153,109 @@ async def extract_text_from_image(image_path: str, image_base64: str = None, mim
         "Please wrap the JSON object in a markdown code block (```json ... ```)."
     )
 
-    models_to_try = [m for m in OCR_VISION_MODELS if m] or ["google/gemma-3-27b-it:free"]
     saw_rate_limit = False
     last_error = None
 
     try:
         async with httpx.AsyncClient(timeout=120.0) as client:
-            for model in models_to_try:
-                payload = {
-                    "model": model,
-                    "messages": [
-                        {
-                            "role": "user",
-                            "content": [
-                                {"type": "text", "text": prompt_text},
-                                {"type": "image_url", "image_url": {"url": data_url}},
-                            ],
-                        }
-                    ],
-                }
+            for spec in provider_specs:
+                provider = spec["name"]
+                models = spec.get("models") or []
+                if not models:
+                    continue
+                for model in models:
+                    payload = {
+                        "model": model,
+                        "messages": [
+                            {
+                                "role": "user",
+                                "content": [
+                                    {"type": "text", "text": prompt_text},
+                                    {"type": "image_url", "image_url": {"url": data_url}},
+                                ],
+                            }
+                        ],
+                    }
 
-                max_attempts = max(1, OCR_VISION_MAX_429_RETRIES + 1)
-                for attempt in range(1, max_attempts + 1):
-                    try:
-                        response = await client.post(
-                            f"{OPENROUTER_BASE_URL}/chat/completions",
-                            headers=headers,
-                            json=payload,
-                        )
+                    max_attempts = max(1, OCR_VISION_MAX_429_RETRIES + 1)
+                    for attempt in range(1, max_attempts + 1):
+                        try:
+                            response = await client.post(
+                                spec["url"],
+                                headers=spec["headers"],
+                                json=payload,
+                            )
 
-                        if response.status_code == 429:
-                            saw_rate_limit = True
-                            if attempt < max_attempts:
-                                backoff_delay = min(2 ** attempt, 12)
-                                print(
-                                    f"⚠️ OCR Vision 429 on {model}; retrying in {backoff_delay}s "
-                                    f"(attempt {attempt}/{max_attempts})..."
-                                )
-                                await asyncio.sleep(backoff_delay)
-                                continue
-                            print(f"⚠️ OCR Vision still rate-limited on {model}; trying next model...")
+                            if response.status_code == 429:
+                                saw_rate_limit = True
+                                retry_after_raw = (response.headers.get("retry-after") or "").strip()
+                                retry_after = None
+                                try:
+                                    retry_after = float(retry_after_raw) if retry_after_raw else None
+                                except ValueError:
+                                    retry_after = None
+
+                                if attempt < max_attempts:
+                                    backoff_delay = retry_after if retry_after is not None else min(2 ** attempt, 12)
+                                    print(
+                                        f"⚠️ OCR Vision 429 on {provider}:{model}; retrying in {backoff_delay}s "
+                                        f"(attempt {attempt}/{max_attempts})..."
+                                    )
+                                    await asyncio.sleep(backoff_delay)
+                                    continue
+                                print(f"⚠️ OCR Vision still rate-limited on {provider}:{model}; trying next model...")
+                                break
+
+                            if response.status_code >= 400:
+                                err_body = response.text[:300]
+                                last_error = f"{provider}:{model} -> HTTP {response.status_code}: {err_body}"
+                                print(f"⚠️ OCR Vision failed on {provider}:{model}: {last_error}")
+                                break
+
+                            result_json = response.json()
+                            content = (
+                                result_json.get("choices", [{}])[0]
+                                .get("message", {})
+                                .get("content", "")
+                            )
+                            extracted_text = str(content or "").strip()
+                            if not extracted_text:
+                                last_error = f"Empty OCR response from {provider}:{model}"
+                                print(f"⚠️ {last_error}")
+                                break
+
+                            # Simple heuristic to extract JSON block from model output.
+                            structured_data = None
+                            json_match = re.search(r'```(?:json)?\s*(.*?)\s*```', extracted_text, re.DOTALL)
+                            if json_match:
+                                try:
+                                    structured_data = json.loads(json_match.group(1).strip())
+                                except json.JSONDecodeError as e:
+                                    print(f"❌ OCR Log: JSON Decoder error ({provider}:{model}): {e}")
+                            else:
+                                try:
+                                    structured_data = json.loads(extracted_text)
+                                except json.JSONDecodeError:
+                                    pass
+
+                            # Fallback to extracted string text if JSON parse fails.
+                            final_text = structured_data.get("raw_text", extracted_text) if structured_data else extracted_text
+
+                            return {
+                                "text": final_text,
+                                "structured_data": structured_data,
+                                "confidence": 0.95,
+                                "source": f"{provider}:{model}",
+                            }
+
+                        except httpx.HTTPError as e:
+                            last_error = f"{provider}:{model} -> {type(e).__name__}: {e}"
+                            print(f"⚠️ OCR Vision HTTP error on {provider}:{model}: {e}")
                             break
-
-                        if response.status_code >= 400:
-                            err_body = response.text[:300]
-                            last_error = f"HTTP {response.status_code}: {err_body}"
-                            print(f"⚠️ OCR Vision failed on {model}: {last_error}")
+                        except Exception as e:
+                            last_error = f"{provider}:{model} -> {type(e).__name__}: {e}"
+                            print(f"⚠️ OCR Vision unexpected error on {provider}:{model}: {e}")
                             break
-
-                        result_json = response.json()
-                        content = (
-                            result_json.get("choices", [{}])[0]
-                            .get("message", {})
-                            .get("content", "")
-                        )
-                        extracted_text = str(content or "").strip()
-                        if not extracted_text:
-                            last_error = f"Empty OCR response from {model}"
-                            print(f"⚠️ {last_error}")
-                            break
-
-                        # Simple heuristic to extract JSON block from model output.
-                        structured_data = None
-                        json_match = re.search(r'```(?:json)?\s*(.*?)\s*```', extracted_text, re.DOTALL)
-                        if json_match:
-                            try:
-                                structured_data = json.loads(json_match.group(1).strip())
-                            except json.JSONDecodeError as e:
-                                print(f"❌ OCR Log: JSON Decoder error ({model}): {e}")
-                        else:
-                            try:
-                                structured_data = json.loads(extracted_text)
-                            except json.JSONDecodeError:
-                                pass
-
-                        # Fallback to extracted string text if JSON parse fails.
-                        final_text = structured_data.get("raw_text", extracted_text) if structured_data else extracted_text
-
-                        return {
-                            "text": final_text,
-                            "structured_data": structured_data,
-                            "confidence": 0.95,
-                            "source": f"{model}-openrouter",
-                        }
-
-                    except httpx.HTTPError as e:
-                        last_error = f"{type(e).__name__}: {e}"
-                        print(f"⚠️ OCR Vision HTTP error on {model}: {e}")
-                        break
-                    except Exception as e:
-                        last_error = f"{type(e).__name__}: {e}"
-                        print(f"⚠️ OCR Vision unexpected error on {model}: {e}")
-                        break
 
     except Exception as e:
         last_error = f"{type(e).__name__}: {e}"
@@ -224,12 +264,12 @@ async def extract_text_from_image(image_path: str, image_base64: str = None, mim
     if saw_rate_limit:
         return {
             "error": (
-                "Prescription OCR is temporarily rate-limited. "
+                "Prescription OCR providers are temporarily rate-limited. "
                 "Please wait about 20-30 seconds and upload again."
             )
         }
 
-    return {"error": last_error or "Unable to process prescription image with OCR models."}
+    return {"error": last_error or "Unable to process prescription image with OCR providers/models."}
 
 
 async def _llm_extract_medicines(raw_text: str, structured_data: Optional[Dict] = None) -> Dict[str, Any]:

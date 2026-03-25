@@ -58,6 +58,17 @@ OCR_VISION_MODELS = [
     ).split(",") if m.strip()
 ]
 OCR_VISION_MAX_429_RETRIES = int(os.getenv("OCR_VISION_MAX_429_RETRIES", "2"))
+# OCR provider priority/order. Example: "groq,openrouter" or "openrouter,groq"
+OCR_PROVIDER_ORDER = [
+    p.strip().lower() for p in os.getenv("OCR_PROVIDER_ORDER", "groq,openrouter").split(",") if p.strip()
+]
+# Groq vision models used when provider order includes groq.
+OCR_GROQ_VISION_MODELS = [
+    m.strip() for m in os.getenv(
+        "OCR_GROQ_VISION_MODELS",
+        "meta-llama/llama-4-scout-17b-16e-instruct"
+    ).split(",") if m.strip()
+]
 # Legacy — kept for backward compat but no longer used separately
 PLANNER_MODEL = os.getenv("PLANNER_MODEL", "openrouter/auto")
 
