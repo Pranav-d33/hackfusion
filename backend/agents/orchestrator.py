@@ -181,10 +181,10 @@ _L10N = {
         "hi": "{med} फिलहाल स्टॉक में उपलब्ध नहीं है। क्या मैं समान सक्रिय घटक वाले विकल्प खोजूँ?",
     },
     "greeting_named": {
-        "en": "Hello {name}! Welcome to Mediloon. How can I help you today?",
-        "de": "Hallo {name}! Willkommen bei Mediloon. Wie kann ich dir heute helfen?",
-        "ar": "مرحباً {name}! أهلاً بك في Mediloon. كيف يمكنني مساعدتك اليوم؟",
-        "hi": "नमस्ते {name}! Mediloon में स्वागत है। आज कैसे मदद कर सकता हूँ?",
+        "en": "Hello {name}! Welcome to MedAura. How can I help you today?",
+        "de": "Hallo {name}! Willkommen bei MedAura. Wie kann ich dir heute helfen?",
+        "ar": "مرحباً {name}! أهلاً بك في MedAura. كيف يمكنني مساعدتك اليوم؟",
+        "hi": "नमस्ते {name}! MedAura में स्वागत है। आज कैसे मदद कर सकता हूँ?",
     },
     "checkout_confirm_full": {
         "en": (
@@ -193,7 +193,7 @@ _L10N = {
             "Total: €{total:.2f}\n"
             "Delivery to: {address}\n"
             "Payment method: Cash on Delivery (COD)\n\n"
-            "Your order has been placed and your account updated. Thank you for choosing Mediloon."
+            "Your order has been placed and your account updated. Thank you for choosing MedAura."
         ),
         "de": (
             "Bestellung #{order_id} wurde bestätigt.\n\n"
@@ -201,7 +201,7 @@ _L10N = {
             "Gesamt: €{total:.2f}\n"
             "Lieferadresse: {address}\n"
             "Zahlungsart: Nachnahme (COD)\n\n"
-            "Deine Bestellung wurde aufgegeben und dein Konto aktualisiert. Danke, dass du Mediloon nutzt."
+            "Deine Bestellung wurde aufgegeben und dein Konto aktualisiert. Danke, dass du MedAura nutzt."
         ),
         "ar": (
             "تم تأكيد الطلب رقم {order_id}.\n\n"
@@ -209,7 +209,7 @@ _L10N = {
             "الإجمالي: €{total:.2f}\n"
             "التوصيل إلى: {address}\n"
             "طريقة الدفع: الدفع عند الاستلام (COD)\n\n"
-            "تم تقديم طلبك وتحديث حسابك. شكرًا لاختيارك Mediloon."
+            "تم تقديم طلبك وتحديث حسابك. شكرًا لاختيارك MedAura."
         ),
         "hi": (
             "ऑर्डर #{order_id} कन्फर्म हो गया है।\n\n"
@@ -217,14 +217,14 @@ _L10N = {
             "कुल: €{total:.2f}\n"
             "डिलीवरी पता: {address}\n"
             "भुगतान का तरीका: कैश ऑन डिलीवरी (COD)\n\n"
-            "आपका ऑर्डर प्लेस हो गया है और आपका अकाउंट अपडेट हो गया है। Mediloon चुनने के लिए धन्यवाद।"
+            "आपका ऑर्डर प्लेस हो गया है और आपका अकाउंट अपडेट हो गया है। MedAura चुनने के लिए धन्यवाद।"
         ),
     },
     "checkout_confirm_tts": {
-        "en": "Order number {order_id} confirmed. Payment is Cash on Delivery. Thank you for ordering with Mediloon.",
-        "de": "Bestellung Nummer {order_id} bestätigt. Zahlung per Nachnahme. Danke für deine Bestellung bei Mediloon.",
-        "ar": "تم تأكيد الطلب رقم {order_id}. طريقة الدفع عند الاستلام. شكرًا لطلبك من Mediloon.",
-        "hi": "ऑर्डर नंबर {order_id} कन्फर्म हो गया है। भुगतान कैश ऑन डिलीवरी है। Mediloon से ऑर्डर करने के लिए धन्यवाद।",
+        "en": "Order number {order_id} confirmed. Payment is Cash on Delivery. Thank you for ordering with MedAura.",
+        "de": "Bestellung Nummer {order_id} bestätigt. Zahlung per Nachnahme. Danke für deine Bestellung bei MedAura.",
+        "ar": "تم تأكيد الطلب رقم {order_id}. طريقة الدفع عند الاستلام. شكرًا لطلبك من MedAura.",
+        "hi": "ऑर्डर नंबर {order_id} कन्फर्म हो गया है। भुगतान कैश ऑन डिलीवरी है। MedAura से ऑर्डर करने के लिए धन्यवाद।",
     },
     "remove_empty": {
         "en": "Your cart is already empty.",
@@ -2420,19 +2420,19 @@ async def _handle_prescription_upload(
 
         parts = []
         if disease:
-            parts.append(f"📋 Identified condition: **{disease}**")
+            parts.append(f"Identified condition: **{disease}**")
 
         llm_count = parsed_rx.get("llm_extracted_count", 0)
         if llm_count:
-            parts.append(f"🔎 Extracted **{llm_count}** medicine(s) from prescription.")
+            parts.append(f"Extracted **{llm_count}** medicine(s) from prescription.")
 
         if added:
-            parts.append(f"✅ Added to cart: {', '.join(added)}.")
+            parts.append(f"Added to cart: {', '.join(added)}.")
         for o in oos:
             alt_names = [a["brand_name"] for a in o["alternatives"]]
-            parts.append(f"⚠️ {o['requested']} is out of stock." + (f" Alternatives: {', '.join(alt_names)}." if alt_names else ""))
+            parts.append(f"{o['requested']} is out of stock." + (f" Alternatives: {', '.join(alt_names)}." if alt_names else ""))
         if unknown:
-            parts.append(f"❌ Not found in catalog: {', '.join(unknown)}. You can try searching by generic name or ask me to find alternatives.")
+            parts.append(f"Not found in catalog: {', '.join(unknown)}. You can try searching by generic name or ask me to find alternatives.")
         if added:
             update_session_state(session_id, {"pending_rx_check": None})
         # Return the updated cart so the frontend refreshes immediately
@@ -2482,7 +2482,7 @@ async def _handle_prescription_upload(
 
         if validation["valid"] or pending_rx_covered:
             update_session_state(session_id, {"pending_rx_check": None})
-            msg = "✅ Prescription verified! "
+            msg = "Prescription verified. "
             if pending_rx_covered and pending_rx_med:
                 med_name = pending_rx_med.get("brand_name", "The medicine")
                 msg += f"{med_name} has been confirmed on your prescription. You can now add it to your cart."

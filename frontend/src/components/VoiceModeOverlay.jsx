@@ -100,7 +100,7 @@ export default function VoiceModeOverlay({
                     type="file"
                     ref={fileInputRef}
                     className="hidden"
-                    accept="image/*,.pdf"
+                    accept="image/*"
                     onChange={handleFileChange}
                 />
                 <button

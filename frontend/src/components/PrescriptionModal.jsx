@@ -40,7 +40,6 @@ export default function PrescriptionModal({
                 </p>
                 <button
                     onClick={() => {
-                        onClose();
                         onChooseFile?.();
                     }}
                     disabled={isLoading}
@@ -54,7 +53,6 @@ export default function PrescriptionModal({
                 </button>
                 <button
                     onClick={() => {
-                        onClose();
                         onCapturePhoto?.();
                     }}
                     disabled={isLoading}

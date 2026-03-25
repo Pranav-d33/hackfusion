@@ -1,5 +1,5 @@
 /**
- * UI Translations for Mediloon
+ * UI Translations for MedAura
  * Supported: English (en), German (de), Arabic (ar), Hindi (hi)
  */
 
@@ -16,7 +16,7 @@ const translations = {
     language: 'Language',
 
     // Welcome / Chat
-    welcomeMessage: "Hi! I'm Mediloon AI. Need a medicine or have a prescription? Just ask!",
+    welcomeMessage: "Hi! I'm MedAura AI. Need a medicine or have a prescription? Just ask!",
     typeMessage: 'Type a message or speak...',
     sorry: 'Sorry, I encountered an issue.',
     uploading: 'Uploading',
@@ -98,7 +98,7 @@ const translations = {
     timeoutTryAgain: 'Request timed out. Please try again.',
 
     // Voice Settings
-    voicePreviewDefault: 'Hello, I am your Mediloon AI assistant.',
+    voicePreviewDefault: 'Hello, I am your MedAura AI assistant.',
     previewText: 'Preview Text',
     selectVoice: 'Select Voice',
     noVoicesFound: 'No voices found. Please check your browser settings.',
@@ -171,17 +171,17 @@ const translations = {
     // Prescription Modal
     replacePrescription: 'Replace Prescription',
     replacePrescriptionDesc: 'Upload a new prescription to replace the existing one.',
-    uploadPrescriptionDesc: 'Upload your prescription image or PDF for verification.',
-    startWithPrescriptionDesc: 'Start your order by uploading a prescription image or PDF.',
-    addPrescriptionDesc: 'Add a prescription by uploading an image or PDF.',
+    uploadPrescriptionDesc: 'Upload your prescription image for verification.',
+    startWithPrescriptionDesc: 'Start your order by uploading a prescription image.',
+    addPrescriptionDesc: 'Add a prescription by uploading an image.',
     chooseFile: 'Choose File',
     useCamera: 'Use Camera',
 
     // Login
     createAccount: 'Create Account',
     welcomeBack: 'Welcome Back',
-    joinMediloonToOrder: 'Join Mediloon to start ordering',
-    signInToMediloonAccount: 'Sign in to your Mediloon account',
+    joinMediloonToOrder: 'Join MedAura to start ordering',
+    signInToMediloonAccount: 'Sign in to your MedAura account',
     phoneOptional: 'Phone (Optional)',
     emailAddress: 'Email Address',
     password: 'Password',
@@ -287,7 +287,7 @@ const translations = {
     language: 'Sprache',
 
     // Welcome / Chat
-    welcomeMessage: 'Hallo! Ich bin Mediloon AI. Brauchen Sie ein Medikament oder haben Sie ein Rezept? Fragen Sie einfach!',
+    welcomeMessage: 'Hallo! Ich bin MedAura AI. Brauchen Sie ein Medikament oder haben Sie ein Rezept? Fragen Sie einfach!',
     typeMessage: 'Nachricht eingeben oder sprechen...',
     sorry: 'Entschuldigung, es ist ein Problem aufgetreten.',
     uploading: 'Wird hochgeladen',
@@ -369,7 +369,7 @@ const translations = {
     timeoutTryAgain: 'Zeitüberschreitung der Anfrage. Bitte erneut versuchen.',
 
     // Voice Settings
-    voicePreviewDefault: 'Hallo, ich bin dein Mediloon KI-Assistent.',
+    voicePreviewDefault: 'Hallo, ich bin dein MedAura KI-Assistent.',
     previewText: 'Vorschautext',
     selectVoice: 'Stimme auswählen',
     noVoicesFound: 'Keine Stimmen gefunden. Bitte prüfen Sie die Browser-Einstellungen.',
@@ -442,17 +442,17 @@ const translations = {
     // Prescription Modal
     replacePrescription: 'Rezept ersetzen',
     replacePrescriptionDesc: 'Lade ein neues Rezept hoch, um das bestehende zu ersetzen.',
-    uploadPrescriptionDesc: 'Lade dein Rezeptbild oder PDF zur Verifizierung hoch.',
-    startWithPrescriptionDesc: 'Starte deine Bestellung, indem du ein Rezeptbild oder PDF hochlädst.',
-    addPrescriptionDesc: 'Füge ein Rezept hinzu, indem du ein Bild oder PDF hochlädst.',
+    uploadPrescriptionDesc: 'Lade dein Rezeptbild zur Verifizierung hoch.',
+    startWithPrescriptionDesc: 'Starte deine Bestellung, indem du ein Rezeptbild hochlädst.',
+    addPrescriptionDesc: 'Füge ein Rezept hinzu, indem du ein Bild hochlädst.',
     chooseFile: 'Datei wählen',
     useCamera: 'Kamera verwenden',
 
     // Login
     createAccount: 'Konto erstellen',
     welcomeBack: 'Willkommen zurück',
-    joinMediloonToOrder: 'Trete Mediloon bei, um zu bestellen',
-    signInToMediloonAccount: 'Melde dich bei deinem Mediloon-Konto an',
+    joinMediloonToOrder: 'Trete MedAura bei, um zu bestellen',
+    signInToMediloonAccount: 'Melde dich bei deinem MedAura-Konto an',
     phoneOptional: 'Telefon (optional)',
     emailAddress: 'E-Mail-Adresse',
     password: 'Passwort',
@@ -558,7 +558,7 @@ const translations = {
     language: 'اللغة',
 
     // Welcome / Chat
-    welcomeMessage: 'مرحباً! أنا Mediloon AI. هل تحتاج دواءً أو لديك وصفة طبية؟ فقط اسأل!',
+    welcomeMessage: 'مرحباً! أنا MedAura AI. هل تحتاج دواءً أو لديك وصفة طبية؟ فقط اسأل!',
     typeMessage: 'اكتب رسالة أو تحدث...',
     sorry: 'عذراً، واجهت مشكلة.',
     uploading: 'جارٍ الرفع',
@@ -640,7 +640,7 @@ const translations = {
     timeoutTryAgain: 'انتهت مهلة الطلب. يرجى المحاولة مرة أخرى.',
 
     // Voice Settings
-    voicePreviewDefault: 'مرحباً، أنا مساعد Mediloon الذكي.',
+    voicePreviewDefault: 'مرحباً، أنا مساعد MedAura الذكي.',
     previewText: 'نص المعاينة',
     selectVoice: 'اختر الصوت',
     noVoicesFound: 'لم يتم العثور على أصوات. يرجى التحقق من إعدادات المتصفح.',
@@ -713,17 +713,17 @@ const translations = {
     // Prescription Modal
     replacePrescription: 'استبدال الوصفة',
     replacePrescriptionDesc: 'ارفع وصفة جديدة لاستبدال الوصفة الحالية.',
-    uploadPrescriptionDesc: 'ارفع صورة الوصفة أو ملف PDF للتحقق.',
-    startWithPrescriptionDesc: 'ابدأ طلبك برفع صورة الوصفة أو ملف PDF.',
-    addPrescriptionDesc: 'أضف وصفة طبية عبر رفع صورة أو ملف PDF.',
+    uploadPrescriptionDesc: 'ارفع صورة الوصفة للتحقق.',
+    startWithPrescriptionDesc: 'ابدأ طلبك برفع صورة الوصفة.',
+    addPrescriptionDesc: 'أضف وصفة طبية عبر رفع صورة.',
     chooseFile: 'اختر ملفًا',
     useCamera: 'استخدم الكاميرا',
 
     // Login
     createAccount: 'إنشاء حساب',
     welcomeBack: 'مرحباً بعودتك',
-    joinMediloonToOrder: 'انضم إلى Mediloon لبدء الطلب',
-    signInToMediloonAccount: 'سجّل الدخول إلى حساب Mediloon الخاص بك',
+    joinMediloonToOrder: 'انضم إلى MedAura لبدء الطلب',
+    signInToMediloonAccount: 'سجّل الدخول إلى حساب MedAura الخاص بك',
     phoneOptional: 'الهاتف (اختياري)',
     emailAddress: 'البريد الإلكتروني',
     password: 'كلمة المرور',
@@ -829,7 +829,7 @@ const translations = {
     language: 'भाषा',
 
     // Welcome / Chat
-    welcomeMessage: 'नमस्ते! मैं Mediloon AI हूँ। क्या आपको दवाई चाहिए या कोई प्रिस्क्रिप्शन है? बस पूछिए!',
+    welcomeMessage: 'नमस्ते! मैं MedAura AI हूँ। क्या आपको दवाई चाहिए या कोई प्रिस्क्रिप्शन है? बस पूछिए!',
     typeMessage: 'संदेश लिखें या बोलें...',
     sorry: 'क्षमा करें, कोई समस्या आई।',
     uploading: 'अपलोड हो रहा है',
@@ -911,7 +911,7 @@ const translations = {
     timeoutTryAgain: 'अनुरोध का समय समाप्त हो गया। कृपया फिर से प्रयास करें।',
 
     // Voice Settings
-    voicePreviewDefault: 'नमस्ते, मैं आपका Mediloon AI सहायक हूँ।',
+    voicePreviewDefault: 'नमस्ते, मैं आपका MedAura AI सहायक हूँ।',
     previewText: 'प्रिव्यू टेक्स्ट',
     selectVoice: 'आवाज़ चुनें',
     noVoicesFound: 'कोई आवाज़ नहीं मिली। कृपया अपने ब्राउज़र सेटिंग्स जांचें।',
@@ -984,17 +984,17 @@ const translations = {
     // Prescription Modal
     replacePrescription: 'प्रिस्क्रिप्शन बदलें',
     replacePrescriptionDesc: 'मौजूदा प्रिस्क्रिप्शन बदलने के लिए नया प्रिस्क्रिप्शन अपलोड करें।',
-    uploadPrescriptionDesc: 'सत्यापन के लिए प्रिस्क्रिप्शन इमेज या PDF अपलोड करें।',
-    startWithPrescriptionDesc: 'प्रिस्क्रिप्शन इमेज या PDF अपलोड करके अपना ऑर्डर शुरू करें।',
-    addPrescriptionDesc: 'इमेज या PDF अपलोड करके प्रिस्क्रिप्शन जोड़ें।',
+    uploadPrescriptionDesc: 'सत्यापन के लिए प्रिस्क्रिप्शन इमेज अपलोड करें।',
+    startWithPrescriptionDesc: 'प्रिस्क्रिप्शन इमेज अपलोड करके अपना ऑर्डर शुरू करें।',
+    addPrescriptionDesc: 'इमेज अपलोड करके प्रिस्क्रिप्शन जोड़ें।',
     chooseFile: 'फ़ाइल चुनें',
     useCamera: 'कैमरा इस्तेमाल करें',
 
     // Login
     createAccount: 'खाता बनाएं',
     welcomeBack: 'फिर से स्वागत है',
-    joinMediloonToOrder: 'ऑर्डर शुरू करने के लिए Mediloon से जुड़ें',
-    signInToMediloonAccount: 'अपने Mediloon खाते में साइन इन करें',
+    joinMediloonToOrder: 'ऑर्डर शुरू करने के लिए MedAura से जुड़ें',
+    signInToMediloonAccount: 'अपने MedAura खाते में साइन इन करें',
     phoneOptional: 'फोन (वैकल्पिक)',
     emailAddress: 'ईमेल पता',
     password: 'पासवर्ड',

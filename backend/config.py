@@ -54,7 +54,7 @@ NLU_FALLBACK_MODELS = [
 OCR_VISION_MODELS = [
     m.strip() for m in os.getenv(
         "OCR_VISION_MODELS",
-        "google/gemma-3-27b-it:free,meta-llama/llama-3.2-11b-vision-instruct:free"
+        "google/gemma-3-27b-it:free"
     ).split(",") if m.strip()
 ]
 OCR_VISION_MAX_429_RETRIES = int(os.getenv("OCR_VISION_MAX_429_RETRIES", "2"))

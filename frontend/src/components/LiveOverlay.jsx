@@ -309,7 +309,7 @@ export default function LiveOverlay({
                             ref={fileInputRef}
                             className="hidden"
                             onChange={handleFileChange}
-                            accept="image/*,.pdf"
+                            accept="image/*"
                         />
                         <input
                             type="file"

@@ -11,6 +11,7 @@ import json
 from typing import Dict, Any, List, Optional
 from difflib import SequenceMatcher
 import os
+import io
 
 sys.path.insert(0, str(__file__).rsplit('/', 2)[0])
 
@@ -19,6 +20,7 @@ from db.database import execute_query
 import base64
 import httpx
 import asyncio
+from PIL import Image
 from config import (
     OPENROUTER_API_KEY,
     OPENROUTER_BASE_URL,
@@ -33,6 +35,90 @@ from config import (
     OCR_PROVIDER_ORDER,
     OCR_GROQ_VISION_MODELS,
 )
+
+_MAX_GROQ_BASE64_IMAGE_BYTES = 4 * 1024 * 1024
+_OCR_IMAGE_TARGET_BYTES = int(os.getenv("OCR_IMAGE_TARGET_BYTES", "3500000"))
+_OCR_MAX_DIMENSION = int(os.getenv("OCR_MAX_DIMENSION", "1800"))
+_EMOJI_PATTERN = re.compile(
+    "["
+    "\U0001F1E6-\U0001F1FF"  # flags
+    "\U0001F300-\U0001F5FF"
+    "\U0001F600-\U0001F64F"
+    "\U0001F680-\U0001F6FF"
+    "\U0001F700-\U0001F77F"
+    "\U0001F780-\U0001F7FF"
+    "\U0001F800-\U0001F8FF"
+    "\U0001F900-\U0001F9FF"
+    "\U0001FA00-\U0001FAFF"
+    "\u2600-\u27BF"
+    "]",
+    flags=re.UNICODE,
+)
+_EMOJI_JOINERS_PATTERN = re.compile(r"[\uFE0E\uFE0F\u200D\u20E3]", flags=re.UNICODE)
+
+
+def _strip_emoji_text(value: Any) -> str:
+    """Remove emoji/symbol artifacts from OCR strings while preserving line breaks."""
+    if value is None:
+        return ""
+    text = str(value)
+    text = _EMOJI_PATTERN.sub("", text)
+    text = _EMOJI_JOINERS_PATTERN.sub("", text)
+    text = re.sub(r"[ \t]{2,}", " ", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()
+
+
+def _strip_emoji_from_payload(value: Any) -> Any:
+    """Recursively sanitize OCR payload values."""
+    if isinstance(value, str):
+        return _strip_emoji_text(value)
+    if isinstance(value, list):
+        return [_strip_emoji_from_payload(item) for item in value]
+    if isinstance(value, dict):
+        return {k: _strip_emoji_from_payload(v) for k, v in value.items()}
+    return value
+
+
+def _optimize_image_for_vision(image_bytes: bytes, mime_type: str) -> tuple[bytes, str]:
+    """
+    Resize/compress large images to improve OCR provider acceptance and reduce 413/429 pressure.
+    Returns (optimized_bytes, mime_type).
+    """
+    if not image_bytes:
+        return image_bytes, mime_type
+
+    if not mime_type.startswith("image/"):
+        return image_bytes, mime_type
+
+    try:
+        with Image.open(io.BytesIO(image_bytes)) as img:
+            # Normalize image mode for deterministic encoding.
+            if img.mode not in ("RGB", "L"):
+                img = img.convert("RGB")
+
+            # Downscale oversized images while preserving aspect ratio.
+            if max(img.size) > _OCR_MAX_DIMENSION:
+                img.thumbnail((_OCR_MAX_DIMENSION, _OCR_MAX_DIMENSION))
+
+            # Prefer JPEG for compact transport.
+            out = io.BytesIO()
+            quality = 82
+            img.save(out, format="JPEG", quality=quality, optimize=True)
+            data = out.getvalue()
+
+            # Progressive compression until near provider-safe target.
+            while len(data) > _OCR_IMAGE_TARGET_BYTES and quality > 50:
+                quality -= 8
+                out = io.BytesIO()
+                img.save(out, format="JPEG", quality=quality, optimize=True)
+                data = out.getvalue()
+
+            return data, "image/jpeg"
+    except Exception as e:
+        # If PIL cannot decode/transform, fall back to original bytes.
+        print(f"⚠️ OCR image optimization skipped: {e}")
+        return image_bytes, mime_type
 
 
 def _normalize_name_for_compare(name: str) -> str:
@@ -72,10 +158,22 @@ async def extract_text_from_image(image_path: str, image_base64: str = None, mim
         image_base64: Pre-encoded base64 image data (used when file may not exist on disk, e.g. Vercel).
         mime_type: MIME type of the image (used with image_base64).
     """
-    # If we have inline base64 data, use it directly (no filesystem dependency)
+    image_bytes: bytes = b""
+    detected_mime = mime_type or "image/jpeg"
+
+    # If we have inline base64 data, decode and normalize it first.
     if image_base64:
-        encoded_string = image_base64
-        data_url = f"data:{mime_type};base64,{encoded_string}"
+        if (detected_mime or "").lower() == "application/pdf":
+            return {
+                "error": (
+                    "PDF prescriptions are temporarily unsupported for OCR right now. "
+                    "Please upload a clear photo (JPG/PNG) of the prescription."
+                )
+            }
+        try:
+            image_bytes = base64.b64decode(image_base64, validate=False)
+        except Exception as e:
+            return {"error": f"Invalid base64 image payload: {e}"}
     elif not os.path.exists(image_path):
         if "mock_prescription" in image_path:
             return {
@@ -96,14 +194,57 @@ async def extract_text_from_image(image_path: str, image_base64: str = None, mim
         try:
             print(f"📖 Reading image from disk for OCR: {image_path}")
             with open(image_path, "rb") as image_file:
-                encoded_string = base64.b64encode(image_file.read()).decode("utf-8")
+                image_bytes = image_file.read()
             
-            mt = "image/jpeg"
-            if image_path.lower().endswith(".png"):
-                mt = "image/png"
-            data_url = f"data:{mt};base64,{encoded_string}"
+            lower_path = image_path.lower()
+            if lower_path.endswith(".pdf"):
+                return {
+                    "error": (
+                        "PDF prescriptions are temporarily unsupported for OCR right now. "
+                        "Please upload a clear photo (JPG/PNG) of the prescription."
+                    )
+                }
+            if lower_path.endswith(".png"):
+                detected_mime = "image/png"
+            elif lower_path.endswith(".webp"):
+                detected_mime = "image/webp"
+            else:
+                detected_mime = "image/jpeg"
         except Exception as e:
             return {"error": f"Failed to read file: {e}"}
+
+    if not image_bytes:
+        return {"error": "Empty image payload received."}
+
+    if not str(detected_mime).startswith("image/"):
+        return {"error": f"Unsupported OCR mime type: {detected_mime}. Please upload JPG/PNG image."}
+
+    # Normalize/compact oversized image payloads before provider calls.
+    original_size = len(image_bytes)
+    image_bytes, detected_mime = _optimize_image_for_vision(image_bytes, detected_mime)
+    if len(image_bytes) != original_size:
+        print(f"🗜️ OCR image optimized: {original_size} -> {len(image_bytes)} bytes ({detected_mime})")
+
+    allowed_mimes = {"image/jpeg", "image/png", "image/webp"}
+    if detected_mime not in allowed_mimes:
+        return {
+            "error": (
+                f"Unsupported image format for OCR ({detected_mime}). "
+                "Please upload JPG or PNG."
+            )
+        }
+
+    # Groq enforces strict base64 image limits; try a second aggressive shrink if needed.
+    if len(image_bytes) > _MAX_GROQ_BASE64_IMAGE_BYTES:
+        image_bytes, detected_mime = _optimize_image_for_vision(image_bytes, detected_mime)
+        if len(image_bytes) > _MAX_GROQ_BASE64_IMAGE_BYTES:
+            print(
+                f"⚠️ OCR image still exceeds Groq base64 limit ({len(image_bytes)} bytes). "
+                "Groq provider may be skipped/fail for this upload."
+            )
+
+    encoded_string = base64.b64encode(image_bytes).decode("utf-8")
+    data_url = f"data:{detected_mime};base64,{encoded_string}"
 
     provider_specs: List[Dict[str, Any]] = []
     for provider in OCR_PROVIDER_ORDER or ["groq", "openrouter"]:
@@ -160,6 +301,15 @@ async def extract_text_from_image(image_path: str, image_base64: str = None, mim
         async with httpx.AsyncClient(timeout=120.0) as client:
             for spec in provider_specs:
                 provider = spec["name"]
+                if provider == "groq" and len(image_bytes) > _MAX_GROQ_BASE64_IMAGE_BYTES:
+                    print(
+                        f"⚠️ Skipping Groq OCR: payload {len(image_bytes)} bytes exceeds "
+                        f"Groq base64 limit {_MAX_GROQ_BASE64_IMAGE_BYTES}."
+                    )
+                    last_error = (
+                        f"groq: skipped because image payload exceeded {_MAX_GROQ_BASE64_IMAGE_BYTES} bytes"
+                    )
+                    continue
                 models = spec.get("models") or []
                 if not models:
                     continue
@@ -238,8 +388,10 @@ async def extract_text_from_image(image_path: str, image_base64: str = None, mim
                                 except json.JSONDecodeError:
                                     pass
 
+                            structured_data = _strip_emoji_from_payload(structured_data)
                             # Fallback to extracted string text if JSON parse fails.
                             final_text = structured_data.get("raw_text", extracted_text) if structured_data else extracted_text
+                            final_text = _strip_emoji_text(final_text)
 
                             return {
                                 "text": final_text,
@@ -262,11 +414,23 @@ async def extract_text_from_image(image_path: str, image_base64: str = None, mim
         print(f"❌ OCR Log: Error creating OCR client: {e}")
 
     if saw_rate_limit:
-        return {
-            "error": (
-                "Prescription OCR providers are temporarily rate-limited. "
-                "Please wait about 20-30 seconds and upload again."
+        busy_msg = (
+            "Prescription OCR providers are temporarily rate-limited. "
+            "Please wait about 20-30 seconds and upload again."
+        )
+        lower_last = (last_error or "").lower()
+        if "exceeded" in lower_last or "413" in lower_last:
+            busy_msg = (
+                "OCR is currently rate-limited and your image is likely too large for one provider. "
+                "Please upload a clearer/cropped JPG image and try again in 20-30 seconds."
             )
+        elif "invalid image data" in lower_last or "unsupported image format" in lower_last:
+            busy_msg = (
+                "OCR is currently rate-limited and the uploaded file format could not be processed. "
+                "Please upload a JPG or PNG prescription photo and retry in 20-30 seconds."
+            )
+        return {
+            "error": busy_msg
         }
 
     return {"error": last_error or "Unable to process prescription image with OCR providers/models."}
@@ -465,8 +629,8 @@ async def parse_prescription_text(ocr_result: Dict[str, Any]) -> Dict[str, Any]:
     Returns:
         Structured data: {"medications": [...], "unknown_items": [...]}
     """
-    text = ocr_result.get("text", "")
-    structured_data = ocr_result.get("structured_data")
+    text = _strip_emoji_text(ocr_result.get("text", ""))
+    structured_data = _strip_emoji_from_payload(ocr_result.get("structured_data"))
 
     # ── Step 1: Medicine extraction ────────────────────────────────
     # Use OCR model's structured medications directly when available to avoid
@@ -476,16 +640,18 @@ async def parse_prescription_text(ocr_result: Dict[str, Any]) -> Dict[str, Any]:
 
     if isinstance(structured_data, dict):
         disease_or_illness = structured_data.get("disease_or_illness")
+        if disease_or_illness is not None:
+            disease_or_illness = _strip_emoji_text(disease_or_illness)
         for med in (structured_data.get("medications") or []):
             if not isinstance(med, dict):
                 continue
-            med_name = (med.get("medicine_name") or med.get("name") or "").strip()
+            med_name = _strip_emoji_text(med.get("medicine_name") or med.get("name") or "")
             if not med_name:
                 continue
             llm_meds.append({
                 "name": med_name,
-                "dosage": (med.get("dosage") or "").strip(),
-                "original_ocr_name": (med.get("medicine_name") or med_name).strip(),
+                "dosage": _strip_emoji_text(med.get("dosage") or ""),
+                "original_ocr_name": _strip_emoji_text(med.get("medicine_name") or med_name),
             })
 
     if llm_meds:
@@ -496,11 +662,15 @@ async def parse_prescription_text(ocr_result: Dict[str, Any]) -> Dict[str, Any]:
         llm_meds = llm_extracted.get("medications", [])
         llm_extracted_count = len(llm_meds)
         if not disease_or_illness:
-            disease_or_illness = llm_extracted.get("disease_or_illness")
+            extracted_disease = llm_extracted.get("disease_or_illness")
+            if extracted_disease is not None:
+                disease_or_illness = _strip_emoji_text(extracted_disease)
 
     # Fallback disease from structured_data if still missing.
     if not disease_or_illness and isinstance(structured_data, dict):
-        disease_or_illness = structured_data.get("disease_or_illness")
+        fallback_disease = structured_data.get("disease_or_illness")
+        if fallback_disease is not None:
+            disease_or_illness = _strip_emoji_text(fallback_disease)
 
     # ── Step 2: Build product index from DB ───────────────────────
     all_products = await execute_query("""
@@ -528,9 +698,9 @@ async def parse_prescription_text(ocr_result: Dict[str, Any]) -> Dict[str, Any]:
     matched_ids = set()
 
     for med in llm_meds:
-        med_name = (med.get("name") or "").strip()
-        med_dosage = (med.get("dosage") or "").strip()
-        original_name = (med.get("original_ocr_name") or med_name).strip()
+        med_name = _strip_emoji_text(med.get("name") or "")
+        med_dosage = _strip_emoji_text(med.get("dosage") or "")
+        original_name = _strip_emoji_text(med.get("original_ocr_name") or med_name)
 
         if not med_name or len(med_name) < 2:
             continue

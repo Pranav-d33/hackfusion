@@ -228,6 +228,9 @@ export default function App() {
     const cartRef = useRef(null);
     const dockRef = useRef(null);
     const liveModeRef = useRef(false);
+    const isLoadingRef = useRef(false);
+    const isSpeakingRef = useRef(false);
+    const shouldPauseVoiceCaptureRef = useRef(false);
 
     // --- Hooks ---
     const {
@@ -372,43 +375,60 @@ export default function App() {
         liveModeRef.current = liveMode;
     }, [liveMode]);
 
-    const restartListeningIfLive = useCallback((delayMs = 500) => {
-        setTimeout(() => {
-            // Safety check: never restart while speaking (prevents echo)
-            if (liveModeRef.current && !isSpeaking) startListening();
-        }, delayMs);
-    }, [startListening, isSpeaking]);
-
-    // Pause voice agent while auth/profile modals are active
-    const isAuthModalOpen = showLogin || showLoginForCheckout || showProfileModal;
-    const voicePausedByAuthRef = useRef(false);
+    useEffect(() => {
+        isLoadingRef.current = isLoading;
+    }, [isLoading]);
 
     useEffect(() => {
-        if (isAuthModalOpen) {
+        isSpeakingRef.current = isSpeaking;
+    }, [isSpeaking]);
+
+    const isAuthModalOpen = showLogin || showLoginForCheckout || showProfileModal;
+    const shouldPauseVoiceCapture = isAuthModalOpen || isPrescriptionModalOpen;
+    const voicePausedByModalRef = useRef(false);
+
+    useEffect(() => {
+        shouldPauseVoiceCaptureRef.current = shouldPauseVoiceCapture;
+    }, [shouldPauseVoiceCapture]);
+
+    const restartListeningIfLive = useCallback((delayMs = 500) => {
+        setTimeout(() => {
+            // Safety check: never restart while speaking or while voice input is blocked by modal flows.
+            if (liveModeRef.current && !isSpeakingRef.current && !shouldPauseVoiceCaptureRef.current && !isLoadingRef.current) {
+                startListening();
+            }
+        }, delayMs);
+    }, [startListening]);
+
+    useEffect(() => {
+        if (shouldPauseVoiceCapture) {
             if (isListening || isSpeaking || liveMode) {
                 stopListening();
                 stopSpeaking();
-                voicePausedByAuthRef.current = true;
+                voicePausedByModalRef.current = true;
             }
-        } else if (voicePausedByAuthRef.current) {
-            voicePausedByAuthRef.current = false;
-            if (liveMode) {
+            return;
+        }
+
+        if (voicePausedByModalRef.current) {
+            voicePausedByModalRef.current = false;
+            if (liveMode && !isLoading) {
                 restartListeningIfLive(500);
             }
         }
-    }, [isAuthModalOpen, isListening, isSpeaking, liveMode, stopListening, stopSpeaking, restartListeningIfLive]);
+    }, [shouldPauseVoiceCapture, isListening, isSpeaking, liveMode, isLoading, stopListening, stopSpeaking, restartListeningIfLive]);
 
     // Voice mode stall recovery: auto-restart listening when idle
     // Quick restart (500ms) when no transcript (e.g. no-speech), slower (5s) safety net
     useEffect(() => {
-        if (!liveMode || isListening || isSpeaking || isLoading) return;
+        if (!liveMode || isListening || isSpeaking || isLoading || shouldPauseVoiceCapture) return;
         const delay = transcript ? 5000 : 500;
         const timer = setTimeout(() => {
             console.warn('[VoiceMode] Stall detected — auto-restarting listening');
             startListening();
         }, delay);
         return () => clearTimeout(timer);
-    }, [liveMode, isListening, isSpeaking, isLoading, transcript, startListening]);
+    }, [liveMode, isListening, isSpeaking, isLoading, shouldPauseVoiceCapture, transcript, startListening]);
 
     // Keep short-command detector in sync with latest transcript.
     useEffect(() => {
@@ -737,7 +757,11 @@ export default function App() {
             handleSend(msg);
         } catch (error) {
             console.error(error);
-            setMessages(prev => [...prev, { id: Date.now() + 1, text: t('uploadFailed'), isUser: false }]);
+            const detail = String(error?.message || '').trim();
+            const msg = detail && detail !== 'Upload failed'
+                ? detail
+                : t('uploadFailed');
+            setMessages(prev => [...prev, { id: Date.now() + 1, text: msg, isUser: false }]);
             setIsLoading(false);
         }
     }, [handleSend, isLoading, t]);
@@ -1202,10 +1226,13 @@ export default function App() {
                             type="file"
                             id="prescription-upload-input"
                             className="hidden"
-                            accept="image/*,.pdf"
+                            accept="image/*"
                             onChange={(e) => {
                                 const file = e.target.files?.[0];
-                                if (file) handleFileUpload(file);
+                                if (file) {
+                                    setPrescriptionModalOpen(false);
+                                    handleFileUpload(file);
+                                }
                                 e.target.value = '';
                             }}
                             disabled={isLoading}
@@ -1219,7 +1246,10 @@ export default function App() {
                             capture="environment"
                             onChange={(e) => {
                                 const file = e.target.files?.[0];
-                                if (file) handleFileUpload(file);
+                                if (file) {
+                                    setPrescriptionModalOpen(false);
+                                    handleFileUpload(file);
+                                }
                                 e.target.value = '';
                             }}
                             disabled={isLoading}

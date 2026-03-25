@@ -171,7 +171,7 @@ async def parse_input(user_input: str, conversation_state: dict = None) -> Dict[
             "value": None,
             "raw_text": user_input,
             "confidence": 0.0,
-            "fallback_message": "Hi! I'm your Mediloon pharmacist. Just tell me the name of the medication you're looking for, or the health condition you need help with, and I'll find the best options for you!",
+            "fallback_message": "Hi! I'm your MedAura pharmacist. Just tell me the name of the medication you're looking for, or the health condition you need help with, and I'll find the best options for you!",
         }
     
     # CHECK CACHE FIRST (only for simple stateless intents like "yes", "no")

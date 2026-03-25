@@ -23,10 +23,13 @@ async def upload_prescription(file: UploadFile = File(...)):
     The base64 payload ensures the image survives across serverless invocations.
     """
     try:
-        # Validate file type — accept images and PDFs
+        # Validate file type — image only (PDF OCR disabled for reliability)
         content_type = file.content_type or ""
-        if not content_type.startswith("image/") and content_type != "application/pdf":
-            raise HTTPException(status_code=400, detail="File must be an image or PDF")
+        if not content_type.startswith("image/"):
+            raise HTTPException(
+                status_code=400,
+                detail="Please upload a prescription photo (JPG/PNG). PDF upload is temporarily unavailable.",
+            )
 
         # Read file bytes once
         file_bytes = await file.read()
