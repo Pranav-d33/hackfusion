@@ -290,7 +290,7 @@ export default function UpdatesModal({ alerts, timeline, orders = [], loading, o
           <div className="fixed inset-0 z-[998] bg-black/20" onClick={() => setIsOpen(false)} />
 
           {/* Panel */}
-          <div className="fixed top-16 right-4 z-[999] w-[360px] max-h-[70vh] bg-white/95 backdrop-blur-3xl rounded-[1.5rem] shadow-apple-2xl border border-black/[0.04] flex flex-col overflow-hidden animate-fade-in-up">
+          <div className="fixed top-16 right-4 z-[999] w-[360px] max-h-[70vh] bg-white/95 backdrop-blur-3xl rounded-[1.5rem] shadow-apple-2xl flex flex-col overflow-hidden animate-fade-in-up">
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-black/[0.04] bg-surface-snow/50 flex-shrink-0">
               <div className="flex items-center gap-2">
@@ -338,7 +338,7 @@ export default function UpdatesModal({ alerts, timeline, orders = [], loading, o
       {zoomed && (
         <div className="fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 sm:p-8" onClick={() => { setZoomed(false); setIsOpen(false); }}>
           <div
-            className="w-full max-w-lg max-h-[80vh] bg-white rounded-[2rem] shadow-apple-2xl border border-black/[0.04] flex flex-col overflow-hidden animate-slide-up-spring"
+            className="w-full max-w-lg max-h-[80vh] bg-white rounded-[2rem] shadow-apple-2xl flex flex-col overflow-hidden animate-slide-up-spring"
             onClick={e => e.stopPropagation()}
           >
             {/* Header */}

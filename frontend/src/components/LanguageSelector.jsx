@@ -32,7 +32,7 @@ export default function LanguageSelector() {
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1.5 px-3 py-2 text-sm font-brand font-semibold text-ink-muted hover:text-mediloon-600 hover:bg-mediloon-50 rounded-xl transition-all duration-200 active:scale-95 border border-transparent hover:border-mediloon-100"
+        className="flex items-center gap-1.5 px-3 py-2 text-sm font-brand font-semibold text-ink-muted hover:text-mediloon-600 hover:bg-mediloon-50 rounded-xl transition-all duration-300 active:scale-95 hover:shadow-soft-sm"
         title={t('selectLanguageTitle')}
       >
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -46,18 +46,17 @@ export default function LanguageSelector() {
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-1.5 w-44 bg-white rounded-2xl shadow-xl border border-surface-fog overflow-hidden z-50 animate-fade-in-up">
+        <div className="absolute right-0 mt-1.5 w-44 bg-white rounded-2xl shadow-soft-lg overflow-hidden z-50 animate-fade-in-up">
           {LANG_OPTIONS.map((opt) => {
             const isActive = opt.code === lang;
             return (
               <button
                 key={opt.code}
                 onClick={() => { setLang(opt.code); setOpen(false); }}
-                className={`w-full text-left px-4 py-2.5 flex items-center gap-2.5 transition-colors text-sm font-brand ${
-                  isActive
+                className={`w-full text-left px-4 py-2.5 flex items-center gap-2.5 transition-colors text-sm font-brand ${isActive
                     ? 'bg-mediloon-50 text-mediloon-600 font-bold'
                     : 'text-ink-secondary hover:bg-surface-cloud'
-                }`}
+                  }`}
               >
                 <span className="text-base">{opt.flag}</span>
                 <span>{opt.label}</span>

@@ -90,7 +90,7 @@ export default function CartDetailModal({ isOpen, onClose, cart, sessionId, onCa
                         items.map((item) => (
                             <div
                                 key={item.cart_item_id}
-                                className={`flex items-center gap-4 p-4 rounded-xl border border-gray-100 hover:border-red-100 transition-all duration-200 ${loadingId === item.cart_item_id ? 'opacity-60' : ''
+                                className={`flex items-center gap-4 p-4 rounded-xl shadow-soft-sm hover:shadow-soft-sm-hover transition-all duration-300 ${loadingId === item.cart_item_id ? 'opacity-60' : ''
                                     }`}
                             >
                                 {/* Info */}

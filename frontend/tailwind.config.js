@@ -77,6 +77,11 @@ export default {
                 'inner-glow': 'inset 0 1px 0 rgba(255,255,255,0.5)',
                 'apple': '0 0.5px 1px rgba(0,0,0,0.04), 0 2px 4px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.05)',
                 'apple-lg': '0 1px 2px rgba(0,0,0,0.03), 0 4px 8px rgba(0,0,0,0.04), 0 12px 36px rgba(0,0,0,0.07)',
+                'soft-sm': '0 1px 2px rgba(0,0,0,0.02), 0 2px 4px rgba(0,0,0,0.02)',
+                'soft-sm-hover': '0 2px 4px rgba(0,0,0,0.03), 0 4px 8px rgba(0,0,0,0.03)',
+                'soft': '0 1px 2px rgba(0,0,0,0.02), 0 2px 4px rgba(0,0,0,0.02), 0 4px 8px rgba(0,0,0,0.02), 0 8px 16px rgba(0,0,0,0.02)',
+                'soft-hover': '0 1px 2px rgba(0,0,0,0.03), 0 4px 8px rgba(0,0,0,0.03), 0 8px 16px rgba(0,0,0,0.04), 0 16px 32px rgba(0,0,0,0.04)',
+                'soft-lg': '0 2px 4px rgba(0,0,0,0.03), 0 4px 8px rgba(0,0,0,0.03), 0 12px 24px rgba(0,0,0,0.04), 0 24px 48px rgba(0,0,0,0.04)',
             },
             animation: {
                 'float': 'float 6s ease-in-out infinite',

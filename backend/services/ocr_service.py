@@ -18,6 +18,7 @@ from db.database import execute_query
 
 import base64
 import httpx
+import asyncio
 from config import (
     OPENROUTER_API_KEY,
     GROQ_API_KEY,
@@ -214,11 +215,13 @@ Return JSON in this exact format:
             "url": f"{GROQ_BASE_URL}/chat/completions",
             "headers": {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"},
             "model": GROQ_PRIMARY_MODEL,
+            "provider": "groq",
         })
         llm_configs.append({
             "url": f"{GROQ_BASE_URL}/chat/completions",
             "headers": {"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"},
             "model": GROQ_FALLBACK_MODEL,
+            "provider": "groq",
         })
     if OPENROUTER_API_KEY:
         for model_name in [NLU_MODEL] + NLU_FALLBACK_MODELS:
@@ -228,10 +231,20 @@ Return JSON in this exact format:
                 "url": "https://openrouter.ai/api/v1/chat/completions",
                 "headers": {"Authorization": f"Bearer {OPENROUTER_API_KEY}", "Content-Type": "application/json"},
                 "model": model_name,
+                "provider": "openrouter",
             })
 
-    for cfg in llm_configs:
+    retry_count_429 = 0
+    max_429_retries = 3
+    
+    for idx, cfg in enumerate(llm_configs):
         try:
+            # Add exponential backoff delay for OpenRouter to avoid rate limits
+            if cfg["provider"] == "openrouter" and idx > 0:
+                delay = min(2 ** retry_count_429, 8)  # Max 8 seconds delay
+                print(f"⏳ Rate limit protection: waiting {delay}s before next OpenRouter request...")
+                await asyncio.sleep(delay)
+            
             payload = {
                 "model": cfg["model"],
                 "messages": [{"role": "user", "content": prompt}],
@@ -241,8 +254,20 @@ Return JSON in this exact format:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 resp = await client.post(cfg["url"], headers=cfg["headers"], json=payload)
                 if resp.status_code == 429:
-                    print(f"⚠️ OCR LLM extraction: 429 from {cfg['model']}, trying next...")
-                    continue
+                    retry_count_429 += 1
+                    if retry_count_429 <= max_429_retries and cfg["provider"] == "openrouter":
+                        # Exponential backoff for rate limiting
+                        backoff_delay = min(2 ** retry_count_429, 16)
+                        print(f"⚠️ OCR LLM extraction: 429 from {cfg['model']}, retrying after {backoff_delay}s (attempt {retry_count_429}/{max_429_retries})...")
+                        await asyncio.sleep(backoff_delay)
+                        # Retry this same model once more
+                        resp = await client.post(cfg["url"], headers=cfg["headers"], json=payload)
+                        if resp.status_code == 429:
+                            print(f"⚠️ OCR LLM extraction: 429 again from {cfg['model']}, trying next model...")
+                            continue
+                    else:
+                        print(f"⚠️ OCR LLM extraction: 429 from {cfg['model']}, trying next...")
+                        continue
                 resp.raise_for_status()
                 content = resp.json()["choices"][0]["message"]["content"].strip()
 

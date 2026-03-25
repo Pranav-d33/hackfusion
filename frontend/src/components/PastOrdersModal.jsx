@@ -90,7 +90,7 @@ export default function PastOrdersModal({ orders, activeOrders, timeline, stats,
       {/* ── Trigger Button ── */}
       <button
         onClick={() => setInternalOpen(true)}
-        className="w-full flex items-center gap-3 px-4 py-3 bg-white rounded-2xl border border-black/[0.04] shadow-sm hover:shadow-apple hover:border-black/[0.08] transition-all duration-200 group"
+        className="w-full flex items-center gap-3 px-4 py-3 bg-white rounded-2xl shadow-soft hover:shadow-soft-hover transition-all duration-300 group"
       >
         <div className="p-2 bg-surface-fog group-hover:bg-surface-snow rounded-xl transition-colors">
           <ShoppingBag size={18} className="text-mediloon-600" />
@@ -115,7 +115,7 @@ export default function PastOrdersModal({ orders, activeOrders, timeline, stats,
       {isOpen && createPortal(
         <div className={`fixed inset-0 z-[200] flex items-center ${isVoiceMode ? 'justify-end p-4 pr-6 bg-black/20 backdrop-blur-sm' : 'justify-center p-3 sm:p-6 bg-black/60 backdrop-blur-sm'}`} onClick={handleClose}>
           <div
-            className={`w-full ${isVoiceMode ? 'max-w-md animate-slide-in-right h-[calc(100vh-2rem)] my-4' : 'max-w-[1000px] animate-slide-up-spring h-[90vh] sm:max-h-[85vh]'} bg-white rounded-[2rem] shadow-apple-2xl border border-black/[0.04] flex flex-col`}
+            className={`w-full ${isVoiceMode ? 'max-w-md animate-slide-in-right h-[calc(100vh-2rem)] my-4' : 'max-w-[1000px] animate-slide-up-spring h-[90vh] sm:max-h-[85vh]'} bg-white rounded-[2rem] shadow-apple-2xl flex flex-col`}
             onClick={e => e.stopPropagation()}
           >
 
@@ -154,7 +154,7 @@ export default function PastOrdersModal({ orders, activeOrders, timeline, stats,
                     <RefreshCw size={20} className="text-ink-ghost animate-spin" />
                   </div>
                 ) : !timeline || timeline.length === 0 ? (
-                  <div className="text-center py-6 bg-surface-snow rounded-2xl border border-black/[0.04]">
+                  <div className="text-center py-6 bg-surface-snow rounded-2xl shadow-soft">
                     <Calendar size={28} className="mx-auto text-ink-ghost mb-2" />
                     <p className="text-[13px] font-brand font-semibold text-ink-secondary">{t('noMedicationTimeline')}</p>
                     <p className="text-[11px] font-body text-ink-muted mt-0.5">{t('orderMedicationsToSeePredictions')}</p>
@@ -174,7 +174,7 @@ export default function PastOrdersModal({ orders, activeOrders, timeline, stats,
                       return (
                         <div
                           style={{ position: 'fixed', left: tx, top: ty, width: TOOLTIP_W, zIndex: 9999, pointerEvents: 'none' }}
-                          className="bg-white rounded-xl shadow-2xl border border-gray-100 p-4"
+                          className="bg-white rounded-xl shadow-2xl p-4"
                         >
                           <p className="font-bold text-gray-900 text-base">{hoveredPred.brand_name}</p>
                           <p className="text-xs text-gray-500 mt-0.5">{hoveredPred.dosage}</p>
@@ -202,7 +202,7 @@ export default function PastOrdersModal({ orders, activeOrders, timeline, stats,
                       </div>
 
                       {/* Track bar */}
-                      <div className="relative h-12 rounded-xl bg-gradient-to-r from-red-50 via-amber-50 to-emerald-50 border border-gray-100">
+                      <div className="relative h-12 rounded-xl bg-gradient-to-r from-red-50 via-amber-50 to-emerald-50 shadow-soft-sm">
                         <div className="absolute inset-y-0 left-0 w-[10%] bg-red-100/50 rounded-l-xl" />
                         <div className="absolute inset-y-0 left-[10%] w-[15%] bg-amber-100/30" />
 

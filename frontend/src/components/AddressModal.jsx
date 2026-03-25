@@ -161,7 +161,7 @@ export default function AddressModal({ isOpen, onClose, onConfirm, cart, user, i
                     </button>
 
                     {mode === 'manual' && (
-                        <div className="space-y-4 animate-fade-in-up bg-white rounded-[1.25rem] p-5 border border-black/[0.06] shadow-sm">
+                        <div className="space-y-4 animate-fade-in-up bg-white rounded-[1.25rem] p-5 shadow-soft">
                             {/* Name & Phone Row */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                 <div>
@@ -278,14 +278,14 @@ export default function AddressModal({ isOpen, onClose, onConfirm, cart, user, i
 
                     {/* Order Summary Mini */}
                     {cart && cart.items?.length > 0 && (
-                        <div className="bg-gray-50 rounded-xl p-3 border border-gray-100">
+                        <div className="bg-gray-50 rounded-xl p-3 shadow-soft-sm">
                             <div className="flex justify-between text-xs text-gray-500 mb-1">
                                 <span>{cart.item_count} {(cart.item_count === 1 ? t('item') : t('items'))}</span>
                                 <span className="font-semibold text-gray-800">€{cart.total?.toFixed(2)}</span>
                             </div>
                             <div className="flex flex-wrap gap-1">
                                 {cart.items.slice(0, 3).map((item, i) => (
-                                    <span key={i} className="text-[10px] bg-white px-2 py-0.5 rounded border border-gray-200 text-gray-600">
+                                    <span key={i} className="text-[10px] bg-white px-2 py-0.5 rounded shadow-soft-sm text-gray-600">
                                         {item.brand_name}
                                     </span>
                                 ))}

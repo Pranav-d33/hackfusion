@@ -54,7 +54,7 @@ export default function OrderSummaryModal({ isOpen, onClose, onConfirm, onBack, 
                 <div className="p-5 space-y-4 overflow-y-auto flex-1">
 
                     {/* Cart Items */}
-                    <div className="bg-gray-50/70 rounded-xl p-4 border border-gray-100">
+                    <div className="bg-gray-50/70 rounded-xl p-4 shadow-soft-sm hover:shadow-soft-sm-hover transition-all duration-300">
                         <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
@@ -80,7 +80,7 @@ export default function OrderSummaryModal({ isOpen, onClose, onConfirm, onBack, 
                     </div>
 
                     {/* Price Breakdown */}
-                    <div className="bg-gray-50/70 rounded-xl p-4 border border-gray-100 space-y-1.5">
+                    <div className="bg-gray-50/70 rounded-xl p-4 shadow-soft-sm hover:shadow-soft-sm-hover transition-all duration-300 space-y-1.5">
                         <div className="flex justify-between text-xs text-gray-500">
                             <span>Subtotal</span>
                             <span>€{subtotal.toFixed(2)}</span>
@@ -100,7 +100,7 @@ export default function OrderSummaryModal({ isOpen, onClose, onConfirm, onBack, 
                     </div>
 
                     {/* Delivery Address */}
-                    <div className="bg-gray-50/70 rounded-xl p-4 border border-gray-100">
+                    <div className="bg-gray-50/70 rounded-xl p-4 shadow-soft-sm hover:shadow-soft-sm-hover transition-all duration-300">
                         <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-2">
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
@@ -112,7 +112,7 @@ export default function OrderSummaryModal({ isOpen, onClose, onConfirm, onBack, 
                     </div>
 
                     {/* Payment Method */}
-                    <div className="bg-amber-50/60 rounded-xl p-4 border border-amber-100">
+                    <div className="bg-amber-50/60 rounded-xl p-4 shadow-soft-sm hover:shadow-soft-sm-hover transition-all duration-300">
                         <h3 className="text-xs font-bold text-amber-700 uppercase tracking-wider mb-2 flex items-center gap-2">
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
@@ -134,7 +134,7 @@ export default function OrderSummaryModal({ isOpen, onClose, onConfirm, onBack, 
                     </button>
                     <button
                         onClick={onBack}
-                        className="w-full py-3 rounded-xl font-bold text-sm transition-all duration-200 bg-white text-gray-500 border border-gray-200 hover:bg-gray-50 hover:text-gray-700 active:scale-[0.98]"
+                        className="w-full py-3 rounded-xl font-bold text-sm transition-all duration-300 bg-white text-gray-500 shadow-soft-sm hover:shadow-soft-sm-hover hover:text-gray-700 active:scale-[0.98]"
                     >
                         Go Back
                     </button>

@@ -48,7 +48,7 @@ export default function Cart({ cart, sessionId, onRemove, onCheckout, onClear, o
                 <div className="p-4 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                         <div className="relative">
-                            <div className="w-10 h-10 bg-mediloon-50 text-mediloon-500 rounded-xl flex items-center justify-center border border-mediloon-100">
+                            <div className="w-10 h-10 bg-mediloon-50 text-mediloon-500 rounded-xl flex items-center justify-center shadow-soft-sm">
                                 <ShoppingBag size={20} />
                             </div>
                             {hasItems && (
@@ -83,13 +83,13 @@ export default function Cart({ cart, sessionId, onRemove, onCheckout, onClear, o
                     </div>
                 ) : (
                     items.map((item) => (
-                        <div key={item.cart_item_id} className={`group flex items-center justify-between p-3 rounded-xl border border-surface-fog hover:border-mediloon-200 hover:shadow-sm bg-white transition-all duration-200 ${loadingId === item.cart_item_id ? 'opacity-60' : ''}`}>
+                        <div key={item.cart_item_id} className={`group flex items-center justify-between p-3 rounded-xl shadow-soft-sm hover:shadow-soft-sm-hover bg-white transition-all duration-300 ${loadingId === item.cart_item_id ? 'opacity-60' : ''}`}>
                             <div className="flex-1 min-w-0">
                                 <h4 className="font-brand font-semibold text-ink-primary text-sm">{item.brand_name}</h4>
                                 <p className="text-xs text-ink-muted font-body">{item.generic_name} &bull; {item.dosage}</p>
                                 <div className="mt-1.5 flex items-center gap-1.5">
                                     {/* Quantity Controls */}
-                                    <div className="flex items-center bg-surface-snow rounded-lg border border-surface-fog">
+                                    <div className="flex items-center bg-surface-snow rounded-lg shadow-soft-sm">
                                         <button
                                             onClick={() => handleQuantityChange(item.cart_item_id, item.quantity - 1)}
                                             disabled={item.quantity <= 1 || loadingId === item.cart_item_id}

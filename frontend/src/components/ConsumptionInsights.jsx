@@ -41,7 +41,7 @@ function AdherenceRing({ score, size = 48 }) {
         x={size / 2} y={size / 2}
         textAnchor="middle" dominantBaseline="central"
         className="fill-gray-800 font-bold transform rotate-90 origin-center"
-        style={{ fontSize: size * 0.28, transformOrigin: `${size/2}px ${size/2}px` }}
+        style={{ fontSize: size * 0.28, transformOrigin: `${size / 2}px ${size / 2}px` }}
       >
         {score}%
       </text>
@@ -71,7 +71,7 @@ export default function ConsumptionInsights({ consumption, onReorder, loading })
 
   if (loading) {
     return (
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 text-center">
+      <div className="bg-white rounded-2xl shadow-soft p-8 text-center">
         <Activity size={24} className="mx-auto text-gray-300 animate-pulse mb-3" />
         <p className="text-gray-400 text-sm">Analysing your consumption patterns…</p>
       </div>
@@ -80,7 +80,7 @@ export default function ConsumptionInsights({ consumption, onReorder, loading })
 
   if (!consumption || consumption.length === 0) {
     return (
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 text-center">
+      <div className="bg-white rounded-2xl shadow-soft p-8 text-center">
         <BarChart2 size={32} className="mx-auto text-gray-200 mb-3" />
         <p className="text-gray-500 font-medium">No consumption data yet</p>
         <p className="text-gray-400 text-sm mt-1">Place orders to see frequency insights.</p>
@@ -105,7 +105,7 @@ export default function ConsumptionInsights({ consumption, onReorder, loading })
   return (
     <div className="space-y-5">
       {/* Frequency Distribution */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+      <div className="bg-white rounded-2xl shadow-soft p-5">
         <h4 className="text-sm font-semibold text-gray-800 flex items-center gap-2 mb-4">
           <BarChart2 size={16} className="text-red-500" />
           Purchase Frequency Distribution
@@ -151,7 +151,7 @@ export default function ConsumptionInsights({ consumption, onReorder, loading })
           return (
             <div
               key={med.product_id}
-              className={`rounded-xl border ${colors.border} bg-white shadow-sm overflow-hidden transition-all duration-200 hover:shadow-md`}
+              className={`rounded-xl border ${colors.border} bg-white shadow-soft hover:shadow-soft-hover overflow-hidden transition-all duration-300`}
             >
               <div
                 className="flex items-center gap-3 p-3.5 cursor-pointer"

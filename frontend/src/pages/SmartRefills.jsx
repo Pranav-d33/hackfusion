@@ -105,7 +105,7 @@ export default function SmartRefills({ user, onBack, onReorder }) {
                   <p className="text-[10px] uppercase tracking-wide opacity-80">Due Soon</p>
                 </div>
                 {stats.critical_refills > 0 && (
-                  <div className="bg-white/30 rounded-xl px-4 py-2 text-center backdrop-blur-sm border border-white/30">
+                  <div className="bg-white/30 rounded-xl px-4 py-2 text-center backdrop-blur-sm shadow-soft">
                     <p className="text-xl font-bold">{stats.critical_refills}</p>
                     <p className="text-[10px] uppercase tracking-wide opacity-80">Critical</p>
                   </div>
@@ -123,11 +123,10 @@ export default function SmartRefills({ user, onBack, onReorder }) {
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold transition-all ${
-                activeTab === tab.key
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold transition-all ${activeTab === tab.key
                   ? 'bg-white shadow-sm text-gray-800'
                   : 'text-gray-500 hover:text-gray-700'
-              }`}
+                }`}
             >
               {tab.icon} {tab.label}
             </button>
@@ -166,7 +165,7 @@ export default function SmartRefills({ user, onBack, onReorder }) {
 function OrderHistory({ orders, loading }) {
   if (loading) {
     return (
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 text-center">
+      <div className="bg-white rounded-2xl shadow-soft p-8 text-center">
         <RefreshCw size={24} className="mx-auto text-gray-300 animate-spin mb-3" />
         <p className="text-gray-400 text-sm">Loading order history…</p>
       </div>
@@ -175,7 +174,7 @@ function OrderHistory({ orders, loading }) {
 
   if (!orders || orders.length === 0) {
     return (
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 text-center">
+      <div className="bg-white rounded-2xl shadow-soft p-8 text-center">
         <History size={32} className="mx-auto text-gray-200 mb-3" />
         <p className="text-gray-500 font-medium">No order history</p>
         <p className="text-gray-400 text-sm mt-1">Previous orders will appear here.</p>
@@ -200,7 +199,7 @@ function OrderHistory({ orders, loading }) {
       </h4>
 
       {Object.entries(grouped).map(([date, items]) => (
-        <div key={date} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div key={date} className="bg-white rounded-2xl shadow-soft hover:shadow-soft-hover transition-all duration-300 overflow-hidden">
           <div className="px-4 py-2.5 bg-gray-50/80 border-b border-gray-100 flex items-center gap-2">
             <Calendar size={13} className="text-gray-400" />
             <span className="text-xs font-semibold text-gray-600">{formatDate(date)}</span>

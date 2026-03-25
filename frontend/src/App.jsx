@@ -129,19 +129,19 @@ function FeatureCards() {
         mediloon: {
             iconBg: 'bg-mediloon-50',
             iconText: 'text-mediloon-600',
-            border: 'border-mediloon-100 hover:border-mediloon-300',
+            shadow: 'shadow-soft hover:shadow-soft-hover transition-all duration-300',
             glow: 'hover:shadow-glow-red-sm',
         },
         violet: {
             iconBg: 'bg-accent-violet-light',
             iconText: 'text-accent-violet',
-            border: 'border-violet-100 hover:border-violet-300',
+            shadow: 'shadow-soft hover:shadow-soft-hover transition-all duration-300',
             glow: 'hover:shadow-[0_0_20px_rgba(139,92,246,0.15)]',
         },
         sapphire: {
             iconBg: 'bg-accent-sapphire-light',
             iconText: 'text-accent-sapphire',
-            border: 'border-blue-100 hover:border-blue-300',
+            shadow: 'shadow-soft hover:shadow-soft-hover transition-all duration-300',
             glow: 'hover:shadow-[0_0_20px_rgba(59,130,246,0.15)]',
         },
     };
@@ -153,7 +153,7 @@ function FeatureCards() {
                 return (
                     <div
                         key={i}
-                        className={`feature-card border ${c.border} ${c.glow} group`}
+                        className={`feature-card ${c.shadow} ${c.glow} group`}
                         style={{ animationDelay: `${i * 100}ms` }}
                     >
                         <div className={`w-12 h-12 ${c.iconBg} ${c.iconText} rounded-2xl flex items-center justify-center mb-3 group-hover:scale-110 transition-transform duration-300`}>
@@ -963,7 +963,7 @@ export default function App() {
                  1. FLOATING HEADER — Apple Glass
                 ═══════════════════════════════════ */}
             <header className={`fixed top-2 md:top-4 left-1/2 -translate-x-1/2 w-[calc(100%-1.5rem)] md:w-full max-w-4xl z-50 transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] ${liveMode ? 'opacity-0 -translate-y-full' : 'opacity-100'}`}>
-                <div className="bg-white/60 backdrop-blur-3xl border border-white/50 shadow-apple-lg rounded-full md:rounded-[2rem] px-2 md:px-6 h-14 md:h-16 flex items-center justify-between">
+                <div className="bg-white/60 backdrop-blur-3xl shadow-soft-lg rounded-full md:rounded-[2rem] px-2 md:px-6 h-14 md:h-16 flex items-center justify-between">
                     <div className="max-w-[95rem] mx-auto px-2 md:px-6 h-12 md:h-14 flex items-center justify-between w-full">
                         {/* Logo + Tagline */}
                         <div className="flex items-center gap-2.5 md:gap-3">
@@ -1064,7 +1064,7 @@ export default function App() {
 
                         {/* Updates & Insights */}
                         {user && (
-                            <div className="glass-card-solid p-4 border border-mediloon-100 animate-fade-in-up hover:shadow-lift transition-all duration-300">
+                            <div className="glass-card-solid p-4 shadow-soft hover:shadow-soft-hover transition-all duration-300 animate-fade-in-up">
                                 <div className="flex items-center justify-between mb-3">
                                     <h3 className="font-brand font-bold text-ink-primary flex items-center gap-2 text-sm">
                                         <span className="relative flex h-3 w-3">
@@ -1087,11 +1087,11 @@ export default function App() {
                                 </div>
                                 {refillStats && (
                                     <div className="mt-3 grid grid-cols-2 gap-2 text-center">
-                                        <div className="bg-mediloon-50 rounded-xl p-2.5 border border-mediloon-100">
+                                        <div className="bg-mediloon-50 rounded-xl p-2.5 shadow-soft-sm hover:shadow-soft-sm-hover transition-all duration-300">
                                             <p className="text-xl font-brand font-extrabold text-mediloon-600">{refillStats.upcoming_refills}</p>
                                             <p className="text-[10px] text-mediloon-700 font-brand font-semibold uppercase tracking-wider">{t('dueSoon')}</p>
                                         </div>
-                                        <div className="bg-mediloon-50 rounded-xl p-2.5 border border-mediloon-100">
+                                        <div className="bg-mediloon-50 rounded-xl p-2.5 shadow-soft-sm hover:shadow-soft-sm-hover transition-all duration-300">
                                             <p className="text-xl font-brand font-extrabold text-mediloon-600">{refillStats.avg_adherence}%</p>
                                             <p className="text-[10px] text-mediloon-700 font-brand font-semibold uppercase tracking-wider">{t('adherence')}</p>
                                         </div>
@@ -1156,7 +1156,7 @@ export default function App() {
 
 
                         {/* System Active & Prescription Actions Combined */}
-                        <div className="w-full bg-white border border-mediloon-100 rounded-2xl shadow-sm p-2 sm:p-3 mb-2 flex items-center justify-between gap-2 sm:gap-4 relative overflow-hidden group hover:border-mediloon-200 transition-colors">
+                        <div className="w-full bg-white shadow-soft hover:shadow-soft-hover transition-all duration-300 rounded-2xl p-2 sm:p-3 mb-2 flex items-center justify-between gap-2 sm:gap-4 relative overflow-hidden group">
                             {/* Ambient Glow */}
                             <div className="absolute -left-10 -top-10 w-32 h-32 bg-mediloon-100/30 rounded-full blur-3xl group-hover:bg-mediloon-100/50 transition-colors pointer-events-none" />
 
@@ -1237,8 +1237,8 @@ export default function App() {
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3 lg:gap-6 px-2">
-                                    <div className="bg-white/60 backdrop-blur-2xl border border-white/50 rounded-2xl md:rounded-3xl p-4 md:p-6 lg:p-7 shadow-apple-lg hover:shadow-apple-xl transition-all duration-400 ease-[cubic-bezier(0.16,1,0.3,1)] animate-fade-in-up group cursor-pointer hover:-translate-y-1 flex md:block items-center gap-4 md:gap-0" style={{ animationDelay: '0.2s', animationFillMode: 'both' }}>
-                                        <div className="w-10 h-10 md:w-12 md:h-12 shrink-0 rounded-xl md:rounded-2xl bg-indigo-50/80 text-indigo-600 flex items-center justify-center md:mb-4 group-hover:bg-indigo-600 group-hover:text-white transition-colors duration-400 shadow-sm border border-indigo-100/50">
+                                    <div className="bg-white/60 backdrop-blur-2xl rounded-2xl md:rounded-3xl p-4 md:p-6 lg:p-7 shadow-soft-lg hover:shadow-soft-hover transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] animate-fade-in-up group cursor-pointer hover:-translate-y-1 flex md:block items-center gap-4 md:gap-0" style={{ animationDelay: '0.2s', animationFillMode: 'both' }}>
+                                        <div className="w-10 h-10 md:w-12 md:h-12 shrink-0 rounded-xl md:rounded-2xl bg-indigo-50/80 text-indigo-600 flex items-center justify-center md:mb-4 group-hover:bg-indigo-600 group-hover:text-white transition-colors duration-400 shadow-soft-sm hover:shadow-soft-sm-hover">
                                             <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
                                         </div>
                                         <div>
@@ -1247,8 +1247,8 @@ export default function App() {
                                         </div>
                                     </div>
 
-                                    <div className="bg-white/60 backdrop-blur-2xl border border-white/50 rounded-2xl md:rounded-3xl p-4 md:p-6 lg:p-7 shadow-apple-lg hover:shadow-apple-xl transition-all duration-400 ease-[cubic-bezier(0.16,1,0.3,1)] animate-fade-in-up group cursor-pointer hover:-translate-y-1 flex md:block items-center gap-4 md:gap-0" style={{ animationDelay: '0.3s', animationFillMode: 'both' }}>
-                                        <div className="w-10 h-10 md:w-12 md:h-12 shrink-0 rounded-xl md:rounded-2xl bg-blue-50/80 text-blue-600 flex items-center justify-center md:mb-4 group-hover:bg-blue-600 group-hover:text-white transition-colors duration-400 shadow-sm border border-blue-100/50">
+                                    <div className="bg-white/60 backdrop-blur-2xl rounded-2xl md:rounded-3xl p-4 md:p-6 lg:p-7 shadow-soft-lg hover:shadow-soft-hover transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] animate-fade-in-up group cursor-pointer hover:-translate-y-1 flex md:block items-center gap-4 md:gap-0" style={{ animationDelay: '0.3s', animationFillMode: 'both' }}>
+                                        <div className="w-10 h-10 md:w-12 md:h-12 shrink-0 rounded-xl md:rounded-2xl bg-blue-50/80 text-blue-600 flex items-center justify-center md:mb-4 group-hover:bg-blue-600 group-hover:text-white transition-colors duration-400 shadow-soft-sm hover:shadow-soft-sm-hover">
                                             <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
                                         </div>
                                         <div>
@@ -1257,8 +1257,8 @@ export default function App() {
                                         </div>
                                     </div>
 
-                                    <div className="bg-white/60 backdrop-blur-2xl border border-white/50 rounded-2xl md:rounded-3xl p-4 md:p-6 lg:p-7 shadow-apple-lg hover:shadow-apple-xl transition-all duration-400 ease-[cubic-bezier(0.16,1,0.3,1)] animate-fade-in-up group cursor-pointer hover:-translate-y-1 flex md:block items-center gap-4 md:gap-0" style={{ animationDelay: '0.4s', animationFillMode: 'both' }} onClick={openAddPrescription}>
-                                        <div className="w-10 h-10 md:w-12 md:h-12 shrink-0 rounded-xl md:rounded-2xl bg-violet-50/80 text-violet-600 flex items-center justify-center md:mb-4 group-hover:bg-violet-600 group-hover:text-white transition-colors duration-400 shadow-sm border border-violet-100/50">
+                                    <div className="bg-white/60 backdrop-blur-2xl rounded-2xl md:rounded-3xl p-4 md:p-6 lg:p-7 shadow-soft-lg hover:shadow-soft-hover transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] animate-fade-in-up group cursor-pointer hover:-translate-y-1 flex md:block items-center gap-4 md:gap-0" style={{ animationDelay: '0.4s', animationFillMode: 'both' }} onClick={openAddPrescription}>
+                                        <div className="w-10 h-10 md:w-12 md:h-12 shrink-0 rounded-xl md:rounded-2xl bg-violet-50/80 text-violet-600 flex items-center justify-center md:mb-4 group-hover:bg-violet-600 group-hover:text-white transition-colors duration-400 shadow-soft-sm hover:shadow-soft-sm-hover">
                                             <svg className="w-5 h-5 md:w-6 md:h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                                         </div>
                                         <div>
@@ -1343,7 +1343,7 @@ export default function App() {
                         {!user && (
                             <button
                                 onClick={() => setShowLogin(true)}
-                                className="w-full flex items-center gap-3 p-3 bg-white border border-surface-fog rounded-xl shadow-sm hover:shadow-md hover:border-mediloon-200 transition-all duration-200 group"
+                                className="w-full flex items-center gap-3 p-3 bg-white rounded-xl shadow-soft hover:shadow-soft-hover transition-all duration-300 group"
                             >
                                 <div className="w-8 h-8 bg-mediloon-50 rounded-lg flex items-center justify-center group-hover:bg-mediloon-100 transition-colors">
                                     <svg className="w-4 h-4 text-mediloon-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>

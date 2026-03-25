@@ -88,7 +88,7 @@ function MedicationListMessage({ pre, items, post, latency }) {
             )}
 
             {/* Item table */}
-            <div className="rounded-xl border border-surface-fog overflow-hidden divide-y divide-surface-fog">
+            <div className="rounded-xl shadow-soft overflow-hidden divide-y divide-surface-fog">
                 {items.map((item, idx) => (
                     <div
                         key={item.num}
@@ -172,10 +172,10 @@ export default function ChatMessage({ message, isUser, isLoading, latency }) {
         return (
             <div className="flex justify-start message-enter">
                 <div className="flex items-start gap-2 md:gap-2.5">
-                    <div className="w-6 h-6 md:w-7 md:h-7 rounded-lg md:rounded-xl bg-indigo-50/80 backdrop-blur-md flex items-center justify-center flex-shrink-0 mt-0.5 shadow-sm border border-indigo-100/50">
+                    <div className="w-6 h-6 md:w-7 md:h-7 rounded-lg md:rounded-xl bg-indigo-50/80 backdrop-blur-md flex items-center justify-center flex-shrink-0 mt-0.5 shadow-soft-sm">
                         <span className="text-indigo-500 font-brand font-bold text-[10px] md:text-xs">M</span>
                     </div>
-                    <div className="bg-white/70 backdrop-blur-xl rounded-2xl rounded-tl-md px-3 py-2 md:px-4 md:py-3 max-w-[85%] md:max-w-[80%] border border-white/60 shadow-apple-md">
+                    <div className="bg-white/70 backdrop-blur-xl rounded-2xl rounded-tl-md px-3 py-2 md:px-4 md:py-3 max-w-[85%] md:max-w-[80%] shadow-apple-md">
                         <div className="flex gap-1.5">
                             <span className="loading-dot"></span>
                             <span className="loading-dot"></span>
@@ -191,16 +191,16 @@ export default function ChatMessage({ message, isUser, isLoading, latency }) {
         <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} message-enter mb-3 md:mb-4 w-full`}>
             {isUser ? (
                 /* User message — Indigo bubble */
-                <div className="bg-indigo-600/95 backdrop-blur-md text-white rounded-2xl rounded-tr-sm md:rounded-[1.4rem] md:rounded-tr-sm px-3.5 py-2.5 md:px-5 md:py-3.5 max-w-[88%] md:max-w-[80%] shadow-md shadow-indigo-500/20 border border-indigo-400/20">
+                <div className="bg-indigo-600/95 backdrop-blur-md text-white rounded-2xl rounded-tr-sm md:rounded-[1.4rem] md:rounded-tr-sm px-3.5 py-2.5 md:px-5 md:py-3.5 max-w-[88%] md:max-w-[80%] shadow-md shadow-indigo-500/20">
                     <p className="whitespace-pre-wrap text-[14px] md:text-[15px] font-body leading-relaxed" dir="auto">{message}</p>
                 </div>
             ) : (
                 /* Bot message — Frosted White bubble with avatar */
                 <div className="flex items-start gap-2 md:gap-3 max-w-[95%] md:max-w-[88%] w-full">
-                    <div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-white/70 backdrop-blur-md flex items-center justify-center flex-shrink-0 mt-1 border border-white/60 shadow-sm">
+                    <div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-white/70 backdrop-blur-md flex items-center justify-center flex-shrink-0 mt-1 shadow-soft-sm">
                         <span className="text-indigo-600 font-brand font-bold text-[10px] md:text-xs">M</span>
                     </div>
-                    <div className="bg-white/70 backdrop-blur-2xl border border-white/60 rounded-2xl rounded-tl-sm md:rounded-[1.4rem] md:rounded-tl-sm px-3.5 py-3 md:px-5 md:py-4 shadow-apple-sm md:shadow-apple-md flex-1 min-w-0">
+                    <div className="bg-white/70 backdrop-blur-2xl rounded-2xl rounded-tl-sm md:rounded-[1.4rem] md:rounded-tl-sm px-3.5 py-3 md:px-5 md:py-4 shadow-apple-sm md:shadow-apple-md flex-1 min-w-0">
                         {parsed?.type === 'medication_list' ? (
                             <MedicationListMessage
                                 pre={parsed.pre}

@@ -38,7 +38,7 @@ export default function TracePanel({ trace, latency, traceId, traceUrl, external
             {/* Zoomed Modal View */}
             {isZoomed && createPortal(
                 <div className={`fixed inset-0 flex items-center ${isVoiceMode ? 'justify-end p-4 pr-6 bg-transparent z-[100]' : 'justify-center p-8 bg-black/80 backdrop-blur-sm z-50'} animate-fade-in`}>
-                    <div className={`w-full bg-[#0D0D1A] rounded-3xl shadow-glass-lg border border-gray-800/50 flex flex-col overflow-hidden ${isVoiceMode ? 'max-w-md animate-slide-in-right h-[calc(100vh-2rem)] my-4' : 'max-w-4xl h-[80vh] animate-scale-in'}`}>
+                    <div className={`w-full bg-[#0D0D1A] rounded-3xl shadow-glass-lg flex flex-col overflow-hidden ${isVoiceMode ? 'max-w-md animate-slide-in-right h-[calc(100vh-2rem)] my-4' : 'max-w-4xl h-[80vh] animate-scale-in'}`}>
                         <div className="flex items-center justify-between px-5 py-3 bg-[#08081A] border-b border-gray-800/50">
                             <div className="flex items-center gap-3">
                                 <div className="w-2.5 h-2.5 rounded-full bg-mediloon-500 animate-pulse" />
@@ -62,7 +62,7 @@ export default function TracePanel({ trace, latency, traceId, traceUrl, external
             )}
 
             {/* Normal Panel */}
-            <div className="flex flex-col bg-[#0D0D1A] border border-gray-800/40 shadow-2xl rounded-2xl overflow-hidden h-[220px]">
+            <div className="flex flex-col bg-[#0D0D1A] shadow-2xl rounded-2xl overflow-hidden h-[220px]">
                 {/* Header */}
                 <div className="flex items-center justify-between px-4 py-2.5 bg-[#08081A] border-b border-gray-800/40 flex-shrink-0">
                     <div className="flex items-center gap-2">

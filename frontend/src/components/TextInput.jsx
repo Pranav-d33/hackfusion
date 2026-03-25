@@ -53,7 +53,7 @@ export default function TextInput({ onSend, onUpload, disabled, placeholder }) {
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={disabled || isUploading}
-                className={`p-2.5 md:p-3 flex items-center justify-center rounded-[1.1rem] md:rounded-2xl border-2 border-surface-fog text-ink-faint 
+                className={`p-2.5 md:p-3 flex items-center justify-center rounded-[1.1rem] md:rounded-2xl shadow-soft-sm hover:shadow-soft text-ink-faint 
                     hover:border-mediloon-200 hover:text-mediloon-500 hover:bg-mediloon-50/50 
                     transition-all duration-200 active:scale-95
                     ${isUploading ? 'animate-pulse' : ''}`}

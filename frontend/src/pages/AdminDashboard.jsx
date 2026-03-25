@@ -80,7 +80,7 @@ function TrendBars({ title, subtitle, values = [], labels = [], tone = 'teal' })
   };
 
   return (
-    <div className="rounded-3xl border border-slate-200/70 bg-white/80 backdrop-blur-xl p-5 shadow-sm">
+    <div className="rounded-3xl shadow-soft bg-white/80 backdrop-blur-xl p-5">
       <div className="mb-4">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{title}</p>
         <p className="text-sm text-slate-600 mt-1">{subtitle}</p>
@@ -124,7 +124,7 @@ function StatCard({ icon, label, value, sub, color = 'teal', ringPct, ringMax })
   }
 
   return (
-    <div className="bg-white/80 backdrop-blur-xl rounded-[1.5rem] border border-white/60 p-5 shadow-[0_4px_10px_-2px_rgba(0,0,0,0.02),0_15px_25px_-5px_rgba(0,0,0,0.02)] hover:shadow-[0_10px_20px_-3px_rgba(0,0,0,0.04),0_25px_30px_-8px_rgba(0,0,0,0.04)] transition-all duration-400 ease-out hover:-translate-y-1.5 relative overflow-hidden group">
+    <div className="bg-white/80 backdrop-blur-xl rounded-[1.5rem] shadow-soft hover:shadow-soft-hover p-5 transition-all duration-400 ease-out hover:-translate-y-1.5 relative overflow-hidden group">
       <div className={`absolute -right-8 -top-8 w-32 h-32 rounded-full blur-[40px] opacity-0 group-hover:opacity-15 transition-opacity duration-700 pointer-events-none ${c.glow}`} />
       <div className="flex items-center gap-4 relative z-10">
         {/* Ring or Icon */}
@@ -148,7 +148,7 @@ function StatCard({ icon, label, value, sub, color = 'teal', ringPct, ringMax })
 /* ─── Collapsible Section Wrapper ─── */
 function Section({ id, title, icon, badge, children, actions, isExpanded, onToggle }) {
   return (
-    <div className="bg-white/80 backdrop-blur-xl rounded-[1.5rem] border border-white/60 shadow-[0_4px_10px_-2px_rgba(0,0,0,0.02),0_15px_25px_-5px_rgba(0,0,0,0.02)] overflow-hidden transition-all duration-400 ease-out hover:shadow-[0_10px_20px_-3px_rgba(0,0,0,0.04)] hover:-translate-y-1 group">
+    <div className="bg-white/80 backdrop-blur-xl rounded-[1.5rem] shadow-soft hover:shadow-soft-hover overflow-hidden transition-all duration-400 ease-out hover:-translate-y-1 group">
       <div className="w-full flex items-center justify-between px-6 py-4 hover:bg-white/50 transition-colors">
         <button onClick={() => onToggle(id)} className="flex items-center gap-3 flex-1 text-left">
           <span className="text-teal-600 bg-teal-50/50 p-2 rounded-xl group-hover:scale-110 transition-transform">{icon}</span>
@@ -361,7 +361,7 @@ export default function AdminDashboard({ onSwitchToUser, user }) {
       <main className="max-w-[1600px] mx-auto px-4 md:px-6 lg:px-8 py-5 md:py-7">
         {/* Apple-like top glass bar */}
         <header className="sticky top-4 z-30 mb-5">
-          <div className="rounded-[1.75rem] border border-white/70 bg-white/65 backdrop-blur-2xl shadow-[0_20px_40px_-20px_rgba(15,23,42,0.35)] px-4 md:px-6 py-4">
+          <div className="rounded-[1.75rem] shadow-soft-lg bg-white/65 backdrop-blur-2xl px-4 md:px-6 py-4">
             <div className="flex flex-col gap-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-3">
@@ -375,7 +375,7 @@ export default function AdminDashboard({ onSwitchToUser, user }) {
                 </div>
 
                 <div className="flex items-center gap-2 md:gap-3 flex-wrap">
-                  <div className="px-3 py-1.5 rounded-xl bg-slate-100/80 border border-slate-200 text-xs font-semibold text-slate-600">
+                  <div className="px-3 py-1.5 rounded-xl bg-slate-100/80 shadow-soft-sm text-xs font-semibold text-slate-600">
                     {new Date().toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
                   </div>
                   <button onClick={refreshAllData} className={`p-2 text-slate-500 hover:text-sky-700 hover:bg-sky-50 rounded-xl transition-all ${loading ? 'animate-spin' : ''}`}>
@@ -385,13 +385,13 @@ export default function AdminDashboard({ onSwitchToUser, user }) {
                     <span className="w-5 h-5 rounded-lg bg-white/10 flex items-center justify-center text-[10px] font-bold">{user?.name?.[0] || 'A'}</span>
                     <span className="max-w-[120px] truncate">{user?.name || 'Admin'}</span>
                   </div>
-                  <button onClick={onSwitchToUser} className="px-3.5 py-2 rounded-xl bg-white border border-slate-200 text-xs font-semibold text-slate-700 hover:text-slate-900 hover:shadow-sm transition-all active:scale-95 flex items-center gap-1.5">
+                  <button onClick={onSwitchToUser} className="px-3.5 py-2 rounded-xl bg-white shadow-soft-sm text-xs font-semibold text-slate-700 hover:text-slate-900 hover:shadow-soft-sm-hover transition-all active:scale-95 flex items-center gap-1.5">
                     <Users size={14} /> User View
                   </button>
                 </div>
               </div>
 
-              <div className="bg-slate-100/80 rounded-2xl p-1.5 border border-white/70 inline-flex gap-1.5 flex-wrap w-full md:w-auto">
+              <div className="bg-slate-100/80 rounded-2xl p-1.5 shadow-soft-sm inline-flex gap-1.5 flex-wrap w-full md:w-auto">
                 {tabs.map(t => (
                   <button
                     key={t.id}
@@ -410,7 +410,7 @@ export default function AdminDashboard({ onSwitchToUser, user }) {
           </div>
         </header>
 
-        <div className="rounded-[2rem] border border-white/70 bg-white/45 backdrop-blur-xl shadow-[0_30px_60px_-35px_rgba(15,23,42,0.45)]">
+        <div className="rounded-[2rem] shadow-soft-lg bg-white/45 backdrop-blur-xl">
           {/* Toast */}
           {message && (
             <div className={`mx-6 mt-5 p-3 rounded-xl flex items-center justify-between text-sm shadow-sm animate-fade-in-up ${message.type === 'success' ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
@@ -423,432 +423,432 @@ export default function AdminDashboard({ onSwitchToUser, user }) {
           <div className="p-4 md:p-6 lg:p-7 space-y-4">
 
 
-          {/* ═══════════ OVERVIEW TAB ═══════════ */}
-          {activeTab === 'overview' && (
-            <div className="space-y-6 animate-fade-in-up px-2 pb-6">
-              {/* Dashboard Graph Row */}
-              <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-                <TrendBars
-                  title="Inventory Distribution"
-                  subtitle="Healthy vs warning vs critical products"
-                  values={stockHealthBands}
-                  labels={stockHealthLabels}
-                  tone="teal"
-                />
-                <TrendBars
-                  title="Weekly Event Activity"
-                  subtitle="Operational load by weekday"
-                  values={weeklyEventLoad}
-                  labels={weekLabels}
-                  tone="indigo"
-                />
-                <div className="rounded-3xl border border-slate-200/70 bg-white/80 backdrop-blur-xl p-5 shadow-sm">
-                  <div className="mb-4">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Critical Risk Queue</p>
-                    <p className="text-sm text-slate-600 mt-1">Top medications by days to stockout</p>
-                  </div>
-                  <div className="space-y-3">
-                    {riskTop.length === 0 ? (
-                      <div className="rounded-2xl bg-emerald-50/70 border border-emerald-100 px-4 py-5 text-sm font-semibold text-emerald-700">No immediate depletion risk detected.</div>
-                    ) : riskTop.map((item, idx) => {
-                      const daysLeft = item.days_until_stockout ?? 0;
-                      const barColor = daysLeft <= 3 ? 'red' : daysLeft <= 7 ? 'amber' : 'blue';
-                      return (
-                        <div key={`${item.brand_name}-${idx}`} className="rounded-2xl border border-slate-100 bg-white/70 px-3.5 py-3">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-sm font-semibold text-slate-800 truncate pr-2">{item.brand_name}</span>
-                            <span className="text-[11px] font-bold text-slate-500">{daysLeft}d</span>
+            {/* ═══════════ OVERVIEW TAB ═══════════ */}
+            {activeTab === 'overview' && (
+              <div className="space-y-6 animate-fade-in-up px-2 pb-6">
+                {/* Dashboard Graph Row */}
+                <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+                  <TrendBars
+                    title="Inventory Distribution"
+                    subtitle="Healthy vs warning vs critical products"
+                    values={stockHealthBands}
+                    labels={stockHealthLabels}
+                    tone="teal"
+                  />
+                  <TrendBars
+                    title="Weekly Event Activity"
+                    subtitle="Operational load by weekday"
+                    values={weeklyEventLoad}
+                    labels={weekLabels}
+                    tone="indigo"
+                  />
+                  <div className="rounded-3xl shadow-soft bg-white/80 backdrop-blur-xl p-5">
+                    <div className="mb-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Critical Risk Queue</p>
+                      <p className="text-sm text-slate-600 mt-1">Top medications by days to stockout</p>
+                    </div>
+                    <div className="space-y-3">
+                      {riskTop.length === 0 ? (
+                        <div className="rounded-2xl bg-emerald-50/70 border border-emerald-100 px-4 py-5 text-sm font-semibold text-emerald-700">No immediate depletion risk detected.</div>
+                      ) : riskTop.map((item, idx) => {
+                        const daysLeft = item.days_until_stockout ?? 0;
+                        const barColor = daysLeft <= 3 ? 'red' : daysLeft <= 7 ? 'amber' : 'blue';
+                        return (
+                          <div key={`${item.brand_name}-${idx}`} className="rounded-2xl border border-slate-100 bg-white/70 px-3.5 py-3">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-sm font-semibold text-slate-800 truncate pr-2">{item.brand_name}</span>
+                              <span className="text-[11px] font-bold text-slate-500">{daysLeft}d</span>
+                            </div>
+                            <MiniBar value={30 - Math.max(0, daysLeft)} max={30} color={barColor} showLabel={false} />
                           </div>
-                          <MiniBar value={30 - Math.max(0, daysLeft)} max={30} color={barColor} showLabel={false} />
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {/* ★ Priority Procurement Section (High Visibility) */}
-              <div className="bg-white/80 backdrop-blur-xl border border-white/60 rounded-[1.5rem] p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative overflow-hidden mb-2 group transition-all duration-500 hover:shadow-[0_12px_40px_rgb(0,0,0,0.06)] hover:-translate-y-1">
-                {/* Decorative Elements */}
-                <div className="absolute -top-12 -right-12 w-48 h-48 bg-amber-400/10 rounded-full blur-[40px] opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
-                <div className="absolute top-1/2 -right-6 -translate-y-1/2 p-3 text-amber-500/10 group-hover:text-amber-500/20 transition-colors duration-700 pointer-events-none">
-                  <Truck size={160} strokeWidth={1} />
-                </div>
+                {/* ★ Priority Procurement Section (High Visibility) */}
+                <div className="bg-white/80 backdrop-blur-xl shadow-soft hover:shadow-soft-lg rounded-[1.5rem] p-6 relative overflow-hidden mb-2 group transition-all duration-500 hover:-translate-y-1">
+                  {/* Decorative Elements */}
+                  <div className="absolute -top-12 -right-12 w-48 h-48 bg-amber-400/10 rounded-full blur-[40px] opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
+                  <div className="absolute top-1/2 -right-6 -translate-y-1/2 p-3 text-amber-500/10 group-hover:text-amber-500/20 transition-colors duration-700 pointer-events-none">
+                    <Truck size={160} strokeWidth={1} />
+                  </div>
 
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between relative z-10 gap-6">
-                  <div>
-                    <div className="flex items-center gap-3 mb-2">
-                      <div className="p-2 bg-amber-50 text-amber-600 rounded-xl shadow-[inset_0_2px_4px_0_rgba(245,158,11,0.05)]">
-                        <Zap size={20} className="fill-amber-500/20" />
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between relative z-10 gap-6">
+                    <div>
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="p-2 bg-amber-50 text-amber-600 rounded-xl shadow-[inset_0_2px_4px_0_rgba(245,158,11,0.05)]">
+                          <Zap size={20} className="fill-amber-500/20" />
+                        </div>
+                        <h3 className="font-brand font-bold text-xl text-[#2C2C2C] tracking-tight">Priority Procurement</h3>
                       </div>
-                      <h3 className="font-brand font-bold text-xl text-[#2C2C2C] tracking-tight">Priority Procurement</h3>
-                    </div>
-                    <p className="text-[#6B6B6B] text-sm max-w-md font-medium leading-relaxed">
-                      AI-driven restocking. <span className="text-gray-900 font-bold">{procurementQueue.length} orders</span> pending approval.
-                      {procurementQueue.length > 0 && <span className="text-amber-600 font-bold ml-1.5 px-2 py-0.5 bg-amber-50 rounded-md border border-amber-100/50 text-xs">Action required</span>}
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-6 sm:pl-6 sm:border-l sm:border-gray-100">
-                    <div className="text-right hidden sm:block">
-                      <div className="text-3xl font-mono font-bold leading-none text-[#2C2C2C]">{procurementQueue.filter(o => o.status === 'ordered').length}</div>
-                      <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider mt-1">On Order</div>
+                      <p className="text-[#6B6B6B] text-sm max-w-md font-medium leading-relaxed">
+                        AI-driven restocking. <span className="text-gray-900 font-bold">{procurementQueue.length} orders</span> pending approval.
+                        {procurementQueue.length > 0 && <span className="text-amber-600 font-bold ml-1.5 px-2 py-0.5 bg-amber-50 rounded-md border border-amber-100/50 text-xs">Action required</span>}
+                      </p>
                     </div>
 
-                    <button
-                      onClick={generateProcurementOrders}
-                      disabled={loading}
-                      className="px-6 py-3.5 bg-[#294056] text-white rounded-[1.25rem] font-bold text-sm shadow-[0_8px_20px_-6px_rgba(41,64,86,0.4)] hover:shadow-[0_12px_25px_-8px_rgba(41,64,86,0.5)] transition-all hover:-translate-y-1 active:scale-95 flex items-center justify-center gap-2 group/btn min-w-[160px]"
-                    >
-                      {loading ? <Loader2 className="animate-spin" size={18} /> : <Zap size={18} className="fill-white/20 group-hover/btn:fill-white/40 transition-colors" />}
-                      Auto-Generate
-                    </button>
+                    <div className="flex items-center gap-6 sm:pl-6 sm:border-l sm:border-gray-100">
+                      <div className="text-right hidden sm:block">
+                        <div className="text-3xl font-mono font-bold leading-none text-[#2C2C2C]">{procurementQueue.filter(o => o.status === 'ordered').length}</div>
+                        <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider mt-1">On Order</div>
+                      </div>
+
+                      <button
+                        onClick={generateProcurementOrders}
+                        disabled={loading}
+                        className="px-6 py-3.5 bg-[#294056] text-white rounded-[1.25rem] font-bold text-sm shadow-[0_8px_20px_-6px_rgba(41,64,86,0.4)] hover:shadow-[0_12px_25px_-8px_rgba(41,64,86,0.5)] transition-all hover:-translate-y-1 active:scale-95 flex items-center justify-center gap-2 group/btn min-w-[160px]"
+                      >
+                        {loading ? <Loader2 className="animate-spin" size={18} /> : <Zap size={18} className="fill-white/20 group-hover/btn:fill-white/40 transition-colors" />}
+                        Auto-Generate
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Stat Cards Row */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                <StatCard icon={<Package size={16} />} label="Total Products" value={medications.length} sub={`${lowStockCount} low stock`} ringMax={Math.max(medications.length, 50)} />
-                <StatCard icon={<AlertTriangle size={16} />} label="Critical Forecasts" value={criticalPreds} sub={`of ${lowStockPredictions.length} predictions`} color={criticalPreds > 0 ? 'red' : 'teal'} ringMax={Math.max(lowStockPredictions.length, 1)} />
-                <StatCard icon={<Truck size={16} />} label="Pending Orders" value={pendingOrders} sub={`${procurementQueue.length} total`} color={pendingOrders > 0 ? 'amber' : 'teal'} ringMax={Math.max(procurementQueue.length, 1)} />
-                <StatCard icon={<RefreshCw size={16} />} label="Refill Alerts" value={refillAlerts.length} sub="Upcoming depletions" color={refillAlerts.length > 0 ? 'blue' : 'teal'} ringMax={20} />
-              </div>
+                {/* Stat Cards Row */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                  <StatCard icon={<Package size={16} />} label="Total Products" value={medications.length} sub={`${lowStockCount} low stock`} ringMax={Math.max(medications.length, 50)} />
+                  <StatCard icon={<AlertTriangle size={16} />} label="Critical Forecasts" value={criticalPreds} sub={`of ${lowStockPredictions.length} predictions`} color={criticalPreds > 0 ? 'red' : 'teal'} ringMax={Math.max(lowStockPredictions.length, 1)} />
+                  <StatCard icon={<Truck size={16} />} label="Pending Orders" value={pendingOrders} sub={`${procurementQueue.length} total`} color={pendingOrders > 0 ? 'amber' : 'teal'} ringMax={Math.max(procurementQueue.length, 1)} />
+                  <StatCard icon={<RefreshCw size={16} />} label="Refill Alerts" value={refillAlerts.length} sub="Upcoming depletions" color={refillAlerts.length > 0 ? 'blue' : 'teal'} ringMax={20} />
+                </div>
 
-              {/* Two-column: Events + Forecast */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {/* Live Events */}
-                <Section id="events" title="Live Events" icon={<Zap size={16} />} badge={events.length} isExpanded={expandedSections.events} onToggle={toggleSection}>
-                  <div className="divide-y divide-gray-100/50">
-                    {events.length === 0 ? <div className="py-10 text-center text-gray-400 text-sm">No events yet</div> : events.slice(0, 15).map((ev, i) => (
-                      <div key={i} className="flex gap-4 px-6 py-4 hover:bg-teal-50/30 transition-colors text-sm group">
-                        <span className="text-[10px] font-mono text-gray-400 whitespace-nowrap pt-0.5">{new Date(ev.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="px-2 py-0.5 bg-teal-50 text-teal-700 text-[9px] font-bold uppercase rounded-md border border-teal-100/50">{ev.agent}</span>
-                            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">{ev.event_type}</span>
+                {/* Two-column: Events + Forecast */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  {/* Live Events */}
+                  <Section id="events" title="Live Events" icon={<Zap size={16} />} badge={events.length} isExpanded={expandedSections.events} onToggle={toggleSection}>
+                    <div className="divide-y divide-gray-100/50">
+                      {events.length === 0 ? <div className="py-10 text-center text-gray-400 text-sm">No events yet</div> : events.slice(0, 15).map((ev, i) => (
+                        <div key={i} className="flex gap-4 px-6 py-4 hover:bg-teal-50/30 transition-colors text-sm group">
+                          <span className="text-[10px] font-mono text-gray-400 whitespace-nowrap pt-0.5">{new Date(ev.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="px-2 py-0.5 bg-teal-50 text-teal-700 text-[9px] font-bold uppercase rounded-md border border-teal-100/50">{ev.agent}</span>
+                              <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">{ev.event_type}</span>
+                            </div>
+                            <p className="text-xs text-[#6B6B6B] font-medium leading-relaxed group-hover:text-gray-900 transition-colors">{ev.message}</p>
                           </div>
-                          <p className="text-xs text-[#6B6B6B] font-medium leading-relaxed group-hover:text-gray-900 transition-colors">{ev.message}</p>
                         </div>
+                      ))}
+                    </div>
+                  </Section>
+
+                  {/* Stock Forecast Preview */}
+                  <Section id="forecast" title="Stock Forecasts" icon={<TrendingUp size={16} />} badge={lowStockPredictions.length} isExpanded={expandedSections.forecast} onToggle={toggleSection}>
+                    <div className="p-4 space-y-3">
+                      {lowStockPredictions.length === 0 ? (
+                        <div className="py-8 text-center"><CheckCircle size={32} className="mx-auto text-green-400/50 mb-3" /><p className="text-sm font-bold text-[#6B6B6B]">All stocks healthy</p></div>
+                      ) : lowStockPredictions.slice(0, 8).map((pred, i) => {
+                        const uc = getUrgencyColor(pred.urgency);
+                        const daysLeft = pred.days_until_stockout || 0;
+                        const ringColor = daysLeft <= 3 ? '#DC2626' : daysLeft <= 7 ? '#F59E0B' : '#14B8A6';
+                        const pct = Math.max(0, Math.min(100, ((30 - Math.max(0, daysLeft)) / 30) * 100));
+                        return (
+                          <div key={i} className="flex items-center gap-4 p-4 rounded-2xl bg-white/50 shadow-soft-sm hover:bg-white hover:shadow-soft transition-all duration-300 group">
+                            <AdminRing pct={pct} size={48} strokeWidth={4} color={ringColor}>
+                              <span className="text-[11px] font-bold" style={{ color: ringColor }}>{daysLeft}d</span>
+                            </AdminRing>
+                            <div className="flex-1 min-w-0">
+                              <div className="font-bold text-sm text-[#2C2C2C] truncate mb-0.5" title={pred.brand_name}>{pred.brand_name}</div>
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="text-[10px] font-medium text-gray-400">Stock: <span className="font-bold text-gray-600">{pred.current_stock}</span></span>
+                                <span className="w-1 h-1 rounded-full bg-gray-200" />
+                                <span className="text-[10px] font-medium text-gray-400"><span className="font-bold text-gray-600">{pred.units_per_day}</span>/day</span>
+                              </div>
+                              <div className="opacity-70 group-hover:opacity-100 transition-opacity"><MiniBar value={30 - daysLeft} max={30} color={daysLeft <= 3 ? 'red' : daysLeft <= 7 ? 'amber' : 'teal'} showLabel={false} /></div>
+                            </div>
+                            <span className={`text-[9px] font-bold tracking-wider uppercase px-2 py-1 rounded-md border border-current/20 flex-shrink-0 ${uc}`}>{pred.urgency}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </Section>
+                </div>
+
+                {/* Webhook Logs */}
+                <Section id="webhook" title="Webhook Traffic" icon={<MessageSquare size={16} />} badge={webhookLogs.length} isExpanded={expandedSections.webhook} onToggle={toggleSection}>
+                  <div>
+                    {webhookLogs.length === 0 ? <div className="py-8 text-center text-gray-400 text-sm">No logs</div> : (
+                      <table className="w-full text-xs text-left">
+                        <thead className="bg-gray-50/50 text-gray-500 font-bold uppercase tracking-wider sticky top-0 backdrop-blur-md"><tr><th className="px-6 py-3">Time</th><th className="px-6 py-3">Method</th><th className="px-6 py-3">Endpoint</th><th className="px-6 py-3 text-right">Payload</th></tr></thead>
+                        <tbody className="divide-y divide-gray-100/50">{webhookLogs.map((log, i) => (
+                          <tr key={i} className="hover:bg-teal-50/30 font-mono transition-colors">
+                            <td className="px-6 py-3 text-gray-400 text-[10px] whitespace-nowrap">{new Date(log.created_at).toLocaleTimeString()}</td>
+                            <td className="px-6 py-3"><span className={`px-2 py-1 rounded-md text-[9px] font-bold tracking-widest uppercase border ${log.direction === 'outgoing' ? 'bg-purple-50 text-purple-700 border-purple-100/50' : 'bg-green-50 text-green-700 border-green-100/50'}`}>{log.direction === 'outgoing' ? 'POST' : 'RECV'}</span></td>
+                            <td className="px-6 py-3 text-[#6B6B6B] truncate max-w-[200px] font-medium">{log.endpoint}</td>
+                            <td className="px-6 py-3 text-right"><details className="inline-block relative"><summary className="text-teal-600 hover:text-teal-800 cursor-pointer font-bold bg-teal-50 px-2 py-1 rounded-md border border-teal-100/50 transition-colors">JSON</summary><div className="absolute right-0 mt-2 w-80 bg-gray-900/95 backdrop-blur-xl border border-white/10 text-green-400 p-4 rounded-xl shadow-[0_20px_40px_-10px_rgba(0,0,0,0.3)] z-50 text-[10px] overflow-auto max-h-72 custom-scrollbar"><pre>{JSON.stringify(log.payload, null, 2)}</pre></div></details></td>
+                          </tr>
+                        ))}</tbody>
+                      </table>
+                    )}
+                  </div>
+                </Section>
+              </div>
+            )}
+
+            {/* ═══════════ INVENTORY TAB ═══════════ */}
+            {activeTab === 'inventory' && (
+              <div className="space-y-6 animate-fade-in-up px-2 pb-6">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="relative max-w-sm w-full">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                    <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} type="text" placeholder="Search medications..." className="w-full bg-white/70 backdrop-blur-xl shadow-soft hover:shadow-soft-hover rounded-[1.25rem] pl-11 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 text-[#2C2C2C] transition-all placeholder:text-gray-400 font-medium" />
+                  </div>
+                  <div className="flex items-center gap-3 w-full sm:w-auto">
+                    <div className="relative">
+                      <button onClick={() => setShowFilterOptions(s => !s)} className="flex items-center justify-center gap-2 px-4 py-3 bg-white/70 backdrop-blur-xl rounded-[1.25rem] text-sm font-semibold text-[#6B6B6B] shadow-soft hover:shadow-soft-hover hover:bg-white transition-all hover:-translate-y-0.5"><Filter size={16} /> Filter</button>
+                      {showFilterOptions && (
+                        <div className="absolute right-0 mt-2 w-40 bg-white rounded-xl shadow-soft-lg p-2 z-20">
+                          <button onClick={() => { setFilterRx('all'); setShowFilterOptions(false); }} className={`w-full text-left px-3 py-2 rounded-md ${filterRx === 'all' ? 'bg-teal-50' : ''}`}>All</button>
+                          <button onClick={() => { setFilterRx('rx'); setShowFilterOptions(false); }} className={`w-full text-left px-3 py-2 rounded-md ${filterRx === 'rx' ? 'bg-teal-50' : ''}`}>Prescription only</button>
+                          <button onClick={() => { setFilterRx('otc'); setShowFilterOptions(false); }} className={`w-full text-left px-3 py-2 rounded-md ${filterRx === 'otc' ? 'bg-teal-50' : ''}`}>OTC only</button>
+                        </div>
+                      )}
+                    </div>
+                    <button onClick={() => setShowAddMedModal(true)} className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-[#294056] text-white rounded-[1.25rem] text-sm font-bold shadow-[0_8px_20px_-6px_rgba(41,64,86,0.4)] hover:shadow-[0_12px_25px_-8px_rgba(41,64,86,0.5)] transition-all hover:-translate-y-1"><Plus size={16} /> Add Medication</button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+                  {medications.filter(med => {
+                    const q = searchQuery.trim().toLowerCase();
+                    if (q) {
+                      const hay = `${med.product_name || ''} ${med.description || ''} ${med.package_size || ''}`.toLowerCase();
+                      if (!hay.includes(q)) return false;
+                    }
+                    if (filterRx === 'rx' && !med.rx_required) return false;
+                    if (filterRx === 'otc' && med.rx_required) return false;
+                    return true;
+                  }).map(med => {
+                    const sg = suggestedReorderForMed(med);
+                    const threshold = med.reorder_threshold > 0 ? med.reorder_threshold : sg.threshold;
+                    const isLow = med.stock_quantity <= threshold;
+                    const isCritical = med.stock_quantity <= 10;
+                    const ringColor = isCritical ? '#EF4444' : isLow ? '#F59E0B' : '#14B8A6';
+                    const maxDisplay = Math.max(med.stock_quantity, threshold * 2);
+                    const pct = maxDisplay > 0 ? Math.min(100, (med.stock_quantity / maxDisplay) * 100) : 0;
+
+                    return (
+                      <div key={med.id} className="bg-white/80 backdrop-blur-xl rounded-[1.5rem] p-5 shadow-soft hover:shadow-soft-lg transition-all duration-400 ease-out hover:-translate-y-1.5 relative group overflow-hidden flex flex-col min-h-[190px]">
+                        {isCritical && <div className="absolute top-0 right-0 w-24 h-24 pointer-events-none before:absolute before:inset-0 before:bg-red-500/5 before:rounded-bl-[4rem] before:transition-all group-hover:before:bg-red-500/10 transition-colors" />}
+
+                        <div className="flex justify-between items-start mb-5 relative z-10">
+                          <div className="flex-1 min-w-0 pr-3">
+                            <h4 className="text-base font-bold text-[#2C2C2C] truncate mb-0.5" title={med.product_name}>{med.product_name}</h4>
+                            <p className="text-[#6B6B6B] text-[11px] font-medium tracking-wide uppercase">{med.package_size || 'N/A'} • {med.form || 'UNIT'}</p>
+                            {med.description && <div className="text-[11px] text-gray-500 mt-1 truncate">{med.description}</div>}
+                            {med.base_price_eur != null && <div className="text-[13px] font-semibold text-gray-800 mt-1">€{Number(med.base_price_eur).toFixed(2)}</div>}
+                          </div>
+                          <div className="flex items-start gap-2">
+                            {med.rx_required ? <span className="px-2 py-1 bg-[#FEF3C7] text-[#B45309] text-[9px] font-bold uppercase tracking-wider rounded-md border border-[#FDE68A] shadow-[0_2px_4px_-1px_rgba(245,158,11,0.1)] flex-shrink-0">RX</span> : <span className="px-2 py-1 bg-green-50 text-green-700 text-[9px] font-bold uppercase tracking-wider rounded-md border border-green-100 flex-shrink-0">OTC</span>}
+                            <button onClick={() => handleDeleteMedication(med.id)} title="Delete" className="w-8 h-8 rounded-md bg-white/50 hover:bg-red-50 text-red-600 flex items-center justify-center border border-gray-100 ml-1"><Trash2 size={14} /></button>
+                          </div>
+                        </div>
+
+                        <div className="flex items-end gap-4 mt-auto">
+                          <AdminRing pct={pct} size={52} strokeWidth={4.5} color={ringColor}>
+                            <span className="text-sm font-bold" style={{ color: ringColor }}>{med.stock_quantity}</span>
+                          </AdminRing>
+
+                          <div className="flex-1">
+                            <div className="text-[9px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 flex justify-between">
+                              <span>Balance</span>
+                              <span>Min {threshold}</span>
+                            </div>
+                            <div className="flex items-center gap-1 bg-white/50 backdrop-blur-md rounded-xl shadow-[inset_0_2px_4px_0_rgba(0,0,0,0.02)] p-1 border border-gray-100/60 transition-colors group-hover:bg-white">
+                              <button onClick={() => handleUpdateStock(med.id, Math.max(0, med.stock_quantity - 1))} className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:bg-red-50 hover:text-red-600 transition-colors cursor-pointer active:scale-90">-</button>
+                              <input
+                                type="number"
+                                className="flex-1 w-full min-w-0 bg-transparent text-center text-sm font-bold text-[#2C2C2C] focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none transition-colors"
+                                value={med.stock_quantity}
+                                onChange={e => {
+                                  const val = parseInt(e.target.value);
+                                  if (!isNaN(val)) handleUpdateStock(med.id, val);
+                                }}
+                              />
+                              <button onClick={() => handleUpdateStock(med.id, med.stock_quantity + 1)} className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:bg-teal-50 hover:text-teal-600 transition-colors cursor-pointer active:scale-90">+</button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* ═══════════ SUPPLY CHAIN TAB ═══════════ */}
+            {activeTab === 'supply' && (
+              <div className="space-y-4 animate-fade-in-up">
+                {/* Stat Row */}
+                <div className="grid grid-cols-3 gap-3">
+                  <StatCard icon={<Package size={16} />} label="Products" value={medications.length} sub={`${lowStockCount} need attention`} />
+                  <StatCard icon={<ShoppingCart size={16} />} label="Orders" value={procurementQueue.length} sub={`${pendingOrders} pending`} color={pendingOrders > 0 ? 'amber' : 'teal'} />
+                  <StatCard icon={<RefreshCw size={16} />} label="Customer Refills" value={refillAlerts.length} sub="Due within 14 days" color={refillAlerts.length > 0 ? 'blue' : 'teal'} />
+                </div>
+
+                {/* Procurement */}
+                <Section id="procurement" title="Procurement Orders" icon={<Truck size={16} />} badge={procurementQueue.length}
+                  isExpanded={expandedSections.procurement} onToggle={toggleSection}
+                  actions={<div role="button" tabIndex={0} onClick={() => !loading && generateProcurementOrders()} onKeyDown={e => e.key === 'Enter' && !loading && generateProcurementOrders()} className={`px-3 py-1.5 bg-gray-900 text-white rounded-lg text-[11px] font-semibold hover:bg-gray-800 transition-colors flex items-center gap-1 cursor-pointer select-none ${loading ? 'opacity-50 pointer-events-none' : ''}`}>{loading ? <Loader2 className="animate-spin" size={12} /> : <Zap size={12} />} Auto-Generate</div>}>
+                  <div className="max-h-[350px] overflow-auto">
+                    {procurementQueue.length === 0 ? <div className="py-8 text-center text-gray-400 text-sm">No active orders</div> : (
+                      <table className="w-full text-xs text-left">
+                        <thead className="bg-gray-50 text-gray-500 uppercase font-semibold sticky top-0"><tr><th className="px-4 py-2.5">Status</th><th className="px-4 py-2.5">Item</th><th className="px-4 py-2.5">Supplier</th><th className="px-4 py-2.5 text-right">Actions</th></tr></thead>
+                        <tbody className="divide-y divide-gray-50">{procurementQueue.map(order => (
+                          <tr key={order.order_id} className="hover:bg-gray-50 transition-colors">
+                            <td className="px-4 py-2.5"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${getStatusColor(order.status)}`}>{order.status}</span></td>
+                            <td className="px-4 py-2.5"><div className="font-semibold text-gray-800">{order.brand_name}</div><div className="text-gray-400">{order.quantity || order.order_quantity} units</div></td>
+                            <td className="px-4 py-2.5 text-gray-600">{order.supplier_name || order.supplier?.name}</td>
+                            <td className="px-4 py-2.5 text-right">
+                              {order.status === 'pending' && <button onClick={() => sendOrderToSupplier(order.order_id)} className="px-3 py-1 bg-blue-600 text-white rounded-lg text-[10px] font-semibold hover:bg-blue-700">Send</button>}
+                              {order.status === 'ordered' && <button onClick={() => markOrderReceived(order.order_id)} className="px-3 py-1 bg-green-600 text-white rounded-lg text-[10px] font-semibold hover:bg-green-700">Received</button>}
+                              {order.status === 'received' && <span className="text-[10px] text-gray-400">Done</span>}
+                            </td>
+                          </tr>
+                        ))}</tbody>
+                      </table>
+                    )}
+                  </div>
+                </Section>
+
+                {/* Customer Refills */}
+                <Section id="refills" title="Customer Refills" icon={<RefreshCw size={16} />} badge={refillAlerts.length}
+                  isExpanded={expandedSections.refills} onToggle={toggleSection}
+                  actions={<div role="button" tabIndex={0} onClick={() => { setShowPatientDataModal(true); fetchPatientData(); }} onKeyDown={e => { if (e.key === 'Enter') { setShowPatientDataModal(true); fetchPatientData(); } }} className="px-3 py-1.5 bg-teal-50 text-teal-700 rounded-lg text-[11px] font-semibold hover:bg-teal-100 transition-colors flex items-center gap-1 border border-teal-200 cursor-pointer select-none"><Users size={12} /> Patients</div>}>
+                  <div className="max-h-[350px] overflow-y-auto p-3">
+                    {refillAlerts.length === 0 ? <div className="py-8 text-center text-gray-400 text-sm">No refills due</div> : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        {refillAlerts.map((alert, i) => (
+                          <div key={i} className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 hover:border-teal-200 transition-all">
+                            <div className={`w-1.5 h-10 rounded-full flex-shrink-0 ${alert.days_until_depletion <= 3 ? 'bg-red-500' : 'bg-amber-400'}`} />
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-semibold text-gray-800 truncate">{alert.customer_name}</div>
+                              <div className="text-[10px] text-gray-400">{alert.brand_name} · {alert.dosage}</div>
+                            </div>
+                            <div className="text-right flex-shrink-0">
+                              <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${alert.days_until_depletion <= 3 ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                                {alert.days_until_depletion <= 0 ? 'EMPTY' : `${alert.days_until_depletion}d`}
+                              </span>
+                            </div>
+                            <a href={`tel:${alert.customer_phone}`} className="w-7 h-7 rounded-full bg-teal-50 text-teal-600 flex items-center justify-center hover:bg-teal-100 flex-shrink-0"><Phone size={12} /></a>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </Section>
+              </div>
+            )}
+
+            {/* ═══════════ INTELLIGENCE TAB ═══════════ */}
+            {activeTab === 'intelligence' && (
+              <div className="space-y-4 animate-fade-in-up">
+                {/* Status + RAG Row */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                  <div className="bg-white/80 backdrop-blur-xl shadow-soft hover:shadow-soft-hover rounded-[1.5rem] p-6 transition-all duration-400 hover:-translate-y-1">
+                    <div className="flex justify-between items-center mb-5">
+                      <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Observability</span>
+                      <div className="w-8 h-8 rounded-full bg-blue-50/50 flex items-center justify-center"><Activity size={14} className="text-blue-500" /></div>
+                    </div>
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-3 p-3 bg-white/50 rounded-xl border border-gray-100/50">
+                        <div className={`w-2.5 h-2.5 rounded-full ${observabilityStatus?.langfuse_enabled ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.4)]' : 'bg-gray-300'}`} />
+                        <span className="text-sm font-bold text-[#2C2C2C]">{observabilityStatus?.langfuse_enabled ? 'Langfuse Active' : 'Local Only'}</span>
+                      </div>
+                      <div className="px-1 text-[11px] font-medium text-gray-500 flex flex-col gap-2">
+                        <span className="flex justify-between"><span>Traces</span> <span className="font-bold text-gray-700">{traces.length}</span></span>
+                        <span className="flex justify-between"><span>Events</span> <span className="font-bold text-gray-700">{executionLogs.length}</span></span>
+                        <span className="flex justify-between"><span>Safety Logs</span> <span className="font-bold text-gray-700">{safetyDecisions.length}</span></span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* RAG Quality */}
+                  <div className="bg-white/80 backdrop-blur-xl border border-white/60 shadow-[0_4px_10px_-2px_rgba(0,0,0,0.02),0_15px_25px_-5px_rgba(0,0,0,0.02)] rounded-[1.5rem] p-6 lg:col-span-2 transition-all duration-400 hover:shadow-[0_10px_20px_-3px_rgba(0,0,0,0.04)] hover:-translate-y-1">
+                    <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-6">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center shadow-inner"><Brain size={18} className="text-purple-600" /></div>
+                        <div>
+                          <span className="text-sm font-bold text-[#2C2C2C]">RAG Quality</span>
+                          <div className="text-[10px] text-gray-400 font-medium">Auto-evaluations powered by React Framework</div>
+                        </div>
+                      </div>
+                      <button onClick={handleRunEval} disabled={loading || isEvaluating} className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-xs font-bold shadow-[0_4px_15px_-3px_rgba(79,70,229,0.3)] hover:shadow-[0_8px_20px_-5px_rgba(79,70,229,0.4)] transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 group min-w-[120px]">
+                        {isEvaluating ? <Loader2 className="animate-spin" size={14} /> : <Zap size={14} className="fill-white/20 group-hover:fill-white/40 transition-colors" />}
+                        {isEvaluating ? 'Evaluating...' : 'Run Evaluation'}
+                      </button>
+                    </div>
+                    {isEvaluating ? (
+                      <div className="text-center py-8 space-y-3">
+                        <Loader2 className="animate-spin mx-auto text-indigo-600" size={40} />
+                        <div className="space-y-1">
+                          <div className="text-sm font-semibold text-gray-700">Evaluating RAG Quality...</div>
+                          <div className="text-xs text-gray-500">Running 3 metrics on samples (~15-30 seconds)</div>
+                          <div className="text-xs text-gray-400">Check backend terminal for progress</div>
+                        </div>
+                        <div className="flex justify-center gap-2 pt-2">
+                          <div className="px-2 py-1 bg-purple-50 text-purple-700 rounded text-[10px] font-medium">Faithfulness</div>
+                          <div className="px-2 py-1 bg-blue-50 text-blue-700 rounded text-[10px] font-medium">Precision</div>
+                          <div className="px-2 py-1 bg-green-50 text-green-700 rounded text-[10px] font-medium">Relevancy</div>
+                        </div>
+                      </div>
+                    ) : ragMetrics?.latest ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                        {[{ name: 'Faithfulness', score: ragMetrics.latest.faithfulness_score, ring: '#22C55E' }, { name: 'Precision', score: ragMetrics.latest.context_precision_score, ring: '#3B82F6' }, { name: 'Relevancy', score: ragMetrics.latest.answer_relevancy_score, ring: '#8B5CF6' }].map(m => (
+                          <div key={m.name} className="flex flex-col items-center justify-center p-4 bg-white/50 rounded-2xl border border-gray-100/50 hover:bg-white transition-colors">
+                            <AdminRing pct={m.score * 100} size={70} strokeWidth={5.5} color={m.ring}>
+                              <span className="text-lg font-bold" style={{ color: m.ring }}>{(m.score * 100).toFixed(0)}%</span>
+                            </AdminRing>
+                            <span className="text-[11px] font-bold text-[#6B6B6B] uppercase tracking-wider mt-4 text-center">{m.name}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : <div className="text-center py-10 bg-white/50 rounded-2xl border border-transparent border-dashed hover:border-gray-200 transition-colors flex flex-col items-center"><Brain size={32} className="text-gray-300 mb-3" /><p className="text-sm font-semibold text-[#6B6B6B]">No metrics yet</p><p className="text-xs font-medium text-gray-400 mt-1 max-w-xs">Chat with the assistant first to generate samples. Current trace count: {ragMetrics?.history?.length || 0}</p></div>}
+                  </div>
+                </div>
+
+                {/* Chain of Thought (CoT) */}
+                <Section id="logs" title="Chain of Thought (CoT)" icon={<Activity size={16} />} badge={traces.length || executionLogs.length} isExpanded={expandedSections.logs} onToggle={toggleSection}>
+                  <div className="max-h-[500px] overflow-y-auto divide-y divide-gray-100/50">
+                    {traces.map((trace, i) => (
+                      <div key={`trace-${i}`} className="px-6 py-4 hover:bg-teal-50/30 transition-colors group">
+                        <div className="flex justify-between items-start mb-2">
+                          <div className="flex items-center gap-3">
+                            <span className="text-[10px] font-mono text-gray-400">{new Date(trace.created_at || trace.timestamp || Date.now()).toLocaleTimeString()}</span>
+                            <span className="px-2 py-0.5 bg-purple-50 text-purple-700 font-bold text-[9px] tracking-wider uppercase rounded-md border border-purple-100/50">TRACE</span>
+                            {trace.latency_ms != null && <span className="text-[10px] text-gray-400 font-medium">{trace.latency_ms} ms</span>}
+                          </div>
+                          {trace.public_url && <a href={trace.public_url} target="_blank" rel="noreferrer" className="text-[10px] font-bold text-indigo-500 hover:text-indigo-700 hover:underline px-2 py-1 bg-indigo-50 rounded-md transition-colors">Open Trace</a>}
+                        </div>
+                        <p className="text-sm text-[#2C2C2C] font-bold truncate mb-1">{trace.name || 'Agent Turn'}</p>
+                        <p className="text-xs text-[#6B6B6B] font-medium truncate">{trace.input_text || trace.metadata_json || ''}</p>
+                      </div>
+                    ))}
+                    {executionLogs.map((log, i) => (
+                      <div key={i} className="px-6 py-4 hover:bg-teal-50/30 transition-colors group">
+                        <div className="flex justify-between items-center mb-2">
+                          <div className="flex items-center gap-3">
+                            <span className="text-[10px] font-mono text-gray-400">{new Date(log.created_at).toLocaleTimeString()}</span>
+                            <span className="px-2 py-0.5 bg-blue-50 text-blue-700 font-bold text-[9px] tracking-wider uppercase rounded-md border border-blue-100/50">{log.agent}</span>
+                          </div>
+                          <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onClick={() => submitFeedback(log.trace_id || log.id, 'positive')} className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-gray-100 text-gray-400 hover:text-green-600 hover:bg-green-50 hover:border-green-200 transition-colors shadow-sm"><ThumbsUp size={12} /></button>
+                            <button onClick={() => submitFeedback(log.trace_id || log.id, 'negative')} className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-gray-100 text-gray-400 hover:text-red-600 hover:bg-red-50 hover:border-red-200 transition-colors shadow-sm"><ThumbsDown size={12} /></button>
+                          </div>
+                        </div>
+                        <p className="text-sm text-[#6B6B6B] font-medium leading-relaxed group-hover:text-gray-900 transition-colors">{log.message}</p>
+                        {log.metadata && (
+                          <details className="mt-2 text-[10px] text-gray-500"><summary className="cursor-pointer font-bold hover:text-teal-600 inline-block px-2 py-1 bg-gray-50 rounded-md border border-gray-100 transition-colors">View Metadata</summary><pre className="mt-2 bg-gray-900/95 backdrop-blur-xl border border-white/10 text-gray-300 p-4 rounded-xl overflow-x-auto text-[10px] custom-scrollbar shadow-inner">{JSON.stringify(log.metadata, null, 2)}</pre></details>
+                        )}
                       </div>
                     ))}
                   </div>
                 </Section>
-
-                {/* Stock Forecast Preview */}
-                <Section id="forecast" title="Stock Forecasts" icon={<TrendingUp size={16} />} badge={lowStockPredictions.length} isExpanded={expandedSections.forecast} onToggle={toggleSection}>
-                  <div className="p-4 space-y-3">
-                    {lowStockPredictions.length === 0 ? (
-                      <div className="py-8 text-center"><CheckCircle size={32} className="mx-auto text-green-400/50 mb-3" /><p className="text-sm font-bold text-[#6B6B6B]">All stocks healthy</p></div>
-                    ) : lowStockPredictions.slice(0, 8).map((pred, i) => {
-                      const uc = getUrgencyColor(pred.urgency);
-                      const daysLeft = pred.days_until_stockout || 0;
-                      const ringColor = daysLeft <= 3 ? '#DC2626' : daysLeft <= 7 ? '#F59E0B' : '#14B8A6';
-                      const pct = Math.max(0, Math.min(100, ((30 - Math.max(0, daysLeft)) / 30) * 100));
-                      return (
-                        <div key={i} className="flex items-center gap-4 p-4 rounded-2xl bg-white/50 border border-gray-100/50 hover:bg-white hover:border-teal-100/50 hover:shadow-[0_8px_20px_-6px_rgba(0,0,0,0.05)] transition-all duration-300 group">
-                          <AdminRing pct={pct} size={48} strokeWidth={4} color={ringColor}>
-                            <span className="text-[11px] font-bold" style={{ color: ringColor }}>{daysLeft}d</span>
-                          </AdminRing>
-                          <div className="flex-1 min-w-0">
-                            <div className="font-bold text-sm text-[#2C2C2C] truncate mb-0.5" title={pred.brand_name}>{pred.brand_name}</div>
-                            <div className="flex items-center gap-2 mb-2">
-                              <span className="text-[10px] font-medium text-gray-400">Stock: <span className="font-bold text-gray-600">{pred.current_stock}</span></span>
-                              <span className="w-1 h-1 rounded-full bg-gray-200" />
-                              <span className="text-[10px] font-medium text-gray-400"><span className="font-bold text-gray-600">{pred.units_per_day}</span>/day</span>
-                            </div>
-                            <div className="opacity-70 group-hover:opacity-100 transition-opacity"><MiniBar value={30 - daysLeft} max={30} color={daysLeft <= 3 ? 'red' : daysLeft <= 7 ? 'amber' : 'teal'} showLabel={false} /></div>
-                          </div>
-                          <span className={`text-[9px] font-bold tracking-wider uppercase px-2 py-1 rounded-md border border-current/20 flex-shrink-0 ${uc}`}>{pred.urgency}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </Section>
               </div>
-
-              {/* Webhook Logs */}
-              <Section id="webhook" title="Webhook Traffic" icon={<MessageSquare size={16} />} badge={webhookLogs.length} isExpanded={expandedSections.webhook} onToggle={toggleSection}>
-                <div>
-                  {webhookLogs.length === 0 ? <div className="py-8 text-center text-gray-400 text-sm">No logs</div> : (
-                    <table className="w-full text-xs text-left">
-                      <thead className="bg-gray-50/50 text-gray-500 font-bold uppercase tracking-wider sticky top-0 backdrop-blur-md"><tr><th className="px-6 py-3">Time</th><th className="px-6 py-3">Method</th><th className="px-6 py-3">Endpoint</th><th className="px-6 py-3 text-right">Payload</th></tr></thead>
-                      <tbody className="divide-y divide-gray-100/50">{webhookLogs.map((log, i) => (
-                        <tr key={i} className="hover:bg-teal-50/30 font-mono transition-colors">
-                          <td className="px-6 py-3 text-gray-400 text-[10px] whitespace-nowrap">{new Date(log.created_at).toLocaleTimeString()}</td>
-                          <td className="px-6 py-3"><span className={`px-2 py-1 rounded-md text-[9px] font-bold tracking-widest uppercase border ${log.direction === 'outgoing' ? 'bg-purple-50 text-purple-700 border-purple-100/50' : 'bg-green-50 text-green-700 border-green-100/50'}`}>{log.direction === 'outgoing' ? 'POST' : 'RECV'}</span></td>
-                          <td className="px-6 py-3 text-[#6B6B6B] truncate max-w-[200px] font-medium">{log.endpoint}</td>
-                          <td className="px-6 py-3 text-right"><details className="inline-block relative"><summary className="text-teal-600 hover:text-teal-800 cursor-pointer font-bold bg-teal-50 px-2 py-1 rounded-md border border-teal-100/50 transition-colors">JSON</summary><div className="absolute right-0 mt-2 w-80 bg-gray-900/95 backdrop-blur-xl border border-white/10 text-green-400 p-4 rounded-xl shadow-[0_20px_40px_-10px_rgba(0,0,0,0.3)] z-50 text-[10px] overflow-auto max-h-72 custom-scrollbar"><pre>{JSON.stringify(log.payload, null, 2)}</pre></div></details></td>
-                        </tr>
-                      ))}</tbody>
-                    </table>
-                  )}
-                </div>
-              </Section>
-            </div>
-          )}
-
-          {/* ═══════════ INVENTORY TAB ═══════════ */}
-          {activeTab === 'inventory' && (
-            <div className="space-y-6 animate-fade-in-up px-2 pb-6">
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                <div className="relative max-w-sm w-full">
-                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                  <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} type="text" placeholder="Search medications..." className="w-full bg-white/70 backdrop-blur-xl border border-white/50 hover:border-teal-200/60 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.04)] rounded-[1.25rem] pl-11 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 text-[#2C2C2C] transition-all placeholder:text-gray-400 font-medium" />
-                </div>
-                <div className="flex items-center gap-3 w-full sm:w-auto">
-                  <div className="relative">
-                    <button onClick={() => setShowFilterOptions(s => !s)} className="flex items-center justify-center gap-2 px-4 py-3 bg-white/70 backdrop-blur-xl rounded-[1.25rem] text-sm font-semibold text-[#6B6B6B] shadow-[0_4px_15px_-3px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_25px_-6px_rgba(0,0,0,0.06)] hover:bg-white border border-white/50 transition-all hover:-translate-y-0.5"><Filter size={16} /> Filter</button>
-                    {showFilterOptions && (
-                      <div className="absolute right-0 mt-2 w-40 bg-white rounded-xl border border-gray-100 shadow-lg p-2 z-20">
-                        <button onClick={() => { setFilterRx('all'); setShowFilterOptions(false); }} className={`w-full text-left px-3 py-2 rounded-md ${filterRx==='all'?'bg-teal-50':''}`}>All</button>
-                        <button onClick={() => { setFilterRx('rx'); setShowFilterOptions(false); }} className={`w-full text-left px-3 py-2 rounded-md ${filterRx==='rx'?'bg-teal-50':''}`}>Prescription only</button>
-                        <button onClick={() => { setFilterRx('otc'); setShowFilterOptions(false); }} className={`w-full text-left px-3 py-2 rounded-md ${filterRx==='otc'?'bg-teal-50':''}`}>OTC only</button>
-                      </div>
-                    )}
-                  </div>
-                  <button onClick={() => setShowAddMedModal(true)} className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-[#294056] text-white rounded-[1.25rem] text-sm font-bold shadow-[0_8px_20px_-6px_rgba(41,64,86,0.4)] hover:shadow-[0_12px_25px_-8px_rgba(41,64,86,0.5)] transition-all hover:-translate-y-1"><Plus size={16} /> Add Medication</button>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-                {medications.filter(med => {
-                  const q = searchQuery.trim().toLowerCase();
-                  if (q) {
-                    const hay = `${med.product_name || ''} ${med.description || ''} ${med.package_size || ''}`.toLowerCase();
-                    if (!hay.includes(q)) return false;
-                  }
-                  if (filterRx === 'rx' && !med.rx_required) return false;
-                  if (filterRx === 'otc' && med.rx_required) return false;
-                  return true;
-                }).map(med => {
-                  const sg = suggestedReorderForMed(med);
-                  const threshold = med.reorder_threshold > 0 ? med.reorder_threshold : sg.threshold;
-                  const isLow = med.stock_quantity <= threshold;
-                  const isCritical = med.stock_quantity <= 10;
-                  const ringColor = isCritical ? '#EF4444' : isLow ? '#F59E0B' : '#14B8A6';
-                  const maxDisplay = Math.max(med.stock_quantity, threshold * 2);
-                  const pct = maxDisplay > 0 ? Math.min(100, (med.stock_quantity / maxDisplay) * 100) : 0;
-
-                  return (
-                    <div key={med.id} className="bg-white/80 backdrop-blur-xl rounded-[1.5rem] p-5 shadow-[0_4px_10px_-2px_rgba(0,0,0,0.02),0_15px_25px_-5px_rgba(0,0,0,0.02)] hover:shadow-[0_10px_20px_-3px_rgba(0,0,0,0.04),0_25px_30px_-8px_rgba(14,165,233,0.06)] transition-all duration-400 ease-out hover:-translate-y-1.5 relative group overflow-hidden border border-white flex flex-col min-h-[190px]">
-                      {isCritical && <div className="absolute top-0 right-0 w-24 h-24 pointer-events-none before:absolute before:inset-0 before:bg-red-500/5 before:rounded-bl-[4rem] before:transition-all group-hover:before:bg-red-500/10 transition-colors" />}
-
-                      <div className="flex justify-between items-start mb-5 relative z-10">
-                        <div className="flex-1 min-w-0 pr-3">
-                          <h4 className="text-base font-bold text-[#2C2C2C] truncate mb-0.5" title={med.product_name}>{med.product_name}</h4>
-                          <p className="text-[#6B6B6B] text-[11px] font-medium tracking-wide uppercase">{med.package_size || 'N/A'} • {med.form || 'UNIT'}</p>
-                          {med.description && <div className="text-[11px] text-gray-500 mt-1 truncate">{med.description}</div>}
-                          {med.base_price_eur != null && <div className="text-[13px] font-semibold text-gray-800 mt-1">€{Number(med.base_price_eur).toFixed(2)}</div>}
-                        </div>
-                        <div className="flex items-start gap-2">
-                          {med.rx_required ? <span className="px-2 py-1 bg-[#FEF3C7] text-[#B45309] text-[9px] font-bold uppercase tracking-wider rounded-md border border-[#FDE68A] shadow-[0_2px_4px_-1px_rgba(245,158,11,0.1)] flex-shrink-0">RX</span> : <span className="px-2 py-1 bg-green-50 text-green-700 text-[9px] font-bold uppercase tracking-wider rounded-md border border-green-100 flex-shrink-0">OTC</span>}
-                          <button onClick={() => handleDeleteMedication(med.id)} title="Delete" className="w-8 h-8 rounded-md bg-white/50 hover:bg-red-50 text-red-600 flex items-center justify-center border border-gray-100 ml-1"><Trash2 size={14} /></button>
-                        </div>
-                      </div>
-
-                      <div className="flex items-end gap-4 mt-auto">
-                        <AdminRing pct={pct} size={52} strokeWidth={4.5} color={ringColor}>
-                          <span className="text-sm font-bold" style={{ color: ringColor }}>{med.stock_quantity}</span>
-                        </AdminRing>
-
-                        <div className="flex-1">
-                          <div className="text-[9px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 flex justify-between">
-                            <span>Balance</span>
-                            <span>Min {threshold}</span>
-                          </div>
-                          <div className="flex items-center gap-1 bg-white/50 backdrop-blur-md rounded-xl shadow-[inset_0_2px_4px_0_rgba(0,0,0,0.02)] p-1 border border-gray-100/60 transition-colors group-hover:bg-white">
-                            <button onClick={() => handleUpdateStock(med.id, Math.max(0, med.stock_quantity - 1))} className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:bg-red-50 hover:text-red-600 transition-colors cursor-pointer active:scale-90">-</button>
-                            <input
-                              type="number"
-                              className="flex-1 w-full min-w-0 bg-transparent text-center text-sm font-bold text-[#2C2C2C] focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none transition-colors"
-                              value={med.stock_quantity}
-                              onChange={e => {
-                                const val = parseInt(e.target.value);
-                                if (!isNaN(val)) handleUpdateStock(med.id, val);
-                              }}
-                            />
-                            <button onClick={() => handleUpdateStock(med.id, med.stock_quantity + 1)} className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:bg-teal-50 hover:text-teal-600 transition-colors cursor-pointer active:scale-90">+</button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* ═══════════ SUPPLY CHAIN TAB ═══════════ */}
-          {activeTab === 'supply' && (
-            <div className="space-y-4 animate-fade-in-up">
-              {/* Stat Row */}
-              <div className="grid grid-cols-3 gap-3">
-                <StatCard icon={<Package size={16} />} label="Products" value={medications.length} sub={`${lowStockCount} need attention`} />
-                <StatCard icon={<ShoppingCart size={16} />} label="Orders" value={procurementQueue.length} sub={`${pendingOrders} pending`} color={pendingOrders > 0 ? 'amber' : 'teal'} />
-                <StatCard icon={<RefreshCw size={16} />} label="Customer Refills" value={refillAlerts.length} sub="Due within 14 days" color={refillAlerts.length > 0 ? 'blue' : 'teal'} />
-              </div>
-
-              {/* Procurement */}
-              <Section id="procurement" title="Procurement Orders" icon={<Truck size={16} />} badge={procurementQueue.length}
-                isExpanded={expandedSections.procurement} onToggle={toggleSection}
-                actions={<div role="button" tabIndex={0} onClick={() => !loading && generateProcurementOrders()} onKeyDown={e => e.key === 'Enter' && !loading && generateProcurementOrders()} className={`px-3 py-1.5 bg-gray-900 text-white rounded-lg text-[11px] font-semibold hover:bg-gray-800 transition-colors flex items-center gap-1 cursor-pointer select-none ${loading ? 'opacity-50 pointer-events-none' : ''}`}>{loading ? <Loader2 className="animate-spin" size={12} /> : <Zap size={12} />} Auto-Generate</div>}>
-                <div className="max-h-[350px] overflow-auto">
-                  {procurementQueue.length === 0 ? <div className="py-8 text-center text-gray-400 text-sm">No active orders</div> : (
-                    <table className="w-full text-xs text-left">
-                      <thead className="bg-gray-50 text-gray-500 uppercase font-semibold sticky top-0"><tr><th className="px-4 py-2.5">Status</th><th className="px-4 py-2.5">Item</th><th className="px-4 py-2.5">Supplier</th><th className="px-4 py-2.5 text-right">Actions</th></tr></thead>
-                      <tbody className="divide-y divide-gray-50">{procurementQueue.map(order => (
-                        <tr key={order.order_id} className="hover:bg-gray-50 transition-colors">
-                          <td className="px-4 py-2.5"><span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${getStatusColor(order.status)}`}>{order.status}</span></td>
-                          <td className="px-4 py-2.5"><div className="font-semibold text-gray-800">{order.brand_name}</div><div className="text-gray-400">{order.quantity || order.order_quantity} units</div></td>
-                          <td className="px-4 py-2.5 text-gray-600">{order.supplier_name || order.supplier?.name}</td>
-                          <td className="px-4 py-2.5 text-right">
-                            {order.status === 'pending' && <button onClick={() => sendOrderToSupplier(order.order_id)} className="px-3 py-1 bg-blue-600 text-white rounded-lg text-[10px] font-semibold hover:bg-blue-700">Send</button>}
-                            {order.status === 'ordered' && <button onClick={() => markOrderReceived(order.order_id)} className="px-3 py-1 bg-green-600 text-white rounded-lg text-[10px] font-semibold hover:bg-green-700">Received</button>}
-                            {order.status === 'received' && <span className="text-[10px] text-gray-400">Done</span>}
-                          </td>
-                        </tr>
-                      ))}</tbody>
-                    </table>
-                  )}
-                </div>
-              </Section>
-
-              {/* Customer Refills */}
-              <Section id="refills" title="Customer Refills" icon={<RefreshCw size={16} />} badge={refillAlerts.length}
-                isExpanded={expandedSections.refills} onToggle={toggleSection}
-                actions={<div role="button" tabIndex={0} onClick={() => { setShowPatientDataModal(true); fetchPatientData(); }} onKeyDown={e => { if (e.key === 'Enter') { setShowPatientDataModal(true); fetchPatientData(); } }} className="px-3 py-1.5 bg-teal-50 text-teal-700 rounded-lg text-[11px] font-semibold hover:bg-teal-100 transition-colors flex items-center gap-1 border border-teal-200 cursor-pointer select-none"><Users size={12} /> Patients</div>}>
-                <div className="max-h-[350px] overflow-y-auto p-3">
-                  {refillAlerts.length === 0 ? <div className="py-8 text-center text-gray-400 text-sm">No refills due</div> : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                      {refillAlerts.map((alert, i) => (
-                        <div key={i} className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 hover:border-teal-200 transition-all">
-                          <div className={`w-1.5 h-10 rounded-full flex-shrink-0 ${alert.days_until_depletion <= 3 ? 'bg-red-500' : 'bg-amber-400'}`} />
-                          <div className="flex-1 min-w-0">
-                            <div className="text-sm font-semibold text-gray-800 truncate">{alert.customer_name}</div>
-                            <div className="text-[10px] text-gray-400">{alert.brand_name} · {alert.dosage}</div>
-                          </div>
-                          <div className="text-right flex-shrink-0">
-                            <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${alert.days_until_depletion <= 3 ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
-                              {alert.days_until_depletion <= 0 ? 'EMPTY' : `${alert.days_until_depletion}d`}
-                            </span>
-                          </div>
-                          <a href={`tel:${alert.customer_phone}`} className="w-7 h-7 rounded-full bg-teal-50 text-teal-600 flex items-center justify-center hover:bg-teal-100 flex-shrink-0"><Phone size={12} /></a>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </Section>
-            </div>
-          )}
-
-          {/* ═══════════ INTELLIGENCE TAB ═══════════ */}
-          {activeTab === 'intelligence' && (
-            <div className="space-y-4 animate-fade-in-up">
-              {/* Status + RAG Row */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-                <div className="bg-white/80 backdrop-blur-xl border border-white/60 shadow-[0_4px_10px_-2px_rgba(0,0,0,0.02),0_15px_25px_-5px_rgba(0,0,0,0.02)] rounded-[1.5rem] p-6 transition-all duration-400 hover:shadow-[0_10px_20px_-3px_rgba(0,0,0,0.04)] hover:-translate-y-1">
-                  <div className="flex justify-between items-center mb-5">
-                    <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Observability</span>
-                    <div className="w-8 h-8 rounded-full bg-blue-50/50 flex items-center justify-center"><Activity size={14} className="text-blue-500" /></div>
-                  </div>
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-3 p-3 bg-white/50 rounded-xl border border-gray-100/50">
-                      <div className={`w-2.5 h-2.5 rounded-full ${observabilityStatus?.langfuse_enabled ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.4)]' : 'bg-gray-300'}`} />
-                      <span className="text-sm font-bold text-[#2C2C2C]">{observabilityStatus?.langfuse_enabled ? 'Langfuse Active' : 'Local Only'}</span>
-                    </div>
-                    <div className="px-1 text-[11px] font-medium text-gray-500 flex flex-col gap-2">
-                      <span className="flex justify-between"><span>Traces</span> <span className="font-bold text-gray-700">{traces.length}</span></span>
-                      <span className="flex justify-between"><span>Events</span> <span className="font-bold text-gray-700">{executionLogs.length}</span></span>
-                      <span className="flex justify-between"><span>Safety Logs</span> <span className="font-bold text-gray-700">{safetyDecisions.length}</span></span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* RAG Quality */}
-                <div className="bg-white/80 backdrop-blur-xl border border-white/60 shadow-[0_4px_10px_-2px_rgba(0,0,0,0.02),0_15px_25px_-5px_rgba(0,0,0,0.02)] rounded-[1.5rem] p-6 lg:col-span-2 transition-all duration-400 hover:shadow-[0_10px_20px_-3px_rgba(0,0,0,0.04)] hover:-translate-y-1">
-                  <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-6">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center shadow-inner"><Brain size={18} className="text-purple-600" /></div>
-                      <div>
-                        <span className="text-sm font-bold text-[#2C2C2C]">RAG Quality</span>
-                        <div className="text-[10px] text-gray-400 font-medium">Auto-evaluations powered by React Framework</div>
-                      </div>
-                    </div>
-                    <button onClick={handleRunEval} disabled={loading || isEvaluating} className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl text-xs font-bold shadow-[0_4px_15px_-3px_rgba(79,70,229,0.3)] hover:shadow-[0_8px_20px_-5px_rgba(79,70,229,0.4)] transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 group min-w-[120px]">
-                      {isEvaluating ? <Loader2 className="animate-spin" size={14} /> : <Zap size={14} className="fill-white/20 group-hover:fill-white/40 transition-colors" />}
-                      {isEvaluating ? 'Evaluating...' : 'Run Evaluation'}
-                    </button>
-                  </div>
-                  {isEvaluating ? (
-                    <div className="text-center py-8 space-y-3">
-                      <Loader2 className="animate-spin mx-auto text-indigo-600" size={40} />
-                      <div className="space-y-1">
-                        <div className="text-sm font-semibold text-gray-700">Evaluating RAG Quality...</div>
-                        <div className="text-xs text-gray-500">Running 3 metrics on samples (~15-30 seconds)</div>
-                        <div className="text-xs text-gray-400">Check backend terminal for progress</div>
-                      </div>
-                      <div className="flex justify-center gap-2 pt-2">
-                        <div className="px-2 py-1 bg-purple-50 text-purple-700 rounded text-[10px] font-medium">Faithfulness</div>
-                        <div className="px-2 py-1 bg-blue-50 text-blue-700 rounded text-[10px] font-medium">Precision</div>
-                        <div className="px-2 py-1 bg-green-50 text-green-700 rounded text-[10px] font-medium">Relevancy</div>
-                      </div>
-                    </div>
-                  ) : ragMetrics?.latest ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                      {[{ name: 'Faithfulness', score: ragMetrics.latest.faithfulness_score, ring: '#22C55E' }, { name: 'Precision', score: ragMetrics.latest.context_precision_score, ring: '#3B82F6' }, { name: 'Relevancy', score: ragMetrics.latest.answer_relevancy_score, ring: '#8B5CF6' }].map(m => (
-                        <div key={m.name} className="flex flex-col items-center justify-center p-4 bg-white/50 rounded-2xl border border-gray-100/50 hover:bg-white transition-colors">
-                          <AdminRing pct={m.score * 100} size={70} strokeWidth={5.5} color={m.ring}>
-                            <span className="text-lg font-bold" style={{ color: m.ring }}>{(m.score * 100).toFixed(0)}%</span>
-                          </AdminRing>
-                          <span className="text-[11px] font-bold text-[#6B6B6B] uppercase tracking-wider mt-4 text-center">{m.name}</span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : <div className="text-center py-10 bg-white/50 rounded-2xl border border-transparent border-dashed hover:border-gray-200 transition-colors flex flex-col items-center"><Brain size={32} className="text-gray-300 mb-3" /><p className="text-sm font-semibold text-[#6B6B6B]">No metrics yet</p><p className="text-xs font-medium text-gray-400 mt-1 max-w-xs">Chat with the assistant first to generate samples. Current trace count: {ragMetrics?.history?.length || 0}</p></div>}
-                </div>
-              </div>
-
-              {/* Chain of Thought (CoT) */}
-              <Section id="logs" title="Chain of Thought (CoT)" icon={<Activity size={16} />} badge={traces.length || executionLogs.length} isExpanded={expandedSections.logs} onToggle={toggleSection}>
-                <div className="max-h-[500px] overflow-y-auto divide-y divide-gray-100/50">
-                  {traces.map((trace, i) => (
-                    <div key={`trace-${i}`} className="px-6 py-4 hover:bg-teal-50/30 transition-colors group">
-                      <div className="flex justify-between items-start mb-2">
-                        <div className="flex items-center gap-3">
-                          <span className="text-[10px] font-mono text-gray-400">{new Date(trace.created_at || trace.timestamp || Date.now()).toLocaleTimeString()}</span>
-                          <span className="px-2 py-0.5 bg-purple-50 text-purple-700 font-bold text-[9px] tracking-wider uppercase rounded-md border border-purple-100/50">TRACE</span>
-                          {trace.latency_ms != null && <span className="text-[10px] text-gray-400 font-medium">{trace.latency_ms} ms</span>}
-                        </div>
-                        {trace.public_url && <a href={trace.public_url} target="_blank" rel="noreferrer" className="text-[10px] font-bold text-indigo-500 hover:text-indigo-700 hover:underline px-2 py-1 bg-indigo-50 rounded-md transition-colors">Open Trace</a>}
-                      </div>
-                      <p className="text-sm text-[#2C2C2C] font-bold truncate mb-1">{trace.name || 'Agent Turn'}</p>
-                      <p className="text-xs text-[#6B6B6B] font-medium truncate">{trace.input_text || trace.metadata_json || ''}</p>
-                    </div>
-                  ))}
-                  {executionLogs.map((log, i) => (
-                    <div key={i} className="px-6 py-4 hover:bg-teal-50/30 transition-colors group">
-                      <div className="flex justify-between items-center mb-2">
-                        <div className="flex items-center gap-3">
-                          <span className="text-[10px] font-mono text-gray-400">{new Date(log.created_at).toLocaleTimeString()}</span>
-                          <span className="px-2 py-0.5 bg-blue-50 text-blue-700 font-bold text-[9px] tracking-wider uppercase rounded-md border border-blue-100/50">{log.agent}</span>
-                        </div>
-                        <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button onClick={() => submitFeedback(log.trace_id || log.id, 'positive')} className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-gray-100 text-gray-400 hover:text-green-600 hover:bg-green-50 hover:border-green-200 transition-colors shadow-sm"><ThumbsUp size={12} /></button>
-                          <button onClick={() => submitFeedback(log.trace_id || log.id, 'negative')} className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-gray-100 text-gray-400 hover:text-red-600 hover:bg-red-50 hover:border-red-200 transition-colors shadow-sm"><ThumbsDown size={12} /></button>
-                        </div>
-                      </div>
-                      <p className="text-sm text-[#6B6B6B] font-medium leading-relaxed group-hover:text-gray-900 transition-colors">{log.message}</p>
-                      {log.metadata && (
-                        <details className="mt-2 text-[10px] text-gray-500"><summary className="cursor-pointer font-bold hover:text-teal-600 inline-block px-2 py-1 bg-gray-50 rounded-md border border-gray-100 transition-colors">View Metadata</summary><pre className="mt-2 bg-gray-900/95 backdrop-blur-xl border border-white/10 text-gray-300 p-4 rounded-xl overflow-x-auto text-[10px] custom-scrollbar shadow-inner">{JSON.stringify(log.metadata, null, 2)}</pre></details>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </Section>
-            </div>
-          )}
+            )}
           </div>
         </div>
       </main>
