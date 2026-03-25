@@ -397,6 +397,36 @@ def _prefer_llm_tts(
     return fallback_tts
 
 
+def _looks_like_search_progress_tts(text: str | None) -> bool:
+    """Detect interim/progress TTS (e.g., 'searching for ...') that should not be reused as final response."""
+    if not text:
+        return False
+    t = (text or "").strip().lower()
+    if not t:
+        return False
+    cues = [
+        "searching", "looking for", "let me search", "i'm searching",
+        "suche", "ich suche",
+        "ढूंढ", "खोज", "मैं खोज",
+        "أبحث", "جاري البحث",
+    ]
+    return any(c in t for c in cues)
+
+
+def _prefer_non_progress_tts(
+    llm_tts: str | None,
+    llm_message: str | None,
+    fallback_tts: str,
+    lang: str,
+    force_localized: bool,
+) -> str:
+    """Prefer LLM TTS unless it's an interim progress phrase like 'searching...'"""
+    candidate = (llm_tts or llm_message or "").strip()
+    if _looks_like_search_progress_tts(candidate):
+        return fallback_tts
+    return _prefer_llm_tts(llm_tts, llm_message, fallback_tts, lang, force_localized)
+
+
 def _is_affirmative_response(text: str | None) -> bool:
     """Heuristic yes/confirm detector for checkout/RX confirmation turns."""
     if not text:
@@ -1192,7 +1222,7 @@ async def process_message(
 
     # ── Step 3.5: Inject personalized greeting on first turn ───────
     customer_name = state.get("customer_name")
-    if customer_name and state["turn_count"] == 1:
+    if customer_name and state["turn_count"] == 1 and not _looks_like_order_intent(user_input):
         lang = _detect_user_lang(user_input, state)
         msg = result.get("message", "")
         tts = result.get("tts_message", "")
@@ -1786,7 +1816,7 @@ async def execute_tool_call(
         msg = f"{lead}\n{med_list}\n\n{select_prompt}"
         # TTS includes the indication name so user hears what was found
         tts_default = _localize("indication_search_tts", lang, indication=indication)
-        tts = _prefer_llm_tts(plan.get("tts_message"), None, tts_default, lang, force_localized)
+        tts = _prefer_non_progress_tts(plan.get("tts_message"), None, tts_default, lang, force_localized)
         return {
             "message": msg,
             "tts_message": tts,
@@ -1872,7 +1902,7 @@ async def execute_tool_call(
                         question_default = _localize("alternatives_question", lang)
                         msg = f"{oos_msg}\n\n{lead_default}\n{alt_list}\n\n{question_default}"
                         tts_fallback = f"{oos_msg} {question_default}"
-                        tts = _prefer_llm_tts(plan.get("tts_message"), plan.get("message"), tts_fallback, lang, force_localized)
+                        tts = _prefer_non_progress_tts(plan.get("tts_message"), plan.get("message"), tts_fallback, lang, force_localized)
                         return {
                             "message": msg,
                             "tts_message": tts,
@@ -1884,7 +1914,7 @@ async def execute_tool_call(
                 full_msg = f"{oos_msg} {no_alt_msg}"
                 return {
                     "message": full_msg,
-                    "tts_message": _prefer_llm_tts(plan.get("tts_message"), plan.get("message"), full_msg, lang, force_localized),
+                    "tts_message": _prefer_non_progress_tts(plan.get("tts_message"), plan.get("message"), full_msg, lang, force_localized),
                     "action_taken": "out_of_stock_no_alternatives",
                 }
 
@@ -1904,7 +1934,7 @@ async def execute_tool_call(
                 msg = default_msg if _is_not_found_style_message(llm_msg) else _prefer_llm_text(llm_msg, default_msg, lang, force_localized)
                 return {
                     "message": msg,
-                    "tts_message": _prefer_llm_tts(plan.get("tts_message"), plan.get("message"), msg, lang, force_localized),
+                    "tts_message": _prefer_non_progress_tts(plan.get("tts_message"), plan.get("message"), msg, lang, force_localized),
                     "candidates": results,
                     "action_taken": "ask_rx",
                 }
@@ -1924,7 +1954,7 @@ async def execute_tool_call(
                 msg = default_msg if _is_not_found_style_message(llm_msg) else _prefer_llm_text(llm_msg, default_msg, lang, force_localized)
                 return {
                     "message": msg,
-                    "tts_message": _prefer_llm_tts(plan.get("tts_message"), plan.get("message"), msg, lang, force_localized),
+                    "tts_message": _prefer_non_progress_tts(plan.get("tts_message"), plan.get("message"), msg, lang, force_localized),
                     "candidates": results,
                     "action_taken": "search_single",
                 }
@@ -1943,7 +1973,7 @@ async def execute_tool_call(
         msg = f"{lead}\n{med_list}\n\n{select_prompt}"
         # TTS includes the searched medicine name so user knows what was found
         tts_default = _localize("search_tts", lang, name=name)
-        tts = _prefer_llm_tts(plan.get("tts_message"), None, tts_default, lang, force_localized)
+        tts = _prefer_non_progress_tts(plan.get("tts_message"), None, tts_default, lang, force_localized)
         return {
             "message": msg,
             "tts_message": tts,
