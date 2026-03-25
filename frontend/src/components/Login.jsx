@@ -220,7 +220,7 @@ export default function Login({ onLogin, onCancel }) {
         }
     };
 
-    const inputClasses = "w-full pl-4 pr-4 py-3.5 bg-white border border-black/[0.06] rounded-[1rem] text-[15px] font-brand text-ink-primary placeholder:text-ink-ghost transition-all focus:outline-none focus:border-mediloon-400 focus:ring-4 focus:ring-mediloon-500/20 shadow-sm";
+    const inputClasses = "w-full pl-4 pr-4 py-3.5 bg-white rounded-[1rem] text-[15px] font-brand text-ink-primary placeholder:text-ink-ghost transition-all duration-300 focus:outline-none focus:ring-4 focus:ring-mediloon-500/20 shadow-soft-sm focus:shadow-soft-sm-hover";
 
     return (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-md z-[100] flex items-center justify-center p-4 animate-fade-in">
@@ -262,7 +262,7 @@ export default function Login({ onLogin, onCancel }) {
                         </div>
                     )}
                     {info && (
-                        <div className="mb-4 bg-green-50 text-green-700 p-3 rounded-xl text-sm font-body border border-green-200 animate-slide-down">
+                        <div className="mb-4 bg-green-50 text-green-700 p-3 rounded-xl text-sm font-body shadow-soft-sm animate-slide-down">
                             {info}
                         </div>
                     )}
@@ -377,10 +377,10 @@ export default function Login({ onLogin, onCancel }) {
                         type="button"
                         onClick={handleGoogleSignIn}
                         disabled={loading}
-                        className={`w-full py-3 rounded-2xl font-brand font-semibold flex items-center justify-center gap-3 border-2 transition-all duration-200 active:scale-[0.97]
+                        className={`w-full py-3 rounded-2xl font-brand font-semibold flex items-center justify-center gap-3 transition-all duration-300 active:scale-[0.97]
                             ${loading
-                                ? 'border-surface-fog text-ink-ghost cursor-not-allowed bg-surface-fog/30'
-                                : 'border-surface-fog text-ink-primary bg-white hover:bg-gray-50 hover:border-mediloon-200 shadow-sm hover:shadow-md'
+                                ? 'text-ink-ghost cursor-not-allowed bg-surface-fog/30 shadow-soft-sm'
+                                : 'text-ink-primary bg-white shadow-soft hover:shadow-soft-hover hover:bg-gray-50'
                             }`}
                     >
                         <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24">

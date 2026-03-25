@@ -81,9 +81,9 @@ export default function AddressModal({ isOpen, onClose, onConfirm, cart, user, i
     };
 
     const inputClasses = (field) =>
-        `w-full px-3 py-2.5 border-2 rounded-xl text-sm text-gray-800 placeholder:text-gray-400 outline-none transition-all ${errors[field]
-            ? 'border-red-400 bg-red-50/30 focus:ring-2 focus:ring-red-100'
-            : 'border-gray-200 focus:border-red-400 focus:ring-2 focus:ring-red-100'
+        `w-full px-3 py-2.5 rounded-xl text-sm text-gray-800 placeholder:text-gray-400 outline-none transition-all duration-300 ${errors[field]
+            ? 'shadow-[0_0_0_2px_rgba(248,113,113,1)] bg-red-50/30 focus:ring-2 focus:ring-red-100'
+            : 'shadow-soft-sm focus:shadow-soft-sm-hover focus:ring-2 focus:ring-red-100'
         }`;
 
     return (
