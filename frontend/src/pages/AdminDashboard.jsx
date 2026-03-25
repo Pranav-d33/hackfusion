@@ -454,7 +454,7 @@ export default function AdminDashboard({ onSwitchToUser, user }) {
                         const daysLeft = item.days_until_stockout ?? 0;
                         const barColor = daysLeft <= 3 ? 'red' : daysLeft <= 7 ? 'amber' : 'blue';
                         return (
-                          <div key={`${item.brand_name}-${idx}`} className="rounded-2xl border border-slate-100 bg-white/70 px-3.5 py-3">
+                          <div key={`${item.brand_name}-${idx}`} className="rounded-2xl shadow-soft-sm bg-white/70 px-3.5 py-3">
                             <div className="flex items-center justify-between mb-2">
                               <span className="text-sm font-semibold text-slate-800 truncate pr-2">{item.brand_name}</span>
                               <span className="text-[11px] font-bold text-slate-500">{daysLeft}d</span>
@@ -643,7 +643,7 @@ export default function AdminDashboard({ onSwitchToUser, user }) {
                           </div>
                           <div className="flex items-start gap-2">
                             {med.rx_required ? <span className="px-2 py-1 bg-[#FEF3C7] text-[#B45309] text-[9px] font-bold uppercase tracking-wider rounded-md border border-[#FDE68A] shadow-[0_2px_4px_-1px_rgba(245,158,11,0.1)] flex-shrink-0">RX</span> : <span className="px-2 py-1 bg-green-50 text-green-700 text-[9px] font-bold uppercase tracking-wider rounded-md border border-green-100 flex-shrink-0">OTC</span>}
-                            <button onClick={() => handleDeleteMedication(med.id)} title="Delete" className="w-8 h-8 rounded-md bg-white/50 hover:bg-red-50 text-red-600 flex items-center justify-center border border-gray-100 ml-1"><Trash2 size={14} /></button>
+                            <button onClick={() => handleDeleteMedication(med.id)} title="Delete" className="w-8 h-8 rounded-md bg-white/50 hover:bg-red-50 text-red-600 flex items-center justify-center shadow-soft-sm ml-1"><Trash2 size={14} /></button>
                           </div>
                         </div>
 
@@ -657,7 +657,7 @@ export default function AdminDashboard({ onSwitchToUser, user }) {
                               <span>Balance</span>
                               <span>Min {threshold}</span>
                             </div>
-                            <div className="flex items-center gap-1 bg-white/50 backdrop-blur-md rounded-xl shadow-[inset_0_2px_4px_0_rgba(0,0,0,0.02)] p-1 border border-gray-100/60 transition-colors group-hover:bg-white">
+                            <div className="flex items-center gap-1 bg-white/50 backdrop-blur-md rounded-xl shadow-[inset_0_2px_4px_0_rgba(0,0,0,0.02)] p-1 transition-colors group-hover:bg-white">
                               <button onClick={() => handleUpdateStock(med.id, Math.max(0, med.stock_quantity - 1))} className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:bg-red-50 hover:text-red-600 transition-colors cursor-pointer active:scale-90">-</button>
                               <input
                                 type="number"
@@ -722,7 +722,7 @@ export default function AdminDashboard({ onSwitchToUser, user }) {
                     {refillAlerts.length === 0 ? <div className="py-8 text-center text-gray-400 text-sm">No refills due</div> : (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                         {refillAlerts.map((alert, i) => (
-                          <div key={i} className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 hover:border-teal-200 transition-all">
+                          <div key={i} className="flex items-center gap-3 p-3 rounded-xl shadow-soft-sm hover:shadow-soft-sm-hover hover:bg-white transition-all duration-300">
                             <div className={`w-1.5 h-10 rounded-full flex-shrink-0 ${alert.days_until_depletion <= 3 ? 'bg-red-500' : 'bg-amber-400'}`} />
                             <div className="flex-1 min-w-0">
                               <div className="text-sm font-semibold text-gray-800 truncate">{alert.customer_name}</div>
@@ -754,7 +754,7 @@ export default function AdminDashboard({ onSwitchToUser, user }) {
                       <div className="w-8 h-8 rounded-full bg-blue-50/50 flex items-center justify-center"><Activity size={14} className="text-blue-500" /></div>
                     </div>
                     <div className="space-y-4">
-                      <div className="flex items-center gap-3 p-3 bg-white/50 rounded-xl border border-gray-100/50">
+                      <div className="flex items-center gap-3 p-3 bg-white/50 rounded-xl shadow-soft-sm">
                         <div className={`w-2.5 h-2.5 rounded-full ${observabilityStatus?.langfuse_enabled ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.4)]' : 'bg-gray-300'}`} />
                         <span className="text-sm font-bold text-[#2C2C2C]">{observabilityStatus?.langfuse_enabled ? 'Langfuse Active' : 'Local Only'}</span>
                       </div>
@@ -767,7 +767,7 @@ export default function AdminDashboard({ onSwitchToUser, user }) {
                   </div>
 
                   {/* RAG Quality */}
-                  <div className="bg-white/80 backdrop-blur-xl border border-white/60 shadow-[0_4px_10px_-2px_rgba(0,0,0,0.02),0_15px_25px_-5px_rgba(0,0,0,0.02)] rounded-[1.5rem] p-6 lg:col-span-2 transition-all duration-400 hover:shadow-[0_10px_20px_-3px_rgba(0,0,0,0.04)] hover:-translate-y-1">
+                  <div className="bg-white/80 backdrop-blur-xl shadow-soft hover:shadow-soft-hover rounded-[1.5rem] p-6 lg:col-span-2 transition-all duration-400 hover:-translate-y-1">
                     <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-6">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center shadow-inner"><Brain size={18} className="text-purple-600" /></div>
@@ -798,7 +798,7 @@ export default function AdminDashboard({ onSwitchToUser, user }) {
                     ) : ragMetrics?.latest ? (
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                         {[{ name: 'Faithfulness', score: ragMetrics.latest.faithfulness_score, ring: '#22C55E' }, { name: 'Precision', score: ragMetrics.latest.context_precision_score, ring: '#3B82F6' }, { name: 'Relevancy', score: ragMetrics.latest.answer_relevancy_score, ring: '#8B5CF6' }].map(m => (
-                          <div key={m.name} className="flex flex-col items-center justify-center p-4 bg-white/50 rounded-2xl border border-gray-100/50 hover:bg-white transition-colors">
+                          <div key={m.name} className="flex flex-col items-center justify-center p-4 bg-white/50 rounded-2xl shadow-soft-sm hover:bg-white transition-colors">
                             <AdminRing pct={m.score * 100} size={70} strokeWidth={5.5} color={m.ring}>
                               <span className="text-lg font-bold" style={{ color: m.ring }}>{(m.score * 100).toFixed(0)}%</span>
                             </AdminRing>
@@ -835,8 +835,8 @@ export default function AdminDashboard({ onSwitchToUser, user }) {
                             <span className="px-2 py-0.5 bg-blue-50 text-blue-700 font-bold text-[9px] tracking-wider uppercase rounded-md border border-blue-100/50">{log.agent}</span>
                           </div>
                           <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button onClick={() => submitFeedback(log.trace_id || log.id, 'positive')} className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-gray-100 text-gray-400 hover:text-green-600 hover:bg-green-50 hover:border-green-200 transition-colors shadow-sm"><ThumbsUp size={12} /></button>
-                            <button onClick={() => submitFeedback(log.trace_id || log.id, 'negative')} className="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-gray-100 text-gray-400 hover:text-red-600 hover:bg-red-50 hover:border-red-200 transition-colors shadow-sm"><ThumbsDown size={12} /></button>
+                            <button onClick={() => submitFeedback(log.trace_id || log.id, 'positive')} className="w-7 h-7 flex items-center justify-center rounded-lg bg-white shadow-soft-sm text-gray-400 hover:text-green-600 hover:bg-green-50 hover:shadow-soft-sm-hover transition-all duration-300"><ThumbsUp size={12} /></button>
+                            <button onClick={() => submitFeedback(log.trace_id || log.id, 'negative')} className="w-7 h-7 flex items-center justify-center rounded-lg bg-white shadow-soft-sm text-gray-400 hover:text-red-600 hover:bg-red-50 hover:shadow-soft-sm-hover transition-all duration-300"><ThumbsDown size={12} /></button>
                           </div>
                         </div>
                         <p className="text-sm text-[#6B6B6B] font-medium leading-relaxed group-hover:text-gray-900 transition-colors">{log.message}</p>
@@ -856,23 +856,23 @@ export default function AdminDashboard({ onSwitchToUser, user }) {
       {/* ═══ Add Medication Modal ═══ */}
       {showAddMedModal && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md border border-gray-100 animate-zoom-in">
+          <div className="bg-white rounded-2xl shadow-soft-lg p-6 w-full max-w-md animate-zoom-in">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-bold text-gray-800">Add Medication</h3>
               <button onClick={() => setShowAddMedModal(false)} className="w-7 h-7 rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 flex items-center justify-center"><X size={16} /></button>
             </div>
             <form onSubmit={handleCreateMedication} className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
-                <div><label className="text-[10px] font-bold text-gray-500 uppercase">Brand</label><input type="text" required className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" value={newMed.brand_name} onChange={e => setNewMed({ ...newMed, brand_name: e.target.value })} /></div>
-                <div><label className="text-[10px] font-bold text-gray-500 uppercase">Generic</label><input type="text" required className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" value={newMed.generic_name} onChange={e => setNewMed({ ...newMed, generic_name: e.target.value })} /></div>
+                <div><label className="text-[10px] font-bold text-gray-500 uppercase">Brand</label><input type="text" required className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none shadow-soft-sm focus:shadow-soft-sm-hover" value={newMed.brand_name} onChange={e => setNewMed({ ...newMed, brand_name: e.target.value })} /></div>
+                <div><label className="text-[10px] font-bold text-gray-500 uppercase">Generic</label><input type="text" required className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none shadow-soft-sm focus:shadow-soft-sm-hover" value={newMed.generic_name} onChange={e => setNewMed({ ...newMed, generic_name: e.target.value })} /></div>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div><label className="text-[10px] font-bold text-gray-500 uppercase">Dosage</label><input type="text" required className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" value={newMed.dosage} onChange={e => setNewMed({ ...newMed, dosage: e.target.value })} /></div>
-                <div><label className="text-[10px] font-bold text-gray-500 uppercase">Stock</label><input type="number" required className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" value={newMed.stock_quantity} onChange={e => setNewMed({ ...newMed, stock_quantity: e.target.value })} /></div>
+                <div><label className="text-[10px] font-bold text-gray-500 uppercase">Dosage</label><input type="text" required className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none shadow-soft-sm focus:shadow-soft-sm-hover" value={newMed.dosage} onChange={e => setNewMed({ ...newMed, dosage: e.target.value })} /></div>
+                <div><label className="text-[10px] font-bold text-gray-500 uppercase">Stock</label><input type="number" required className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none shadow-soft-sm focus:shadow-soft-sm-hover" value={newMed.stock_quantity} onChange={e => setNewMed({ ...newMed, stock_quantity: e.target.value })} /></div>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div><label className="text-[10px] font-bold text-gray-500 uppercase">Active Ingredient</label><input type="text" className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" value={newMed.active_ingredient} onChange={e => setNewMed({ ...newMed, active_ingredient: e.target.value })} /></div>
-                <div><label className="text-[10px] font-bold text-gray-500 uppercase">Price (EUR)</label><input type="number" step="0.01" className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none" value={newMed.base_price_eur} onChange={e => setNewMed({ ...newMed, base_price_eur: e.target.value })} /></div>
+                <div><label className="text-[10px] font-bold text-gray-500 uppercase">Active Ingredient</label><input type="text" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none shadow-soft-sm focus:shadow-soft-sm-hover" value={newMed.active_ingredient} onChange={e => setNewMed({ ...newMed, active_ingredient: e.target.value })} /></div>
+                <div><label className="text-[10px] font-bold text-gray-500 uppercase">Price (EUR)</label><input type="number" step="0.01" className="w-full bg-gray-50 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 outline-none shadow-soft-sm focus:shadow-soft-sm-hover" value={newMed.base_price_eur} onChange={e => setNewMed({ ...newMed, base_price_eur: e.target.value })} /></div>
               </div>
               <div className="flex items-center gap-2 p-2.5 bg-gray-50 rounded-xl">
                 <input type="checkbox" id="rx" className="w-4 h-4 rounded text-teal-600" checked={newMed.rx_required} onChange={e => setNewMed({ ...newMed, rx_required: e.target.checked })} />
@@ -890,7 +890,7 @@ export default function AdminDashboard({ onSwitchToUser, user }) {
       {/* ═══ Patient Data Modal ═══ */}
       {showPatientDataModal && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl border border-gray-100 animate-zoom-in" style={{ maxHeight: '85vh' }}>
+          <div className="bg-white rounded-2xl shadow-soft-lg w-full max-w-5xl animate-zoom-in" style={{ maxHeight: '85vh' }}>
             <div className="flex justify-between items-center p-5 border-b border-gray-100">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-xl bg-teal-100 text-teal-700 flex items-center justify-center"><Users size={16} /></div>

@@ -347,7 +347,7 @@ export default function PastOrdersModal({ orders, activeOrders, timeline, stats,
                   groupedEntries.map(([date, items]) => {
                     const isExp = expandedDate === date;
                     return (
-                      <div key={date} className="bg-white rounded-xl border border-black/[0.04] shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+                      <div key={date} className="bg-white rounded-xl shadow-soft hover:shadow-soft-hover overflow-hidden transition-all duration-300">
                         <button
                           onClick={() => setExpandedDate(isExp ? null : date)}
                           className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-surface-snow/50 transition-colors"

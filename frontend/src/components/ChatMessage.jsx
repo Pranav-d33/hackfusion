@@ -95,7 +95,7 @@ function MedicationListMessage({ pre, items, post, latency }) {
                         className={`flex items-center gap-2.5 px-3.5 py-2.5 bg-white transition-colors ${!item.inStock ? 'opacity-55' : ''}`}
                     >
                         {/* Index badge */}
-                        <span className="w-[22px] h-[22px] flex-shrink-0 rounded-md bg-mediloon-50 border border-mediloon-100 flex items-center justify-center text-[10px] font-bold text-mediloon-600 leading-none">
+                        <span className="w-[22px] h-[22px] flex-shrink-0 rounded-md bg-mediloon-50 shadow-soft-sm flex items-center justify-center text-[10px] font-bold text-mediloon-600 leading-none">
                             {item.num}
                         </span>
 

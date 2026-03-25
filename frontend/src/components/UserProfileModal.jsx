@@ -97,7 +97,7 @@ export default function UserProfileModal({ user, sessionToken, onUpdate, onSkip,
 
                     <form onSubmit={handleSubmit} className="space-y-4">
                         {/* Personal Information */}
-                        <div className="bg-white border border-black/[0.06] rounded-[1.25rem] p-5 shadow-sm">
+                        <div className="bg-white rounded-[1.25rem] p-5 shadow-soft">
                             <h3 className="font-brand font-semibold text-ink-primary mb-4 flex items-center gap-2">
                                 <div className="p-1.5 bg-mediloon-50 text-mediloon-600 rounded-lg">
                                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -115,7 +115,7 @@ export default function UserProfileModal({ user, sessionToken, onUpdate, onSkip,
                                         name="name"
                                         value={formData.name}
                                         onChange={handleChange}
-                                        className="w-full px-4 py-3 bg-white border border-black/[0.06] rounded-[1rem] text-[15px] font-brand text-ink-primary placeholder:text-ink-ghost transition-all focus:outline-none focus:border-mediloon-400 focus:ring-4 focus:ring-mediloon-500/20 shadow-sm"
+                                        className="w-full px-4 py-3 bg-white rounded-[1rem] text-[15px] font-brand text-ink-primary placeholder:text-ink-ghost transition-all focus:outline-none focus:ring-4 focus:ring-mediloon-500/20 shadow-soft-sm focus:shadow-soft-sm-hover"
                                         placeholder={t('fullNamePlaceholder')}
                                     />
                                 </div>
@@ -127,7 +127,7 @@ export default function UserProfileModal({ user, sessionToken, onUpdate, onSkip,
                                         name="phone"
                                         value={formData.phone}
                                         onChange={handleChange}
-                                        className="w-full px-4 py-3 bg-white border border-black/[0.06] rounded-[1rem] text-[15px] font-brand text-ink-primary placeholder:text-ink-ghost transition-all focus:outline-none focus:border-mediloon-400 focus:ring-4 focus:ring-mediloon-500/20 shadow-sm"
+                                        className="w-full px-4 py-3 bg-white rounded-[1rem] text-[15px] font-brand text-ink-primary placeholder:text-ink-ghost transition-all focus:outline-none focus:ring-4 focus:ring-mediloon-500/20 shadow-soft-sm focus:shadow-soft-sm-hover"
                                         placeholder={t('phonePlaceholder')}
                                     />
                                 </div>
@@ -141,7 +141,7 @@ export default function UserProfileModal({ user, sessionToken, onUpdate, onSkip,
                                         max="150"
                                         value={formData.age}
                                         onChange={handleChange}
-                                        className="w-full px-4 py-3 bg-white border border-black/[0.06] rounded-[1rem] text-[15px] font-brand text-ink-primary placeholder:text-ink-ghost transition-all focus:outline-none focus:border-mediloon-400 focus:ring-4 focus:ring-mediloon-500/20 shadow-sm"
+                                        className="w-full px-4 py-3 bg-white rounded-[1rem] text-[15px] font-brand text-ink-primary placeholder:text-ink-ghost transition-all focus:outline-none focus:ring-4 focus:ring-mediloon-500/20 shadow-soft-sm focus:shadow-soft-sm-hover"
                                         placeholder="25"
                                     />
                                 </div>
@@ -152,7 +152,7 @@ export default function UserProfileModal({ user, sessionToken, onUpdate, onSkip,
                                         name="gender"
                                         value={formData.gender}
                                         onChange={handleChange}
-                                        className="w-full px-4 py-3 bg-white border border-black/[0.06] rounded-[1rem] text-[15px] font-brand text-ink-primary placeholder:text-ink-ghost transition-all focus:outline-none focus:border-mediloon-400 focus:ring-4 focus:ring-mediloon-500/20 shadow-sm"
+                                        className="w-full px-4 py-3 bg-white rounded-[1rem] text-[15px] font-brand text-ink-primary placeholder:text-ink-ghost transition-all focus:outline-none focus:ring-4 focus:ring-mediloon-500/20 shadow-soft-sm focus:shadow-soft-sm-hover"
                                     >
                                         <option value="">{t('selectGender')}</option>
                                         <option value="male">{t('male')}</option>
@@ -165,7 +165,7 @@ export default function UserProfileModal({ user, sessionToken, onUpdate, onSkip,
                         </div>
 
                         {/* Address Information */}
-                        <div className="bg-white border border-black/[0.06] rounded-[1.25rem] p-5 shadow-sm mt-5">
+                        <div className="bg-white rounded-[1.25rem] p-5 shadow-soft mt-5">
                             <h3 className="font-brand font-semibold text-ink-primary mb-4 flex items-center gap-2">
                                 <div className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg">
                                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -184,7 +184,7 @@ export default function UserProfileModal({ user, sessionToken, onUpdate, onSkip,
                                         name="address"
                                         value={formData.address}
                                         onChange={handleChange}
-                                        className="w-full px-4 py-3 bg-white border border-black/[0.06] rounded-[1rem] text-[15px] font-brand text-ink-primary placeholder:text-ink-ghost transition-all focus:outline-none focus:border-mediloon-400 focus:ring-4 focus:ring-mediloon-500/20 shadow-sm"
+                                        className="w-full px-4 py-3 bg-white rounded-[1rem] text-[15px] font-brand text-ink-primary placeholder:text-ink-ghost transition-all focus:outline-none focus:ring-4 focus:ring-mediloon-500/20 shadow-soft-sm focus:shadow-soft-sm-hover"
                                         placeholder={t('addressLine1Placeholder')}
                                     />
                                 </div>
@@ -197,7 +197,7 @@ export default function UserProfileModal({ user, sessionToken, onUpdate, onSkip,
                                             name="city"
                                             value={formData.city}
                                             onChange={handleChange}
-                                            className="w-full px-4 py-3 bg-white border border-black/[0.06] rounded-[1rem] text-[15px] font-brand text-ink-primary placeholder:text-ink-ghost transition-all focus:outline-none focus:border-mediloon-400 focus:ring-4 focus:ring-mediloon-500/20 shadow-sm"
+                                            className="w-full px-4 py-3 bg-white rounded-[1rem] text-[15px] font-brand text-ink-primary placeholder:text-ink-ghost transition-all focus:outline-none focus:ring-4 focus:ring-mediloon-500/20 shadow-soft-sm focus:shadow-soft-sm-hover"
                                             placeholder={t('cityPlaceholder')}
                                         />
                                     </div>
@@ -209,7 +209,7 @@ export default function UserProfileModal({ user, sessionToken, onUpdate, onSkip,
                                             name="state"
                                             value={formData.state}
                                             onChange={handleChange}
-                                            className="w-full px-4 py-3 bg-white border border-black/[0.06] rounded-[1rem] text-[15px] font-brand text-ink-primary placeholder:text-ink-ghost transition-all focus:outline-none focus:border-mediloon-400 focus:ring-4 focus:ring-mediloon-500/20 shadow-sm"
+                                            className="w-full px-4 py-3 bg-white rounded-[1rem] text-[15px] font-brand text-ink-primary placeholder:text-ink-ghost transition-all focus:outline-none focus:ring-4 focus:ring-mediloon-500/20 shadow-soft-sm focus:shadow-soft-sm-hover"
                                             placeholder={t('statePlaceholder')}
                                         />
                                     </div>
@@ -223,7 +223,7 @@ export default function UserProfileModal({ user, sessionToken, onUpdate, onSkip,
                                             name="postal_code"
                                             value={formData.postal_code}
                                             onChange={handleChange}
-                                            className="w-full px-4 py-3 bg-white border border-black/[0.06] rounded-[1rem] text-[15px] font-brand text-ink-primary placeholder:text-ink-ghost transition-all focus:outline-none focus:border-mediloon-400 focus:ring-4 focus:ring-mediloon-500/20 shadow-sm"
+                                            className="w-full px-4 py-3 bg-white rounded-[1rem] text-[15px] font-brand text-ink-primary placeholder:text-ink-ghost transition-all focus:outline-none focus:ring-4 focus:ring-mediloon-500/20 shadow-soft-sm focus:shadow-soft-sm-hover"
                                             placeholder={t('pincodePlaceholder')}
                                         />
                                     </div>
@@ -235,7 +235,7 @@ export default function UserProfileModal({ user, sessionToken, onUpdate, onSkip,
                                             name="country"
                                             value={formData.country}
                                             onChange={handleChange}
-                                            className="w-full px-4 py-3 bg-white border border-black/[0.06] rounded-[1rem] text-[15px] font-brand text-ink-primary placeholder:text-ink-ghost transition-all focus:outline-none focus:border-mediloon-400 focus:ring-4 focus:ring-mediloon-500/20 shadow-sm"
+                                            className="w-full px-4 py-3 bg-white rounded-[1rem] text-[15px] font-brand text-ink-primary placeholder:text-ink-ghost transition-all focus:outline-none focus:ring-4 focus:ring-mediloon-500/20 shadow-soft-sm focus:shadow-soft-sm-hover"
                                             placeholder={t('country')}
                                         />
                                     </div>

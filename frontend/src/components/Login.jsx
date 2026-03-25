@@ -254,7 +254,7 @@ export default function Login({ onLogin, onCancel }) {
 
                 <div className="p-8 pt-4">
                     {error && (
-                        <div className="mb-4 bg-mediloon-50 text-mediloon-600 p-3 rounded-xl text-sm font-body flex items-center gap-2 border border-mediloon-200 animate-slide-down">
+                        <div className="mb-4 bg-mediloon-50 text-mediloon-600 p-3 rounded-xl text-sm font-body flex items-center gap-2 shadow-soft-sm animate-slide-down">
                             <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>

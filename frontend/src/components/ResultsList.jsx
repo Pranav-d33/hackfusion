@@ -68,7 +68,7 @@ export default function ResultsList({ candidates, onSelect, selectedId, onFlyToC
                                         {t('inStock')}
                                     </span>
                                 ) : (
-                                    <span className="feature-badge bg-red-50 text-mediloon-600 border border-mediloon-200 text-[11px] sm:text-xs px-2.5 sm:px-3">
+                                    <span className="feature-badge bg-red-50 text-mediloon-600 shadow-soft-sm text-[11px] sm:text-xs px-2.5 sm:px-3">
                                         <span className="w-1.5 h-1.5 bg-mediloon-500 rounded-full" />
                                         {t('outOfStock')}
                                     </span>

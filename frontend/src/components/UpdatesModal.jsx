@@ -182,21 +182,21 @@ export default function UpdatesModal({ alerts, timeline, orders = [], loading, o
                     <div className={`mt-2 ${isZoomedView ? 'space-y-2' : 'space-y-1.5'}`}>
                       <div className="flex items-center flex-wrap gap-2 text-[12px] font-body text-ink-secondary">
                         {orderData.estimated_delivery && (
-                          <span className="px-2 py-1 rounded-lg bg-surface-snow border border-black/[0.04] font-semibold text-ink-primary">ETA {orderData.estimated_delivery}</span>
+                          <span className="px-2 py-1 rounded-lg bg-surface-snow shadow-soft-sm font-semibold text-ink-primary">ETA {orderData.estimated_delivery}</span>
                         )}
                         {orderData.total != null && (
-                          <span className="px-2 py-1 rounded-lg bg-surface-snow border border-black/[0.04] font-semibold text-ink-primary">€{Number(orderData.total).toFixed(2)}</span>
+                          <span className="px-2 py-1 rounded-lg bg-surface-snow shadow-soft-sm font-semibold text-ink-primary">€{Number(orderData.total).toFixed(2)}</span>
                         )}
                         {orderData.address && (
-                          <span className="px-2 py-1 rounded-lg bg-surface-snow border border-black/[0.04] text-ink-secondary truncate max-w-full">Deliver to: {orderData.address}</span>
+                          <span className="px-2 py-1 rounded-lg bg-surface-snow shadow-soft-sm text-ink-secondary truncate max-w-full">Deliver to: {orderData.address}</span>
                         )}
                       </div>
                       {isExpanded && orderData.items && orderData.items.length > 0 && (
-                        <div className="text-[12px] font-body text-ink-secondary space-y-1 bg-surface-snow/70 border border-black/[0.04] rounded-lg p-2">
+                        <div className="text-[12px] font-body text-ink-secondary space-y-1 bg-surface-snow/70 shadow-soft-sm rounded-lg p-2">
                           <p className="font-semibold text-ink-primary">Items</p>
                           <div className="flex flex-wrap gap-1.5">
                             {orderData.items.map((it, idx) => (
-                              <span key={idx} className="px-2 py-1 bg-white rounded-full text-[11px] text-ink-secondary border border-black/[0.04]">
+                              <span key={idx} className="px-2 py-1 bg-white rounded-full text-[11px] text-ink-secondary shadow-soft-sm">
                                 {(it.brand_name || 'Item')} x{it.quantity}
                               </span>
                             ))}

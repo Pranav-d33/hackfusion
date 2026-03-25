@@ -128,142 +128,139 @@ export default function DepletionCalendar({ timeline, loading, onReorder }) {
 
         {/* Scrollable calendar body */}
         <div className={`${!isModal ? 'flex-1 overflow-y-auto' : ''}`}>
-        {/* Days grid */}
-        <div className="grid grid-cols-7 gap-px bg-gray-100/50 rounded-xl overflow-hidden border border-gray-100">
-          {/* Empty cells for alignment */}
-          {Array.from({ length: firstDay }).map((_, i) => (
-            <div key={`e-${i}`} className={`${cellSize} bg-white`} />
-          ))}
+          {/* Days grid */}
+          <div className="grid grid-cols-7 gap-px bg-gray-100/50 rounded-xl overflow-hidden shadow-soft-sm">
+            {/* Empty cells for alignment */}
+            {Array.from({ length: firstDay }).map((_, i) => (
+              <div key={`e-${i}`} className={`${cellSize} bg-white`} />
+            ))}
 
-          {/* Day cells */}
-          {Array.from({ length: daysInMonth }).map((_, idx) => {
-            const day = idx + 1;
-            const deps = getDayDepletions(day);
-            const hasDep = deps.length > 0;
-            const todayFlag = isToday(day);
-            const isPast = new Date(year, month, day) < new Date(today.getFullYear(), today.getMonth(), today.getDate());
-            const isSelected = selectedDay === day && isModal;
+            {/* Day cells */}
+            {Array.from({ length: daysInMonth }).map((_, idx) => {
+              const day = idx + 1;
+              const deps = getDayDepletions(day);
+              const hasDep = deps.length > 0;
+              const todayFlag = isToday(day);
+              const isPast = new Date(year, month, day) < new Date(today.getFullYear(), today.getMonth(), today.getDate());
+              const isSelected = selectedDay === day && isModal;
 
-            return (
-              <div
-                key={day}
-                onClick={() => isModal && hasDep && setSelectedDay(selectedDay === day ? null : day)}
-                className={`
+              return (
+                <div
+                  key={day}
+                  onClick={() => isModal && hasDep && setSelectedDay(selectedDay === day ? null : day)}
+                  className={`
                   ${cellSize} bg-white flex flex-col items-center justify-start pt-1 relative transition-all duration-200
                   ${hasDep ? 'cursor-pointer hover:bg-red-50/50 hover:scale-105 hover:shadow-sm' : ''}
                   ${isSelected ? 'bg-red-50 ring-1 ring-red-200 scale-105' : ''}
                   ${isPast && !todayFlag ? 'opacity-40' : ''}
                 `}
-              >
-                {/* Day number */}
-                <span className={`
+                >
+                  {/* Day number */}
+                  <span className={`
                   ${textSize} font-medium leading-none z-10 relative
                   ${todayFlag ? 'text-red-600 font-bold' : hasDep ? 'text-red-500 font-semibold' : 'text-gray-600'}
                 `}>
-                  {day}
-                  {/* Underline for today */}
-                  {todayFlag && (
-                    <span className="absolute -bottom-0.5 left-0 right-0 h-[2px] bg-red-500 rounded-full" />
-                  )}
-                </span>
-
-                {/* Depletion dot(s) */}
-                {hasDep && !isModal && (
-                  <div className="flex gap-0.5 mt-0.5">
-                    {deps.slice(0, 3).map((dep, di) => (
-                      <span
-                        key={di}
-                        className={`w-1.5 h-1.5 rounded-full ${
-                          dep.urgency === 'critical' ? 'bg-red-500' :
-                          dep.urgency === 'soon' ? 'bg-amber-500' : 'bg-rose-400'
-                        }`}
-                      />
-                    ))}
-                  </div>
-                )}
-
-                {/* Medicine names in modal view */}
-                {hasDep && isModal && (
-                  <div className="w-full px-0.5 mt-1 space-y-0.5 overflow-hidden flex-1">
-                    {deps.slice(0, 2).map((dep, di) => (
-                      <div
-                        key={di}
-                        className={`${medTextSize} leading-tight truncate px-1 py-0.5 rounded text-center font-medium ${
-                          dep.urgency === 'critical' ? 'bg-red-100 text-red-700' :
-                          dep.urgency === 'soon' ? 'bg-amber-100 text-amber-700' : 'bg-rose-50 text-rose-600'
-                        }`}
-                      >
-                        {dep.brand_name}
-                      </div>
-                    ))}
-                    {deps.length > 2 && (
-                      <p className={`${medTextSize} text-gray-400 text-center`}>+{deps.length - 2} more</p>
+                    {day}
+                    {/* Underline for today */}
+                    {todayFlag && (
+                      <span className="absolute -bottom-0.5 left-0 right-0 h-[2px] bg-red-500 rounded-full" />
                     )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
+                  </span>
 
-        {/* No depletions message */}
-        {monthDepletions === 0 && !loading && (
-          <div className="flex flex-col items-center justify-center py-4 text-center">
-            <div className="w-10 h-10 bg-emerald-50 rounded-full flex items-center justify-center mb-2">
-              <Calendar size={18} className="text-emerald-400" />
-            </div>
-            <p className={`font-medium text-gray-500 ${isModal ? 'text-sm' : 'text-xs'}`}>No depletions this month</p>
-            <p className="text-[10px] text-gray-400 mt-0.5">All your medications are well-stocked ✨</p>
-          </div>
-        )}
+                  {/* Depletion dot(s) */}
+                  {hasDep && !isModal && (
+                    <div className="flex gap-0.5 mt-0.5">
+                      {deps.slice(0, 3).map((dep, di) => (
+                        <span
+                          key={di}
+                          className={`w-1.5 h-1.5 rounded-full ${dep.urgency === 'critical' ? 'bg-red-500' :
+                              dep.urgency === 'soon' ? 'bg-amber-500' : 'bg-rose-400'
+                            }`}
+                        />
+                      ))}
+                    </div>
+                  )}
 
-        {/* Selected day detail in modal */}
-        {isModal && selectedDay && getDayDepletions(selectedDay).length > 0 && (
-          <div className="mt-4 bg-red-50/50 rounded-xl border border-red-100 p-4 animate-fade-in-up">
-            <div className="flex items-center gap-2 mb-3">
-              <AlertTriangle size={14} className="text-red-500" />
-              <h4 className="text-xs font-semibold text-gray-800">
-                Depletions on {MONTHS[month]} {selectedDay}
-              </h4>
-            </div>
-            <div className="space-y-2">
-              {getDayDepletions(selectedDay).map((dep, i) => (
-                <div key={i} className="flex items-center justify-between bg-white rounded-lg p-3 border border-red-100/50">
-                  <div className="flex items-center gap-2.5">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                      dep.urgency === 'critical' ? 'bg-red-100' : 'bg-amber-100'
-                    }`}>
-                      <Pill size={14} className={dep.urgency === 'critical' ? 'text-red-500' : 'text-amber-500'} />
+                  {/* Medicine names in modal view */}
+                  {hasDep && isModal && (
+                    <div className="w-full px-0.5 mt-1 space-y-0.5 overflow-hidden flex-1">
+                      {deps.slice(0, 2).map((dep, di) => (
+                        <div
+                          key={di}
+                          className={`${medTextSize} leading-tight truncate px-1 py-0.5 rounded text-center font-medium ${dep.urgency === 'critical' ? 'bg-red-100 text-red-700' :
+                              dep.urgency === 'soon' ? 'bg-amber-100 text-amber-700' : 'bg-rose-50 text-rose-600'
+                            }`}
+                        >
+                          {dep.brand_name}
+                        </div>
+                      ))}
+                      {deps.length > 2 && (
+                        <p className={`${medTextSize} text-gray-400 text-center`}>+{deps.length - 2} more</p>
+                      )}
                     </div>
-                    <div>
-                      <p className="text-sm font-semibold text-gray-900">{dep.brand_name}</p>
-                      <p className="text-[11px] text-gray-400">{dep.dosage} • {dep.days_until_depletion} day{dep.days_until_depletion !== 1 ? 's' : ''} left</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => onReorder?.(dep)}
-                    className="text-xs bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg transition-all duration-200 flex items-center gap-1 hover:scale-105 active:scale-95 hover:shadow-md"
-                  >
-                    Reorder
-                  </button>
+                  )}
                 </div>
-              ))}
-            </div>
+              );
+            })}
           </div>
-        )}
 
-        {/* Legend */}
-        <div className={`flex items-center justify-center gap-4 mt-3 ${isModal ? 'text-xs' : 'text-[10px]'} text-gray-400 ${!isModal ? 'flex-shrink-0' : ''}`}>
-          <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> Critical
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="w-2 h-2 rounded-full bg-amber-500 inline-block" /> Soon
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="inline-block w-3 border-b-2 border-red-500" /> Today
-          </span>
-        </div>
+          {/* No depletions message */}
+          {monthDepletions === 0 && !loading && (
+            <div className="flex flex-col items-center justify-center py-4 text-center">
+              <div className="w-10 h-10 bg-emerald-50 rounded-full flex items-center justify-center mb-2">
+                <Calendar size={18} className="text-emerald-400" />
+              </div>
+              <p className={`font-medium text-gray-500 ${isModal ? 'text-sm' : 'text-xs'}`}>No depletions this month</p>
+              <p className="text-[10px] text-gray-400 mt-0.5">All your medications are well-stocked ✨</p>
+            </div>
+          )}
+
+          {/* Selected day detail in modal */}
+          {isModal && selectedDay && getDayDepletions(selectedDay).length > 0 && (
+            <div className="mt-4 bg-red-50/50 rounded-xl border border-red-100 p-4 animate-fade-in-up">
+              <div className="flex items-center gap-2 mb-3">
+                <AlertTriangle size={14} className="text-red-500" />
+                <h4 className="text-xs font-semibold text-gray-800">
+                  Depletions on {MONTHS[month]} {selectedDay}
+                </h4>
+              </div>
+              <div className="space-y-2">
+                {getDayDepletions(selectedDay).map((dep, i) => (
+                  <div key={i} className="flex items-center justify-between bg-white rounded-lg p-3 border border-red-100/50">
+                    <div className="flex items-center gap-2.5">
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${dep.urgency === 'critical' ? 'bg-red-100' : 'bg-amber-100'
+                        }`}>
+                        <Pill size={14} className={dep.urgency === 'critical' ? 'text-red-500' : 'text-amber-500'} />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">{dep.brand_name}</p>
+                        <p className="text-[11px] text-gray-400">{dep.dosage} • {dep.days_until_depletion} day{dep.days_until_depletion !== 1 ? 's' : ''} left</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => onReorder?.(dep)}
+                      className="text-xs bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg transition-all duration-200 flex items-center gap-1 hover:scale-105 active:scale-95 hover:shadow-md"
+                    >
+                      Reorder
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Legend */}
+          <div className={`flex items-center justify-center gap-4 mt-3 ${isModal ? 'text-xs' : 'text-[10px]'} text-gray-400 ${!isModal ? 'flex-shrink-0' : ''}`}>
+            <span className="flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-red-500 inline-block" /> Critical
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="w-2 h-2 rounded-full bg-amber-500 inline-block" /> Soon
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="inline-block w-3 border-b-2 border-red-500" /> Today
+            </span>
+          </div>
         </div>
       </div>
     );
@@ -271,7 +268,7 @@ export default function DepletionCalendar({ timeline, loading, onReorder }) {
 
   if (loading) {
     return (
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 h-full flex items-center justify-center">
+      <div className="bg-white rounded-2xl shadow-soft p-4 h-full flex items-center justify-center">
         <div className="flex items-center gap-2 mb-3">
           <Calendar size={14} className="text-gray-300" />
           <div className="h-3 w-24 bg-gray-200 rounded animate-pulse" />
@@ -288,14 +285,14 @@ export default function DepletionCalendar({ timeline, loading, onReorder }) {
   return (
     <>
       {/* Mini calendar widget - Fixed Height with Scroll */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 transition-all duration-300 hover:shadow-lg hover:border-red-100 h-full flex flex-col">
+      <div className="bg-white rounded-2xl shadow-soft hover:shadow-soft-hover p-4 transition-all duration-300 h-full flex flex-col">
         {calendarContent(false)}
       </div>
       {/* Zoomed modal PORTAL */}
       {zoomed && createPortal(
         <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 sm:p-8 animate-fade-in" onClick={() => setZoomed(false)}>
           <div
-            className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-gray-100 overflow-hidden animate-scale-in flex flex-col max-h-[90vh]"
+            className="w-full max-w-2xl bg-white rounded-3xl shadow-soft-lg overflow-hidden animate-scale-in flex flex-col max-h-[90vh]"
             onClick={e => e.stopPropagation()}
           >
             {/* Modal header */}

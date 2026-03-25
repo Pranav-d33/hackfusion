@@ -62,7 +62,7 @@ export default function PredictionTimeline({ timeline, stats, onReorder, loading
 
   if (loading) {
     return (
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 text-center">
+      <div className="bg-white rounded-2xl shadow-soft p-8 text-center">
         <RefreshCw size={24} className="mx-auto text-gray-300 animate-spin mb-3" />
         <p className="text-gray-400 text-sm">Loading your medication timeline…</p>
       </div>
@@ -71,7 +71,7 @@ export default function PredictionTimeline({ timeline, stats, onReorder, loading
 
   if (!timeline || timeline.length === 0) {
     return (
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 text-center">
+      <div className="bg-white rounded-2xl shadow-soft p-8 text-center">
         <Calendar size={32} className="mx-auto text-gray-200 mb-3" />
         <p className="text-gray-500 font-medium">No medication timeline yet</p>
         <p className="text-gray-400 text-sm mt-1">Order medications to see your refill predictions here.</p>
@@ -90,7 +90,7 @@ export default function PredictionTimeline({ timeline, stats, onReorder, loading
             { label: 'Upcoming', value: stats.upcoming_refills, icon: <Clock size={16} />, color: 'text-amber-500 bg-amber-50' },
             { label: 'Adherence', value: `${stats.avg_adherence}%`, icon: <Activity size={16} />, color: 'text-emerald-500 bg-emerald-50' },
           ].map((s, i) => (
-            <div key={i} className="bg-white rounded-xl border border-gray-100 p-3 flex items-center gap-3 shadow-sm">
+            <div key={i} className="bg-white rounded-xl p-3 flex items-center gap-3 shadow-soft-sm hover:shadow-soft-sm-hover transition-all duration-300">
               <div className={`p-2 rounded-lg ${s.color}`}>{s.icon}</div>
               <div>
                 <p className="text-lg font-bold text-gray-900 leading-tight">{s.value}</p>
@@ -125,7 +125,7 @@ export default function PredictionTimeline({ timeline, stats, onReorder, loading
 
       {/* ===== Timeline View ===== */}
       {viewMode === 'timeline' && (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
+        <div className="bg-white rounded-2xl shadow-soft p-5 space-y-4">
           {/* Fixed-position tooltip portal */}
           {hoveredPred && (() => {
             const cfg = getUrgencyConfig(hoveredPred.urgency);
@@ -138,7 +138,7 @@ export default function PredictionTimeline({ timeline, stats, onReorder, loading
             return (
               <div
                 style={{ position: 'fixed', left: tx, top: ty, width: TOOLTIP_W, zIndex: 9999, pointerEvents: 'none' }}
-                className="bg-white rounded-xl shadow-2xl border border-gray-100 p-4"
+                className="bg-white rounded-xl shadow-2xl p-4"
               >
                 <p className="font-bold text-gray-900 text-base">{hoveredPred.brand_name}</p>
                 <p className="text-xs text-gray-400 mt-0.5">{hoveredPred.dosage}</p>
@@ -165,7 +165,7 @@ export default function PredictionTimeline({ timeline, stats, onReorder, loading
           </div>
 
           {/* Track */}
-          <div className="relative h-14 rounded-xl bg-gradient-to-r from-red-50 via-amber-50 to-emerald-50 border border-gray-100">
+          <div className="relative h-14 rounded-xl bg-gradient-to-r from-red-50 via-amber-50 to-emerald-50 shadow-soft-sm">
             {/* Zone markers */}
             <div className="absolute inset-y-0 left-0 w-[10%] bg-red-100/60 rounded-l-xl" />
             <div className="absolute inset-y-0 left-[10%] w-[15%] bg-amber-100/40" />
