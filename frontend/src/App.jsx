@@ -597,7 +597,8 @@ export default function App() {
     }, [refreshRefills, fetchOrderUpdates]);
 
     // Checkout flow: enforce login first (defined before handleSend so it can be referenced)
-    const handleCheckoutFlow = useCallback(() => {
+    const handleCheckoutFlow = useCallback((options = {}) => {
+        const { skipRxValidation = false } = options;
         executeUIAction('close_modal');
         setShowCartDetail(false);
         if (!user) {
@@ -610,24 +611,28 @@ export default function App() {
             setShowProfileModal(true);
             return;
         }
-        // RX gate: check if cart has unverified prescription items
-        const rxItems = (cart?.items || []).filter(item => item.rx_required);
-        if (rxItems.length > 0) {
-            // Queue a checkout message to be sent through the chat pipeline
-            // This will trigger the backend RX validation gate
-            pendingCheckoutChatRef.current = 'checkout';
-            return;
+        if (!skipRxValidation) {
+            // RX gate: check if cart has unverified prescription items
+            const rxItems = (cart?.items || []).filter(item => item.rx_required);
+            if (rxItems.length > 0) {
+                // Queue a checkout message to be sent through the chat pipeline
+                // This will trigger the backend RX validation gate
+                pendingCheckoutChatRef.current = 'checkout';
+                return;
+            }
         }
         setShowAddressModal(true);
     }, [user, executeUIAction, cart]);
 
-    const handleSend = useCallback(async (text) => {
+    const handleSend = useCallback(async (text, options = {}) => {
+        const { bypassLocalCheckoutIntent = false } = options;
         if (!text.trim() || isLoading) return;
         // Strip base64 payload from display text (keep it only for the API call)
         const displayText = text.replace(/\s*\|BASE64:[^\s]*/, '');
         const normalizedText = displayText.trim().toLowerCase();
         const isInternalCheckoutSubmit = normalizedText.startsWith('checkout. deliver to:');
         const isLocalCheckoutIntent =
+            !bypassLocalCheckoutIntent &&
             !isInternalCheckoutSubmit &&
             normalizedText.length <= 80 &&
             /(^|\b)(checkout|check out|proceed to checkout|place order|order now|bestellen|zur kasse|zur kasse gehen|चेकआउट|चेक आउट|ऑर्डर करो|اطلب|الدفع)(\b|$)/i.test(normalizedText);
@@ -705,7 +710,8 @@ export default function App() {
             if (data.trace_id) setTraceId(data.trace_id);
             if (data.action_taken === 'checkout_ready') {
                 // Agent signals checkout intent — run the proper login+address flow
-                handleCheckoutFlow();
+                // Backend already validated checkout prerequisites for this turn.
+                handleCheckoutFlow({ skipRxValidation: true });
             } else if (data.action_taken === 'checkout_rx_blocked' || data.action_taken === 'rx_upload_required') {
                 // Cart has unverified prescription items — do NOT proceed to checkout
                 // The backend already sent ui_action: open_upload_prescription
@@ -775,7 +781,8 @@ export default function App() {
         if (pendingCheckoutChatRef.current && !isLoading) {
             const msg = pendingCheckoutChatRef.current;
             pendingCheckoutChatRef.current = null;
-            handleSend(msg);
+            // Internal RX checkout trigger: must reach backend, don't re-route locally.
+            handleSend(msg, { bypassLocalCheckoutIntent: true });
         }
     }, [isLoading, handleSend]);
     useEffect(() => {

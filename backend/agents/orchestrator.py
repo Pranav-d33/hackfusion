@@ -773,6 +773,84 @@ def _to_int_or_none(value: Any) -> Optional[int]:
         return None
 
 
+def _get_rx_verified_ids(state: Dict[str, Any]) -> set[Any]:
+    """Return RX-verified med-id set from session state in a stable shape."""
+    raw = state.get("rx_verified_med_ids", set())
+    if isinstance(raw, set):
+        return set(raw)
+    if isinstance(raw, (list, tuple)):
+        return set(raw)
+    return set()
+
+
+def _add_rx_verified_id(verified_ids: set[Any], med_id: Any) -> set[Any]:
+    """Add id in multiple canonical forms so type mismatches don't break checks."""
+    if med_id is None:
+        return verified_ids
+    verified_ids.add(med_id)
+    int_id = _to_int_or_none(med_id)
+    if int_id is not None:
+        verified_ids.add(int_id)
+        verified_ids.add(str(int_id))
+    else:
+        verified_ids.add(str(med_id).strip())
+    return verified_ids
+
+
+def _is_rx_verified(med_id: Any, verified_ids: set[Any]) -> bool:
+    """Type-agnostic RX verification check (e.g. 12 vs '12')."""
+    if med_id is None:
+        return False
+    med_str = str(med_id).strip()
+    med_int = _to_int_or_none(med_id)
+    for candidate in verified_ids:
+        if candidate == med_id:
+            return True
+        if med_str and str(candidate).strip() == med_str:
+            return True
+        if med_int is not None and _to_int_or_none(candidate) == med_int:
+            return True
+    return False
+
+
+def _extract_quantity_from_user_input(text: str | None) -> Optional[int]:
+    """Extract a likely quantity from user text during qty-collection turns."""
+    if not text:
+        return None
+    cleaned = str(text).strip().lower()
+    if not cleaned:
+        return None
+
+    # Prefer explicit numerals first (supports unicode numerals via \\d).
+    m = re.search(r"\b(\d{1,3})\b", cleaned)
+    if m:
+        try:
+            qty = int(m.group(1))
+            if qty > 0:
+                return qty
+        except Exception:
+            pass
+
+    # Small multilingual word map for common quantity replies.
+    word_to_qty = {
+        "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+        "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
+        "ein": 1, "eins": 1, "zwei": 2, "drei": 3, "vier": 4, "fuenf": 5, "fünf": 5,
+        "sechs": 6, "sieben": 7, "acht": 8, "neun": 9, "zehn": 10,
+        "ek": 1, "do": 2, "teen": 3, "char": 4, "paanch": 5, "panch": 5,
+        "chhah": 6, "saat": 7, "aath": 8, "nau": 9, "das": 10,
+        "एक": 1, "दो": 2, "तीन": 3, "चार": 4, "पांच": 5, "पाँच": 5,
+        "छह": 6, "सात": 7, "आठ": 8, "नौ": 9, "दस": 10,
+        "واحد": 1, "واحدة": 1, "اثنين": 2, "اتنين": 2, "ثلاثة": 3, "اربعة": 4, "أربعة": 4,
+        "خمسة": 5, "ستة": 6, "سبعة": 7, "ثمانية": 8, "تسعة": 9, "عشرة": 10,
+    }
+    tokens = re.findall(r"[\w\u0600-\u06FF\u0900-\u097F]+", cleaned, flags=re.UNICODE)
+    for tok in tokens:
+        if tok in word_to_qty:
+            return word_to_qty[tok]
+    return None
+
+
 def _extract_remove_query(args: Dict[str, Any], user_input: str | None) -> str:
     for key in ("item_name", "name", "med_name", "medication", "brand_name", "product_name", "query"):
         val = args.get(key)
@@ -1184,6 +1262,49 @@ async def process_message(
                 "latency_ms": int((time.time() - start_time) * 1000),
             }
 
+    # ── Step 1.5c: Quantity fast-path after RX verification ───────────
+    # If we're explicitly waiting for quantity for a prescription-verified medicine,
+    # parse numeric quantity directly and bypass LLM ambiguity.
+    pending_qty_med = state.get("pending_qty_dose_check")
+    pending_qty_med_id = (pending_qty_med or {}).get("id")
+    extracted_qty = _extract_quantity_from_user_input(user_input) if pending_qty_med_id else None
+    if pending_qty_med_id and extracted_qty:
+        lang = _detect_user_lang(user_input, state)
+        update_session_state(session_id, {
+            "collected_quantity": extracted_qty,
+            "selected_medication": pending_qty_med,
+        })
+        fast_plan = {
+            "tool": "add_to_cart",
+            "tool_args": {"med_id": pending_qty_med_id, "qty": extracted_qty},
+        }
+        fast_result = await execute_tool_call(session_id, fast_plan, state, lang, user_input=user_input)
+
+        history = state.setdefault("conversation_history", [])
+        history.append({"role": "user", "content": user_input})
+        if fast_result.get("message"):
+            history.append({"role": "assistant", "content": fast_result.get("message", "")})
+        if len(history) > 20:
+            state["conversation_history"] = history[-20:]
+
+        flush()
+        return {
+            "session_id": session_id,
+            "message": fast_result.get("message", ""),
+            "tts_message": fast_result.get("tts_message", fast_result.get("message", "")),
+            "language": _detect_user_lang(user_input, state),
+            "candidates": fast_result.get("candidates", []),
+            "cart": fast_result.get("cart", await get_cart(session_id)),
+            "action_taken": fast_result.get("action_taken", "add_to_cart"),
+            "ui_action": fast_result.get("ui_action"),
+            "needs_input": fast_result.get("needs_input", True),
+            "end_conversation": fast_result.get("end_conversation", False),
+            "trace": get_trace(session_id),
+            "trace_id": trace_id,
+            "trace_url": trace_url,
+            "latency_ms": int((time.time() - start_time) * 1000),
+        }
+
     # ── Step 2: Ordering agent (fast path or LLM) ──────────────────
     # Pass trace_id to agent for LLM observability
     state["trace_id"] = trace_id
@@ -1402,9 +1523,9 @@ async def execute_action(
                 or (state.get("candidates", [{}])[0] if state.get("candidates") else {})
             ) or med
         med_id = med.get("id")
-        rx_verified_ids = state.get("rx_verified_med_ids", set())
+        rx_verified_ids = _get_rx_verified_ids(state)
         # If this specific medicine is already prescription-verified, skip the gate
-        if med_id and med_id in rx_verified_ids:
+        if med_id and _is_rx_verified(med_id, rx_verified_ids):
             # Redirect to add_to_cart since RX is already verified for this med
             plan = dict(plan)
             plan["action"] = "tool_call"
@@ -1447,10 +1568,10 @@ async def execute_action(
                 or (state.get("candidates", [{}])[0] if state.get("candidates") else {})
             ) or med
         med_id = med.get("id")
-        rx_verified_ids = state.get("rx_verified_med_ids", set())
+        rx_verified_ids = _get_rx_verified_ids(state)
         med_details = await get_medication_details(med_id) if med_id else None
         med_requires_rx = bool(med.get("rx_required") or (med_details or {}).get("rx_required"))
-        if med_requires_rx and (not med_id or med_id not in rx_verified_ids):
+        if med_requires_rx and (not med_id or not _is_rx_verified(med_id, rx_verified_ids)):
             pending_med = state.get("pending_rx_check") or med or med_details
             if pending_med:
                 update_session_state(session_id, {"pending_rx_check": pending_med, "selected_medication": pending_med})
@@ -1484,10 +1605,10 @@ async def execute_action(
                 or (state.get("candidates", [{}])[0] if state.get("candidates") else {})
             ) or med
         med_id = med.get("id")
-        rx_verified_ids = state.get("rx_verified_med_ids", set())
+        rx_verified_ids = _get_rx_verified_ids(state)
         med_details = await get_medication_details(med_id) if med_id else None
         med_requires_rx = bool(med.get("rx_required") or (med_details or {}).get("rx_required"))
-        if med_requires_rx and (not med_id or med_id not in rx_verified_ids):
+        if med_requires_rx and (not med_id or not _is_rx_verified(med_id, rx_verified_ids)):
             pending_med = state.get("pending_rx_check") or med or med_details
             if pending_med:
                 update_session_state(session_id, {"pending_rx_check": pending_med, "selected_medication": pending_med})
@@ -1512,7 +1633,7 @@ async def execute_action(
         # ── RX GATE: Block checkout if cart has unverified prescription items ──
         cart_data = await get_cart(session_id)
         cart_items = cart_data.get("items", [])
-        rx_verified_ids = state.get("rx_verified_med_ids", set())
+        rx_verified_ids = _get_rx_verified_ids(state)
         if cart_items:
             # Check each cart item individually for unverified RX requirement
             unverified_rx_items = []
@@ -1522,7 +1643,7 @@ async def execute_action(
                 if item_med_id:
                     item_details = await get_medication_details(item_med_id)
                     if item_details and item_details.get("rx_required"):
-                        if item_med_id not in rx_verified_ids:
+                        if not _is_rx_verified(item_med_id, rx_verified_ids):
                             unverified_rx_items.append(
                                 item.get("brand_name") or item.get("product_name") or item_details.get("brand_name", "Unknown")
                             )
@@ -2114,10 +2235,10 @@ async def execute_tool_call(
                 }
 
         # Require explicit RX confirmation for RX meds unless this specific med has been verified.
-        rx_verified_ids = state.get("rx_verified_med_ids", set())
+        rx_verified_ids = _get_rx_verified_ids(state)
         rx_confirmed = (
             not med.get("rx_required", False)
-            or med_id in rx_verified_ids
+            or _is_rx_verified(med_id, rx_verified_ids)
         )
         validation = validate_add_to_cart(med, rx_confirmed=rx_confirmed, rx_bypass=False)
 
@@ -2450,6 +2571,8 @@ async def _handle_prescription_upload(
             match = results[0] if results else None
             
             if match and match.get("stock_quantity", 0) > 0:
+                verified_ids = _get_rx_verified_ids(state)
+                verified_ids = _add_rx_verified_id(verified_ids, match["id"])
                 # Store the matched medicine and wait for quantity input
                 update_session_state(session_id, {
                     "pending_qty_dose_check": {
@@ -2463,7 +2586,7 @@ async def _handle_prescription_upload(
                         "id": match["id"],
                         "brand_name": match["brand_name"],
                     },
-                    "rx_verified_med_ids": {match["id"]},  # Mark as RX-verified from prescription
+                    "rx_verified_med_ids": verified_ids,  # Mark as RX-verified from prescription
                 })
                 
                 parts = []
@@ -2501,8 +2624,8 @@ async def _handle_prescription_upload(
                     searched = med.get("searched_name") or med["brand_name"]
                     added.append(f"{match['brand_name']} (from: {searched})" if searched.lower() != match['brand_name'].lower() else match['brand_name'])
                     # Track this medicine as RX-verified (scan-to-cart is prescription-sourced)
-                    verified_ids = state.get("rx_verified_med_ids", set())
-                    verified_ids.add(match["id"])
+                    verified_ids = _get_rx_verified_ids(state)
+                    verified_ids = _add_rx_verified_id(verified_ids, match["id"])
                     update_session_state(session_id, {"rx_verified_med_ids": verified_ids})
                 elif match:
                     alts = await get_tier1_alternatives(match["id"])
@@ -2562,19 +2685,19 @@ async def _handle_prescription_upload(
                     pending_rx_covered = True
                     break
 
-        verified_ids = state.get("rx_verified_med_ids", set())
+        verified_ids = _get_rx_verified_ids(state)
 
         if validation["valid"]:
             # Mark all RX cart items as verified
             for item in cart["items"]:
                 item_med_id = item.get("medication_id") or item.get("product_catalog_id")
                 if item_med_id:
-                    verified_ids.add(item_med_id)
+                    verified_ids = _add_rx_verified_id(verified_ids, item_med_id)
 
         if pending_rx_covered and pending_rx_med:
             pending_id = pending_rx_med.get("id")
             if pending_id:
-                verified_ids.add(pending_id)
+                verified_ids = _add_rx_verified_id(verified_ids, pending_id)
 
         update_session_state(session_id, {"rx_verified_med_ids": verified_ids})
 
@@ -2599,7 +2722,6 @@ async def _handle_prescription_upload(
                 update_session_state(session_id, {
                     "pending_qty_dose_check": pending_rx_med,
                     "selected_medication": pending_rx_med,
-                    "collected_quantity": 1,
                 })
                 
                 return {
