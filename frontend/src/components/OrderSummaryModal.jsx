@@ -1,8 +1,15 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useLanguage } from '../i18n/LanguageContext';
 
-export default function OrderSummaryModal({ isOpen, onClose, onConfirm, onBack, cart, address, isVoiceMode }) {
+export default function OrderSummaryModal({ isOpen, onClose, onConfirm, onBack, cart, address, isVoiceMode, isOrderPlaced = false }) {
     const { t, dir } = useLanguage();
+    const [codApproved, setCodApproved] = useState(isOrderPlaced);
+
+    useEffect(() => {
+        if (!isOpen) return;
+        setCodApproved(isOrderPlaced);
+    }, [isOpen, isOrderPlaced]);
+
     if (!isOpen) return null;
 
     const items = cart?.items || [];
@@ -10,6 +17,7 @@ export default function OrderSummaryModal({ isOpen, onClose, onConfirm, onBack, 
     const tax = cart?.tax || 0;
     const shipping = cart?.shipping || 0;
     const total = cart?.total || 0;
+    const canConfirm = isOrderPlaced || codApproved;
 
     return (
         <div className={`fixed inset-0 z-[100] flex items-center ${isVoiceMode ? 'justify-end p-4 pr-6' : 'justify-center px-4'}`}>
@@ -117,10 +125,32 @@ export default function OrderSummaryModal({ isOpen, onClose, onConfirm, onBack, 
                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
                             </svg>
-                            Payment
+                            {t('payment')}
                         </h3>
                         <p className="text-sm font-medium text-amber-800">Cash on Delivery (COD)</p>
-                        <p className="text-[11px] text-amber-600 mt-1">We currently only support Cash on Delivery.</p>
+                        <p className="text-[11px] text-amber-600 mt-1">{t('codOnlyInfo')}</p>
+                        {!isOrderPlaced && (
+                            <>
+                                <p className="text-xs text-amber-700 mt-3">{t('codQuestion')}</p>
+                                <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    <button
+                                        onClick={() => setCodApproved(true)}
+                                        className={`px-3 py-2.5 rounded-lg text-xs font-semibold transition-all duration-200 ${codApproved
+                                            ? 'bg-emerald-500 text-white shadow-sm'
+                                            : 'bg-white text-emerald-700 border border-emerald-200 hover:bg-emerald-50'
+                                            }`}
+                                    >
+                                        {t('codYes')}
+                                    </button>
+                                    <button
+                                        onClick={onBack}
+                                        className="px-3 py-2.5 rounded-lg text-xs font-semibold bg-white text-amber-700 border border-amber-200 hover:bg-amber-100 transition-all duration-200"
+                                    >
+                                        {t('codNo')}
+                                    </button>
+                                </div>
+                            </>
+                        )}
                     </div>
                 </div>
 
@@ -128,10 +158,17 @@ export default function OrderSummaryModal({ isOpen, onClose, onConfirm, onBack, 
                 <div className="p-5 border-t border-gray-100 bg-gray-50 flex-shrink-0 space-y-2.5">
                     <button
                         onClick={onConfirm}
-                        className="w-full py-3.5 rounded-xl font-bold text-sm transition-all duration-200 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-lg shadow-emerald-200 hover:shadow-emerald-300 active:scale-[0.98]"
+                        disabled={!canConfirm}
+                        className={`w-full py-3.5 rounded-xl font-bold text-sm transition-all duration-200 ${canConfirm
+                            ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-lg shadow-emerald-200 hover:shadow-emerald-300 active:scale-[0.98]'
+                            : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                            }`}
                     >
-                        Confirm Order
+                        {isOrderPlaced ? t('done') : t('confirmPlaceOrder')}
                     </button>
+                    {!isOrderPlaced && !codApproved && (
+                        <p className="text-[11px] text-center text-amber-700">{t('codConfirmRequired')}</p>
+                    )}
                     <button
                         onClick={onBack}
                         className="w-full py-3 rounded-xl font-bold text-sm transition-all duration-300 bg-white text-gray-500 shadow-soft-sm hover:shadow-soft-sm-hover hover:text-gray-700 active:scale-[0.98]"

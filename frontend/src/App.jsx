@@ -551,6 +551,27 @@ export default function App() {
 
     // Ref to allow handleCheckoutFlow to trigger a chat message (defined before handleSend)
     const pendingCheckoutChatRef = useRef(null);
+    const isSubmittingModalCheckoutRef = useRef(false);
+
+    const applyPlacedOrder = useCallback((order) => {
+        if (!order) return;
+        setCheckoutOrder(order);
+        setShowCheckoutAnim(true);
+        const etaDays = order.estimated_delivery ? Math.max(0, Math.round((new Date(order.estimated_delivery) - new Date()) / 86400000)) : null;
+        setOrderUpdates(prev => [{
+            id: `order-${order.order_id}`,
+            order_id: order.order_id,
+            estimated_delivery: order.estimated_delivery,
+            days_left: etaDays,
+            address: order.delivery_address,
+            total: order.total,
+            items: order.items || [],
+            created_at: new Date().toISOString(),
+            status: 'Order placed',
+        }, ...prev]);
+        refreshRefills?.();
+        fetchOrderUpdates?.();
+    }, [refreshRefills, fetchOrderUpdates]);
 
     // Checkout flow: enforce login first (defined before handleSend so it can be referenced)
     const handleCheckoutFlow = useCallback(() => {
@@ -654,10 +675,20 @@ export default function App() {
                 // The backend already sent ui_action: open_upload_prescription
                 // which will be handled below in the ui_action block
             } else if (data.action_taken === 'checkout' && data.order) {
-                // Stash order data and show summary modal for confirmation
-                setPendingOrderData(data.order);
-                setPendingAddress(data.order.delivery_address || '');
-                setShowOrderSummary(true);
+                const fromModalCheckout = isSubmittingModalCheckoutRef.current;
+                isSubmittingModalCheckoutRef.current = false;
+                if (fromModalCheckout) {
+                    // Address + COD modal flow: order is now placed, show final animation directly.
+                    applyPlacedOrder(data.order);
+                    setPendingOrderData(null);
+                } else {
+                    // Chat-initiated checkout path: show summary card from backend order payload.
+                    setPendingOrderData(data.order);
+                    setPendingAddress(data.order.delivery_address || '');
+                    setShowOrderSummary(true);
+                }
+            } else if (data.action_taken === 'checkout_failed') {
+                isSubmittingModalCheckoutRef.current = false;
             }
 
             // NEW: Agent-controlled UI actions (runs alongside existing logic, never replaces it)
@@ -681,6 +712,7 @@ export default function App() {
                 }
             }
         } catch (error) {
+            isSubmittingModalCheckoutRef.current = false;
             console.error(error);
             const errorMsg = error?.name === 'AbortError'
                 ? t('timeoutTryAgain')
@@ -698,7 +730,7 @@ export default function App() {
             clearTimeout(timeoutId);
             setIsLoading(false);
         }
-    }, [sessionId, isLoading, liveMode, speak, stopListening, scriptInfo, detectedLanguage, bcp47, handleCheckoutFlow, user, user?.id, refreshRefills, executeUIAction, restartListeningIfLive, t]);
+    }, [sessionId, isLoading, liveMode, speak, stopListening, scriptInfo, detectedLanguage, bcp47, handleCheckoutFlow, user, user?.id, applyPlacedOrder, executeUIAction, restartListeningIfLive, t]);
 
     // Flush any queued checkout chat message from handleCheckoutFlow
     useEffect(() => {
@@ -903,28 +935,14 @@ export default function App() {
         setShowOrderSummary(false);
         if (pendingOrderData) {
             // Order already placed by backend (chat flow) — show animation and record update
-            setCheckoutOrder(pendingOrderData);
-            setShowCheckoutAnim(true);
-            const etaDays = pendingOrderData.estimated_delivery ? Math.max(0, Math.round((new Date(pendingOrderData.estimated_delivery) - new Date()) / 86400000)) : null;
-            setOrderUpdates(prev => [{
-                id: `order-${pendingOrderData.order_id}`,
-                order_id: pendingOrderData.order_id,
-                estimated_delivery: pendingOrderData.estimated_delivery,
-                days_left: etaDays,
-                address: pendingOrderData.delivery_address,
-                total: pendingOrderData.total,
-                items: pendingOrderData.items || [],
-                created_at: new Date().toISOString(),
-                status: 'Order placed',
-            }, ...prev]);
-            refreshRefills?.();
-            fetchOrderUpdates?.();
+            applyPlacedOrder(pendingOrderData);
             setPendingOrderData(null);
         } else {
-            // Address modal flow — send checkout message to backend
+            // Address + COD modal flow — submit final checkout to backend.
+            isSubmittingModalCheckoutRef.current = true;
             handleSend(`Checkout. Deliver to: ${pendingAddress}`);
         }
-    }, [handleSend, pendingAddress, pendingOrderData, refreshRefills, fetchOrderUpdates]);
+    }, [handleSend, pendingAddress, pendingOrderData, applyPlacedOrder]);
 
     const handleOrderSummaryBack = useCallback(() => {
         setShowOrderSummary(false);
@@ -1526,7 +1544,7 @@ export default function App() {
             <MedicineSearch isOpen={showSearch} onClose={() => setShowSearch(false)} onAddToCart={handleSearchAdd} sessionId={sessionId} />
             <CartDetailModal isOpen={showCartDetail || isCartOpen} onClose={() => { setShowCartDetail(false); setCartOpen(false); }} cart={cart} sessionId={sessionId} onCartUpdate={handleCartUpdate} onCheckout={() => { setShowCartDetail(false); setCartOpen(false); handleCheckoutFlow(); }} isVoiceMode={liveMode} />
             <AddressModal isOpen={showAddressModal} onClose={() => setShowAddressModal(false)} onConfirm={handleAddressConfirm} cart={cart} user={user} isVoiceMode={liveMode} />
-            <OrderSummaryModal isOpen={showOrderSummary} onClose={() => setShowOrderSummary(false)} onConfirm={handleOrderConfirm} onBack={handleOrderSummaryBack} cart={cart} address={pendingAddress} isVoiceMode={liveMode} />
+            <OrderSummaryModal isOpen={showOrderSummary} onClose={() => setShowOrderSummary(false)} onConfirm={handleOrderConfirm} onBack={handleOrderSummaryBack} cart={cart} address={pendingAddress} isVoiceMode={liveMode} isOrderPlaced={Boolean(pendingOrderData)} />
             <CheckoutAnimation isOpen={showCheckoutAnim} order={checkoutOrder} onClose={() => setShowCheckoutAnim(false)} />
             <FlyToCartLayer items={flyingItems} cartRef={cartRef} />
 

@@ -157,6 +157,11 @@ const translations = {
     landmarkPrefix: 'Landmark',
     more: 'more',
     confirmPlaceOrder: 'Confirm & Place Order',
+    codOnlyInfo: 'We currently only support Cash on Delivery.',
+    codQuestion: 'Do you want to proceed with Cash on Delivery (COD)?',
+    codYes: 'Yes, continue with COD',
+    codNo: 'No, change address',
+    codConfirmRequired: 'Please confirm COD to place this order.',
 
     // Checkout Animation
     orderConfirmed: 'Order Confirmed!',
@@ -428,6 +433,11 @@ const translations = {
     landmarkPrefix: 'Orientierungspunkt',
     more: 'mehr',
     confirmPlaceOrder: 'Bestätigen & Bestellen',
+    codOnlyInfo: 'Aktuell unterstützen wir nur Nachnahme (COD).',
+    codQuestion: 'Möchtest du mit Nachnahme (COD) fortfahren?',
+    codYes: 'Ja, mit COD fortfahren',
+    codNo: 'Nein, Adresse ändern',
+    codConfirmRequired: 'Bitte bestätige COD, um die Bestellung aufzugeben.',
 
     // Checkout Animation
     orderConfirmed: 'Bestellung bestätigt!',
@@ -699,6 +709,11 @@ const translations = {
     landmarkPrefix: 'علامة مميزة',
     more: 'المزيد',
     confirmPlaceOrder: 'تأكيد وإتمام الطلب',
+    codOnlyInfo: 'نحن ندعم حالياً الدفع عند الاستلام (COD) فقط.',
+    codQuestion: 'هل تريد المتابعة بالدفع عند الاستلام (COD)؟',
+    codYes: 'نعم، المتابعة بـ COD',
+    codNo: 'لا، تغيير العنوان',
+    codConfirmRequired: 'يرجى تأكيد COD لإتمام الطلب.',
 
     // Checkout Animation
     orderConfirmed: 'تم تأكيد الطلب!',
@@ -970,6 +985,11 @@ const translations = {
     landmarkPrefix: 'लैंडमार्क',
     more: 'और',
     confirmPlaceOrder: 'पुष्टि करें और ऑर्डर करें',
+    codOnlyInfo: 'अभी हम केवल कैश ऑन डिलीवरी (COD) सपोर्ट करते हैं।',
+    codQuestion: 'क्या आप कैश ऑन डिलीवरी (COD) से आगे बढ़ना चाहते हैं?',
+    codYes: 'हाँ, COD से आगे बढ़ें',
+    codNo: 'नहीं, पता बदलें',
+    codConfirmRequired: 'ऑर्डर प्लेस करने के लिए COD कन्फर्म करें।',
 
     // Checkout Animation
     orderConfirmed: 'ऑर्डर कन्फर्म हो गया!',
