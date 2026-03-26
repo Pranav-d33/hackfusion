@@ -983,7 +983,7 @@ export default function App() {
             applyPlacedOrder(pendingOrderData);
             setPendingOrderData(null);
         } else {
-            // Address + COD modal flow — submit final checkout to backend.
+            // Address + COD modal flow — submit final checkout via existing chat pipeline.
             isSubmittingModalCheckoutRef.current = true;
             handleSend(`Checkout. Deliver to: ${pendingAddress}`);
         }

@@ -1437,6 +1437,28 @@ async def execute_action(
     force_localized = _force_ui_language(state)
     action = plan.get("action", "respond")
 
+    # Deterministic checkout normalization for production reliability:
+    # the frontend sends this exact internal phrase from the address/COD modal.
+    # We force checkout action here so final order placement never depends on
+    # LLM intent parsing quality.
+    internal_checkout_submit = bool(
+        re.match(
+            r"^\s*checkout\.\s*deliver(?:y\s+address)?\s*to\s*:",
+            user_input or "",
+            re.IGNORECASE,
+        )
+    )
+    if internal_checkout_submit:
+        plan = dict(plan)
+        plan["action"] = "checkout"
+        action = "checkout"
+    elif state.get("pending_checkout_confirm") and _is_affirmative_response(user_input):
+        # If checkout confirmation is pending and user says "yes"/"confirm",
+        # enforce confirm_checkout instead of depending on LLM output.
+        plan = dict(plan)
+        plan["action"] = "confirm_checkout"
+        action = "confirm_checkout"
+
     async def _rx_still_pending_response(med: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         med_name = (med or {}).get("brand_name", "This medication")
         prompt_msg = _localize("rx_ask_upload", lang, med=med_name)
@@ -1686,7 +1708,7 @@ async def execute_action(
             if delivery_address:
                 update_session_state(session_id, {"pending_checkout_address": delivery_address})
 
-            customer_id = state.get("customer_id") or 2
+            customer_id = state.get("customer_id")
             result = await checkout(session_id, customer_id=customer_id, delivery_address=delivery_address)
             if result.get("error"):
                 empty_msg = _localize("checkout_empty", lang)

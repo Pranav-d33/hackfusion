@@ -347,13 +347,14 @@ async def checkout(session_id: str, customer_id: int = None, delivery_address: s
 
     # ── Save to customer_orders + customer_order_items (feeds forecast, refill, timeline) ──
     customer_order_id = None
-    if customer_id:
+    if customer_id is not None:
         try:
+            purchase_date = datetime.now().strftime("%Y-%m-%d")
             customer_order_id = await execute_write(
                 """INSERT INTO customer_orders
                    (customer_id, purchase_date, total_price_eur, dosage_frequency, prescription_required)
-                   VALUES (?, date('now'), ?, 'as_needed', 0)""",
-                (customer_id, cart['total'])
+                   VALUES (?, ?, ?, 'as_needed', 0)""",
+                (customer_id, purchase_date, float(cart['total']))
             )
             for item in cart['items']:
                 await execute_write(
