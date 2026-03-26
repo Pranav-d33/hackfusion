@@ -457,6 +457,8 @@ RULES:
 - Keep the medicine name as written in OCR. Do NOT invent or substitute a different drug name.
 - If uncertain about a word, keep the raw OCR token and put that same value in both "name" and "original_ocr_name".
 - You may normalize only trivial formatting (spacing/case/hyphen), not the underlying drug identity.
+- Split combination drugs into separate entries if they contain multiple distinct medicines (e.g., "Paracetamol 500mg + Ibuprofen 200mg" → two entries).
+- Expand common abbreviations (e.g., "tab" → "tablet", "cap" → "capsule", "inj" → "injection", "syru" → "syrup").
 - Return ONLY valid JSON. No extra text.
 {structured_hint}
 

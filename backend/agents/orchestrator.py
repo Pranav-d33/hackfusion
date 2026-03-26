@@ -2384,7 +2384,7 @@ async def _handle_prescription_upload(
     cart = await get_cart(session_id)
 
     if cart["item_count"] == 0:
-        # Scan-to-cart mode
+        # Scan-to-cart mode - but ask for quantity before adding
         from tools.query_tools import vector_search as _search, get_tier1_alternatives
         added, oos, unknown = [], [], []
         # Normalize unknown_items: may be dicts (new format) or strings (legacy)
@@ -2398,39 +2398,95 @@ async def _handle_prescription_upload(
 
         # Cap to prevent timeout on overly broad OCR matches
         meds_found = meds_found[:10]
-        for med in meds_found:
+        
+        # Process first medicine and ask for quantity, or add all if only one
+        if len(meds_found) == 1:
+            # Single medicine - ask for quantity before adding
+            med = meds_found[0]
             query = f"{med['brand_name']} {med.get('dosage','')}"
             results = await _search(query)
             match = results[0] if results else None
+            
             if match and match.get("stock_quantity", 0) > 0:
-                await add_to_cart(session_id, match["id"], 1)
-                searched = med.get("searched_name") or med["brand_name"]
-                added.append(f"{match['brand_name']} (from: {searched})" if searched.lower() != match['brand_name'].lower() else match['brand_name'])
-                # Track this medicine as RX-verified (scan-to-cart is prescription-sourced)
-                verified_ids = state.get("rx_verified_med_ids", set())
-                verified_ids.add(match["id"])
-                update_session_state(session_id, {"rx_verified_med_ids": verified_ids})
+                # Store the matched medicine and wait for quantity input
+                update_session_state(session_id, {
+                    "pending_qty_dose_check": {
+                        "id": match["id"],
+                        "brand_name": match["brand_name"],
+                        "generic_name": match.get("product_name_en") or match["product_name"],
+                        "rx_required": True,  # From prescription
+                        "dosage": med.get('dosage') or match['package_size'] or '',
+                    },
+                    "selected_medication": {
+                        "id": match["id"],
+                        "brand_name": match["brand_name"],
+                    },
+                    "rx_verified_med_ids": {match["id"]},  # Mark as RX-verified from prescription
+                })
+                
+                parts = []
+                if disease:
+                    parts.append(f"Identified condition: {disease}")
+                
+                # Build structured medicine description
+                med_display = match["brand_name"]
+                if med.get('dosage'):
+                    med_display += f" {med['dosage']}"
+                elif match.get('package_size'):
+                    med_display += f" {match['package_size']}"
+                
+                parts.append(f"Found on prescription: {med_display}")
+                parts.append(f"How many strips or units would you like to order?")
+                
+                return {
+                    "message": "\n".join(parts),
+                    "tts_message": f"Found {med_display}. How many units would you like?",
+                    "action_taken": "ask_quantity",
+                    "needs_input": True,
+                }
             elif match:
-                alts = await get_tier1_alternatives(match["id"])
-                alts = [a for a in alts if a["id"] != match["id"] and a.get("stock_quantity", 0) > 0][:3]
-                oos.append({"requested": match["brand_name"], "alternatives": alts})
+                oos.append({"requested": match["brand_name"], "alternatives": await get_tier1_alternatives(match["id"])})
             else:
-                searched = med.get("searched_name") or med["brand_name"]
-                unknown.append(searched)
+                unknown.append(med["brand_name"])
+        else:
+            # Multiple medicines - add them with default qty=1 and show summary
+            for med in meds_found:
+                query = f"{med['brand_name']} {med.get('dosage','')}"
+                results = await _search(query)
+                match = results[0] if results else None
+                if match and match.get("stock_quantity", 0) > 0:
+                    await add_to_cart(session_id, match["id"], 1)
+                    searched = med.get("searched_name") or med["brand_name"]
+                    added.append(f"{match['brand_name']} (from: {searched})" if searched.lower() != match['brand_name'].lower() else match['brand_name'])
+                    # Track this medicine as RX-verified (scan-to-cart is prescription-sourced)
+                    verified_ids = state.get("rx_verified_med_ids", set())
+                    verified_ids.add(match["id"])
+                    update_session_state(session_id, {"rx_verified_med_ids": verified_ids})
+                elif match:
+                    alts = await get_tier1_alternatives(match["id"])
+                    alts = [a for a in alts if a["id"] != match["id"] and a.get("stock_quantity", 0) > 0][:3]
+                    oos.append({"requested": match["brand_name"], "alternatives": alts})
+                else:
+                    searched = med.get("searched_name") or med["brand_name"]
+                    unknown.append(searched)
 
+        # Only show summary if we didn't already return early for single-medicine quantity question
         parts = []
         if disease:
-            parts.append(f"Identified condition: **{disease}**")
+            parts.append(f"Identified condition: {disease}")
 
         llm_count = parsed_rx.get("llm_extracted_count", 0)
         if llm_count:
-            parts.append(f"Extracted **{llm_count}** medicine(s) from prescription.")
+            parts.append(f"Extracted {llm_count} medicine(s) from prescription.")
 
         if added:
             parts.append(f"Added to cart: {', '.join(added)}.")
         for o in oos:
             alt_names = [a["brand_name"] for a in o["alternatives"]]
-            parts.append(f"{o['requested']} is out of stock." + (f" Alternatives: {', '.join(alt_names)}." if alt_names else ""))
+            if alt_names:
+                parts.append(f"{o['requested']} is out of stock. Alternatives: {', '.join(alt_names)}.")
+            else:
+                parts.append(f"{o['requested']} is out of stock.")
         if unknown:
             parts.append(f"Not found in catalog: {', '.join(unknown)}. You can try searching by generic name or ask me to find alternatives.")
         if added:
@@ -2482,13 +2538,38 @@ async def _handle_prescription_upload(
 
         if validation["valid"] or pending_rx_covered:
             update_session_state(session_id, {"pending_rx_check": None})
-            msg = "Prescription verified. "
+            
             if pending_rx_covered and pending_rx_med:
-                med_name = pending_rx_med.get("brand_name", "The medicine")
-                msg += f"{med_name} has been confirmed on your prescription. You can now add it to your cart."
+                # User uploaded prescription to verify a specific medication - now ask for quantity
+                med_name = pending_rx_med.get("brand_name", "this medication")
+                med_dosage = pending_rx_med.get("dosage") or pending_rx_med.get("package_size", "")
+                
+                # Build structured display
+                med_display = med_name
+                if med_dosage:
+                    med_display += f" {med_dosage}"
+                
+                msg = f"Prescription verified!\n\n"
+                msg += f"{med_display} confirmed on your prescription.\n\n"
+                msg += f"How many strips or units would you like to order?"
+                
+                # Set state to trigger ask_quantity flow
+                update_session_state(session_id, {
+                    "pending_qty_dose_check": pending_rx_med,
+                    "selected_medication": pending_rx_med,
+                    "collected_quantity": 1,
+                })
+                
+                return {
+                    "message": msg,
+                    "tts_message": f"Prescription verified! Found {med_display}. How many units would you like?",
+                    "action_taken": "ask_quantity",
+                    "needs_input": True,
+                }
             else:
-                msg += "All RX items approved."
-            return {"message": msg, "action_taken": "upload_verified_success"}
+                # General prescription upload (cart already has items)
+                msg = "Prescription verified! All RX items approved."
+                return {"message": msg, "action_taken": "upload_verified_success"}
         return {"message": validation["message"], "action_taken": "upload_verified_failed"}
 
 
