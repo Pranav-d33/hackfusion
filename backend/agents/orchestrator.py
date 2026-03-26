@@ -1538,22 +1538,25 @@ async def execute_action(
                     "needs_input": True,
                 }
 
-        # Search ALL recent conversation history for a delivery address
-        delivery_address = state.get("pending_checkout_address")
-        history = state.get("conversation_history", [])
-        if not delivery_address:
-            import re as _re
-            for msg in reversed(history):
-                if msg.get("role") == "user":
-                    content = msg.get("content", "")
-                    lower = content.lower()
-                    if "deliver to:" in lower or "delivery address" in lower:
-                        addr_match = _re.search(
-                            r'deliver(?:y\s+address)?\s*(?:to)?\s*:?\s*(.+)',
-                            content, _re.IGNORECASE | _re.DOTALL,
-                        )
-                        delivery_address = addr_match.group(1).strip() if addr_match else content
-                        break
+        # Only use address from THIS turn (or explicit confirm step), never stale history.
+        explicit_address = None
+        if user_input:
+            lower_input = user_input.lower()
+            if "deliver to:" in lower_input or "delivery address" in lower_input:
+                addr_match = re.search(
+                    r'deliver(?:y\s+address)?\s*(?:to)?\s*:?\s*(.+)',
+                    user_input,
+                    re.IGNORECASE | re.DOTALL,
+                )
+                explicit_address = addr_match.group(1).strip() if addr_match else user_input.strip()
+
+        if explicit_address:
+            delivery_address = explicit_address
+            update_session_state(session_id, {"pending_checkout_address": delivery_address})
+        elif action == "confirm_checkout":
+            delivery_address = state.get("pending_checkout_address")
+        else:
+            delivery_address = None
 
         # Execute checkout only when we have a delivery address.
         should_execute = bool(delivery_address)
@@ -1629,8 +1632,11 @@ async def execute_action(
                     "action_taken": "checkout_failed",
                     "needs_input": True,
                 }
-            # Mark checkout as pending so next confirmation closes the loop
-            update_session_state(session_id, {"pending_checkout_confirm": True})
+            # Mark checkout as pending and clear any stale address to force fresh confirmation.
+            update_session_state(session_id, {
+                "pending_checkout_confirm": True,
+                "pending_checkout_address": None,
+            })
             start_msg = _localize("checkout_start", lang)
             msg = _prefer_llm_text(plan.get("message"), start_msg, lang, force_localized)
             tts = _prefer_llm_tts(plan.get("tts_message"), plan.get("message"), msg, lang, force_localized)

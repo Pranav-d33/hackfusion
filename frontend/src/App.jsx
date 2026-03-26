@@ -384,11 +384,33 @@ export default function App() {
     }, [isSpeaking]);
 
     const isAuthModalOpen = showLogin || showLoginForCheckout || showProfileModal;
-    const shouldPauseVoiceCapture = isAuthModalOpen || isPrescriptionModalOpen;
+    const shouldPauseVoiceCapture =
+        isAuthModalOpen ||
+        isPrescriptionModalOpen ||
+        showAddressModal ||
+        showOrderSummary ||
+        showCartDetail ||
+        showSearch ||
+        showVoiceSettings ||
+        showVoiceIntroPopup ||
+        isCartOpen ||
+        isOrdersOpen ||
+        (isDesktop && isTraceOpen);
     const voicePausedByModalRef = useRef(false);
+    const modalOpenedRef = useRef(false);
+    const modalPauseUntilRef = useRef(0);
 
     useEffect(() => {
         shouldPauseVoiceCaptureRef.current = shouldPauseVoiceCapture;
+    }, [shouldPauseVoiceCapture]);
+
+    useEffect(() => {
+        const openedNow = shouldPauseVoiceCapture && !modalOpenedRef.current;
+        if (openedNow) {
+            // On every modal open, keep voice capture paused for at least 5s.
+            modalPauseUntilRef.current = Date.now() + 5000;
+        }
+        modalOpenedRef.current = shouldPauseVoiceCapture;
     }, [shouldPauseVoiceCapture]);
 
     const restartListeningIfLive = useCallback((delayMs = 500) => {
@@ -413,7 +435,8 @@ export default function App() {
         if (voicePausedByModalRef.current) {
             voicePausedByModalRef.current = false;
             if (liveMode && !isLoading) {
-                restartListeningIfLive(500);
+                const remainingPauseMs = Math.max(0, modalPauseUntilRef.current - Date.now());
+                restartListeningIfLive(Math.max(500, remainingPauseMs));
             }
         }
     }, [shouldPauseVoiceCapture, isListening, isSpeaking, liveMode, isLoading, stopListening, stopSpeaking, restartListeningIfLive]);
@@ -602,6 +625,19 @@ export default function App() {
         if (!text.trim() || isLoading) return;
         // Strip base64 payload from display text (keep it only for the API call)
         const displayText = text.replace(/\s*\|BASE64:[^\s]*/, '');
+        const normalizedText = displayText.trim().toLowerCase();
+        const isInternalCheckoutSubmit = normalizedText.startsWith('checkout. deliver to:');
+        const isLocalCheckoutIntent =
+            !isInternalCheckoutSubmit &&
+            normalizedText.length <= 80 &&
+            /(^|\b)(checkout|check out|proceed to checkout|place order|order now|bestellen|zur kasse|zur kasse gehen|चेकआउट|चेक आउट|ऑर्डर करो|اطلب|الدفع)(\b|$)/i.test(normalizedText);
+
+        if (isLocalCheckoutIntent) {
+            setMessages(prev => [...prev, { id: Date.now(), text: displayText, isUser: true }]);
+            handleCheckoutFlow();
+            return;
+        }
+
         const userMsg = { id: Date.now(), text: displayText, isUser: true };
         setMessages(prev => [...prev, userMsg]);
         setIsLoading(true);
@@ -695,15 +731,17 @@ export default function App() {
             if (data.ui_action) {
                 // Close local-only overlays before opening context-driven panel
                 setShowSearch(false);
-                setShowAddressModal(false);
-                setShowOrderSummary(false);
                 setShowCartDetail(false);
                 setShowVoiceSettings(false);
                 setShowProfileModal(false);
                 setShowVoiceIntroPopup(false);
                 setShowLogin(false);
                 setShowLoginForCheckout(false);
-                if (data.ui_action === 'close_modal') setPendingCheckout(false);
+                if (data.ui_action === 'close_modal') {
+                    setShowAddressModal(false);
+                    setShowOrderSummary(false);
+                    setPendingCheckout(false);
+                }
                 if (data.ui_action === 'open_my_orders' && !user) {
                     executeUIAction('close_modal');
                     setShowLogin(true);
