@@ -2175,22 +2175,28 @@ async def execute_tool_call(
         # Check if we're in the prescription flow (quantity was just collected)
         pending_qty_state = state.get("pending_qty_dose_check")
         collected_qty = state.get("collected_quantity")
-        
-        if pending_qty_state and collected_qty:
+
+        # Get quantity from either state (ask_quantity flow) or current tool args (OCR→quantity flow)
+        qty_from_args = args.get("qty") or args.get("quantity") or plan.get("quantity") or plan.get("qty")
+
+        if pending_qty_state and (collected_qty or qty_from_args):
             # User just provided quantity in prescription flow - add to cart then trigger address collection
             med = pending_qty_state
             if not med.get("id") and med_id:
                 med = await get_medication_details(med_id) or med
-            
-            # Use collected quantity from state
-            qty_to_add = collected_qty if isinstance(collected_qty, int) else int(collected_qty)
-            
+
+            # Use quantity from either state or current input
+            if qty_from_args:
+                qty_to_add = int(qty_from_args) if isinstance(qty_from_args, (int, str)) else 1
+            else:
+                qty_to_add = collected_qty if isinstance(collected_qty, int) else int(collected_qty) if collected_qty else 1
+
             # Clear quantity state before adding
             update_session_state(session_id, {
                 "pending_qty_dose_check": None,
                 "collected_quantity": None,
             })
-            
+
             # Add to cart
             result = await add_to_cart(session_id, med["id"], qty_to_add)
             if result.get("error"):
@@ -2199,7 +2205,7 @@ async def execute_tool_call(
                     "tts_message": result["error"],
                     "action_taken": "add_blocked",
                 }
-            
+
             # After adding, trigger checkout flow (which will show address modal)
             return {
                 "message": f"Added {med.get('brand_name')} to cart. Let's proceed to checkout.",

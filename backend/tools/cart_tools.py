@@ -10,7 +10,7 @@ import math
 import sys
 sys.path.insert(0, str(__file__).rsplit('/', 2)[0])
 
-from db.database import execute_query, execute_write
+from db.database import execute_query, execute_write, Transaction
 from config import MAX_ORDER_ITEMS, MAX_ORDER_TOTAL_UNITS, MAX_ORDER_SUBTOTAL_EUR, MAX_ORDER_LINE_QTY
 from tools.query_tools import _resolve_rx_required
 
@@ -313,13 +313,15 @@ async def clear_cart(session_id: str) -> Dict[str, Any]:
 
 async def checkout(session_id: str, customer_id: int = None, delivery_address: str = None) -> Dict[str, Any]:
     """
-    Process checkout:
+    Process checkout atomically using transactions:
     1. Retrieve cart items
     2. Create order & order items
     3. Update inventory
     4. Save to customer_orders / customer_order_items (for timeline & forecasting)
     5. Update customer profile with delivery address
     6. Clear cart
+
+    ALL operations succeed or ALL rollback - no partial orders.
     """
     print(f"[DEBUG] checkout called: session_id={session_id}, customer_id={customer_id}, address={delivery_address}")
     cart = await get_cart(session_id)
@@ -328,52 +330,63 @@ async def checkout(session_id: str, customer_id: int = None, delivery_address: s
         return {"error": "Cart is empty"}
 
     items_json = json.dumps(cart['items'])
-    order_id = await execute_write(
-        "INSERT INTO orders (session_id, customer_id, items_json, status) VALUES (?, ?, ?, 'confirmed')",
-        (session_id, customer_id, items_json)
-    )
-
-    # Deduct from inventory for each item
-    for item in cart['items']:
-        product_id = int(item['medication_id'])
-        qty = int(item['quantity'])
-
-        await execute_write(
-            """UPDATE inventory_items SET stock_quantity = stock_quantity - ?,
-                   last_updated = CURRENT_TIMESTAMP
-               WHERE product_catalog_id = ? AND stock_quantity >= ?""",
-            (qty, product_id, qty)
-        )
-
-    # ── Save to customer_orders + customer_order_items (feeds forecast, refill, timeline) ──
+    order_id = None
     customer_order_id = None
-    if customer_id is not None:
-        try:
-            purchase_date = datetime.now().strftime("%Y-%m-%d")
-            customer_order_id = await execute_write(
-                """INSERT INTO customer_orders
-                   (customer_id, purchase_date, total_price_eur, dosage_frequency, prescription_required)
-                   VALUES (?, ?, ?, 'as_needed', 0)""",
-                (customer_id, purchase_date, float(cart['total']))
-            )
-            for item in cart['items']:
-                await execute_write(
-                    """INSERT INTO customer_order_items
-                       (order_id, product_catalog_id, raw_product_name, quantity, line_total_eur)
-                       VALUES (?, ?, ?, ?, ?)""",
-                    (
-                        customer_order_id,
-                        int(item['medication_id']),
-                        item.get('brand_name', 'Unknown'),
-                        int(item['quantity']),
-                        float(item.get('item_total', 0)),
-                    )
-                )
-            print(f"[DEBUG] Saved customer_order #{customer_order_id} with {len(cart['items'])} line items")
-        except Exception as e:
-            print(f"Warning: Failed to save customer order history: {e}")
 
-    # ── Update customer profile with delivery address ──
+    try:
+        # ── ATOMIC TRANSACTION: Order + Inventory + Customer History ──
+        async with Transaction() as txn:
+            # 1. Create order
+            order_id = await txn.execute_write(
+                "INSERT INTO orders (session_id, customer_id, items_json, status) VALUES (?, ?, ?, 'confirmed')",
+                (session_id, customer_id, items_json)
+            )
+
+            # 2. Deduct from inventory for each item (within same transaction)
+            for item in cart['items']:
+                product_id = int(item['medication_id'])
+                qty = int(item['quantity'])
+
+                await txn.execute_write(
+                    """UPDATE inventory_items SET stock_quantity = stock_quantity - ?,
+                           last_updated = CURRENT_TIMESTAMP
+                       WHERE product_catalog_id = ? AND stock_quantity >= ?""",
+                    (qty, product_id, qty)
+                )
+
+            # 3. Save to customer_orders + customer_order_items (feeds forecast, refill, timeline)
+            if customer_id is not None:
+                purchase_date = datetime.now().strftime("%Y-%m-%d")
+                customer_order_id = await txn.execute_write(
+                    """INSERT INTO customer_orders
+                       (customer_id, purchase_date, total_price_eur, dosage_frequency, prescription_required)
+                       VALUES (?, ?, ?, 'as_needed', 0)""",
+                    (customer_id, purchase_date, float(cart['total']))
+                )
+                for item in cart['items']:
+                    await txn.execute_write(
+                        """INSERT INTO customer_order_items
+                           (order_id, product_catalog_id, raw_product_name, quantity, line_total_eur)
+                           VALUES (?, ?, ?, ?, ?)""",
+                        (
+                            customer_order_id,
+                            int(item['medication_id']),
+                            item.get('brand_name', 'Unknown'),
+                            int(item['quantity']),
+                            float(item.get('item_total', 0)),
+                        )
+                    )
+
+            # 4. Clear cart (within transaction)
+            await txn.execute_write("DELETE FROM cart WHERE session_id = ?", (session_id,))
+
+        print(f"[DEBUG] Transaction committed: order_id={order_id}, customer_order_id={customer_order_id}")
+
+    except Exception as e:
+        print(f"[ERROR] Checkout transaction failed, rolled back: {e}")
+        return {"error": f"Checkout failed: {str(e)}"}
+
+    # ── Update customer profile with delivery address (non-critical, outside transaction) ──
     if customer_id and delivery_address:
         try:
             # Parse address components if possible
@@ -472,7 +485,7 @@ async def checkout(session_id: str, customer_id: int = None, delivery_address: s
 
     warehouse_status = "fulfilled"
     warehouse_message = ""
-    if not fulfillment_result.get("success"):
+    if fulfillment_result and not fulfillment_result.get("success"):
         warehouse_status = "fulfillment_failed"
         warehouse_message = f" (Warehouse Note: {fulfillment_result.get('message', 'Processing delayed')})"
 
@@ -481,13 +494,13 @@ async def checkout(session_id: str, customer_id: int = None, delivery_address: s
         await log_event(
             "CHECKOUT_COMPLETED",
             Agent.ORCHESTRATOR,
-            f"✅ Checkout complete for Order #{order_id}. Warehouse: {fulfillment_result.get('status', 'unknown')}",
+            f"✅ Checkout complete for Order #{order_id}. Warehouse: {fulfillment_result.get('status', 'unknown') if fulfillment_result else 'unknown'}",
             {"order_id": order_id, "warehouse_result": fulfillment_result}
         )
     except Exception:
         pass
 
-    await clear_cart(session_id)
+    # Note: cart already cleared inside transaction above
 
     order_data = {
         "order_id": order_id,

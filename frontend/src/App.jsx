@@ -731,6 +731,20 @@ export default function App() {
                 }
             } else if (data.action_taken === 'checkout_failed') {
                 isSubmittingModalCheckoutRef.current = false;
+                // Show error to user
+                const errorMsg = data.message || data.error || 'Checkout failed. Please try again.';
+                setMessages(prev => [...prev, { id: Date.now(), text: errorMsg, isUser: false }]);
+                if (liveMode) {
+                    speak(errorMsg, { rate: DEFAULT_TTS_RATE, lang: bcp47 || detectedLanguage || scriptInfo?.lang || 'en-US' });
+                }
+            } else if (data.action_taken === 'checkout' && !data.order) {
+                // Checkout returned but no order data - something went wrong
+                isSubmittingModalCheckoutRef.current = false;
+                const errorMsg = data.message || data.error || 'Order could not be placed. Please try again.';
+                setMessages(prev => [...prev, { id: Date.now(), text: errorMsg, isUser: false }]);
+                if (liveMode) {
+                    speak(errorMsg, { rate: DEFAULT_TTS_RATE, lang: bcp47 || detectedLanguage || scriptInfo?.lang || 'en-US' });
+                }
             }
 
             // NEW: Agent-controlled UI actions (runs alongside existing logic, never replaces it)

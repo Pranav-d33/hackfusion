@@ -335,3 +335,87 @@ async def execute_write(query: str, params: tuple = ()):
             cursor = await db.execute(query, params)
             await db.commit()
             return cursor.lastrowid
+
+
+# ===================================================================
+# TRANSACTION SUPPORT  —  for atomic multi-operation sequences
+# ===================================================================
+
+class Transaction:
+    """Async context manager for database transactions.
+
+    Usage:
+        async with Transaction() as txn:
+            order_id = await txn.execute_write("INSERT INTO orders ...", ())
+            await txn.execute_write("UPDATE inventory ...", ())
+            # Auto-commits on success, rolls back on exception
+    """
+
+    def __init__(self):
+        self._conn = None
+        self._is_pg = USE_POSTGRES
+
+    async def __aenter__(self):
+        if self._is_pg:
+            self._conn = _pg_connect()
+        else:
+            self._conn = await aiosqlite.connect(DB_PATH)
+            self._conn.row_factory = aiosqlite.Row
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        try:
+            if exc_type is None:
+                # Success - commit
+                if self._is_pg:
+                    self._conn.commit()
+                else:
+                    await self._conn.commit()
+            else:
+                # Failure - rollback
+                if self._is_pg:
+                    self._conn.rollback()
+                else:
+                    await self._conn.rollback()
+        finally:
+            if self._is_pg:
+                self._conn.close()
+            else:
+                await self._conn.close()
+        return False  # Don't suppress exceptions
+
+    async def execute_write(self, query: str, params: tuple = ()):
+        """Execute a write within the transaction. Returns last inserted id."""
+        if self._is_pg:
+            adapted_sql, adapted_params = _adapt_sql(query, params)
+            cur = self._conn.cursor()
+            trimmed = adapted_sql.strip().upper()
+            has_conflict = 'ON CONFLICT' in trimmed
+
+            if trimmed.startswith('INSERT') and 'RETURNING' not in trimmed and not has_conflict:
+                adapted_sql = adapted_sql.rstrip().rstrip(';') + ' RETURNING id'
+                cur.execute(adapted_sql, adapted_params)
+                row = cur.fetchone()
+                return row[0] if row else None
+            elif trimmed.startswith('INSERT') and not has_conflict:
+                cur.execute(adapted_sql, adapted_params)
+                row = cur.fetchone()
+                return row[0] if row else None
+            else:
+                cur.execute(adapted_sql, adapted_params)
+                return None
+        else:
+            cursor = await self._conn.execute(query, params)
+            return cursor.lastrowid
+
+    async def execute_query(self, query: str, params: tuple = ()):
+        """Execute a read within the transaction."""
+        if self._is_pg:
+            adapted_sql, adapted_params = _adapt_sql(query, params)
+            cur = self._conn.cursor()
+            cur.execute(adapted_sql, adapted_params)
+            return _rows_to_dicts(cur)
+        else:
+            cursor = await self._conn.execute(query, params)
+            results = await cursor.fetchall()
+            return [dict(row) for row in results]
