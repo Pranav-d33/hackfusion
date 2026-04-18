@@ -72,6 +72,15 @@ OCR_GROQ_VISION_MODELS = [
 # Legacy — kept for backward compat but no longer used separately
 PLANNER_MODEL = os.getenv("PLANNER_MODEL", "openrouter/auto")
 
+# ── Latency Optimization Settings ─────────────────────────────────────────
+# Fast timeout mode: shorter timeouts for snappier responses (fallbacks kick in faster)
+LLM_FAST_TIMEOUT = float(os.getenv("LLM_FAST_TIMEOUT", "5.0"))  # Primary timeout (seconds)
+LLM_FULL_TIMEOUT = float(os.getenv("LLM_FULL_TIMEOUT", "10.0"))  # Full timeout for fallbacks
+LLM_HISTORY_WINDOW = int(os.getenv("LLM_HISTORY_WINDOW", "8"))  # Messages (4 turns default)
+ENABLE_LATENCY_OPTIMIZATIONS = os.getenv("ENABLE_LATENCY_OPTIMIZATIONS", "true").lower() in ("1", "true", "yes")
+DB_POOL_ENABLED = os.getenv("DB_POOL_ENABLED", "true").lower() in ("1", "true", "yes")  # PostgreSQL only
+DB_POOL_MAX_SIZE = int(os.getenv("DB_POOL_MAX_SIZE", "10"))
+
 # Embedding Model (local)
 EMBEDDING_MODEL = "all-MiniLM-L6-v2"
 

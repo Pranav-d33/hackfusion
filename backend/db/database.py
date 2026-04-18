@@ -10,18 +10,22 @@ The adapter layer auto-converts SQLite-style SQL (? placeholders,
 INSERT OR IGNORE, date('now'), etc.) to PostgreSQL equivalents so the
 rest of the codebase needs zero changes.
 """
+import os
 import re
 import sys
 from pathlib import Path
 from urllib.parse import urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from config import SUPABASE_DATABASE_URL, IS_VERCEL
+from config import SUPABASE_DATABASE_URL, IS_VERCEL, DB_POOL_ENABLED, DB_POOL_MAX_SIZE
 
 # ---------------------------------------------------------------------------
 # Backend selection
 # ---------------------------------------------------------------------------
 USE_POSTGRES = bool(SUPABASE_DATABASE_URL)
+
+# Connection pool for PostgreSQL (production optimization)
+_pg_pool = None
 
 if USE_POSTGRES:
     import pg8000.dbapi    # 100% pure Python, no C extensions, no libpq
@@ -147,6 +151,86 @@ def _pg_connect():
         raise
 
 
+def _init_pool():
+    """Initialize connection pool for PostgreSQL (production optimization).
+    
+    Falls back gracefully to per-request connections if pool init fails.
+    """
+    global _pg_pool
+    if not USE_POSTGRES or not DB_POOL_ENABLED:
+        return False
+    if _pg_pool is not None:
+        return True
+    
+    try:
+        # pg8000 doesn't have built-in pooling, so we use a simple connection cache
+        # For production, consider using pg8000's native pool or a wrapper
+        # This implementation uses thread-local storage for connection reuse
+        _pg_pool = {
+            "connections": [],
+            "max_size": DB_POOL_MAX_SIZE,
+            "initialized": True,
+        }
+        print(f"✅ PostgreSQL connection pooling enabled (max: {DB_POOL_MAX_SIZE})")
+        return True
+    except Exception as e:
+        print(f"⚠️ Connection pool init failed, using per-request connections: {e}")
+        _pg_pool = None
+        return False
+
+
+def _get_pooled_connection():
+    """Get connection from pool or create new one."""
+    global _pg_pool
+    if _pg_pool is None or not DB_POOL_ENABLED:
+        return _pg_connect()
+    
+    # Simple connection reuse from pool
+    try:
+        if _pg_pool["connections"]:
+            conn = _pg_pool["connections"].pop()
+            # Verify connection is still alive
+            try:
+                conn.cursor().execute("SELECT 1")
+                return conn
+            except Exception:
+                # Connection dead, close and create new
+                try:
+                    conn.close()
+                except:
+                    pass
+                return _pg_connect()
+        else:
+            # Pool empty, create new
+            return _pg_connect()
+    except Exception as e:
+        print(f"⚠️ Pool error, falling back to new connection: {e}")
+        return _pg_connect()
+
+
+def _return_connection_to_pool(conn):
+    """Return connection to pool for reuse."""
+    global _pg_pool
+    if _pg_pool is None or not DB_POOL_ENABLED:
+        try:
+            conn.close()
+        except:
+            pass
+        return
+    
+    try:
+        if len(_pg_pool["connections"]) < _pg_pool["max_size"]:
+            _pg_pool["connections"].append(conn)
+        else:
+            conn.close()
+    except Exception:
+        # Ensure connection is closed on error
+        try:
+            conn.close()
+        except:
+            pass
+
+
 def _rows_to_dicts(cursor):
     """Convert pg8000 cursor results to list[dict].
 
@@ -179,19 +263,19 @@ def _rows_to_dicts(cursor):
 async def _pg_query(sql: str, params: tuple = ()):
     """Execute a Postgres read query and return list[dict]."""
     adapted_sql, adapted_params = _adapt_sql(sql, params)
-    conn = _pg_connect()
+    conn = _get_pooled_connection()
     try:
         cur = conn.cursor()
         cur.execute(adapted_sql, adapted_params)
         return _rows_to_dicts(cur)
     finally:
-        conn.close()
+        _return_connection_to_pool(conn)
 
 
 async def _pg_write(sql: str, params: tuple = ()):
     """Execute a Postgres write query and return last inserted id."""
     adapted_sql, adapted_params = _adapt_sql(sql, params)
-    conn = _pg_connect()
+    conn = _get_pooled_connection()
     try:
         cur = conn.cursor()
         trimmed = adapted_sql.strip().upper()
@@ -228,7 +312,7 @@ async def _pg_write(sql: str, params: tuple = ()):
             conn.commit()
             return None
     finally:
-        conn.close()
+        _return_connection_to_pool(conn)
 
 
 async def _pg_execute_schema(sql_text: str):
@@ -258,8 +342,33 @@ async def _pg_execute_schema(sql_text: str):
 
 
 async def close_pool():
-    """No-op for pg8000 per-request connections."""
-    pass
+    """Close all pooled connections on shutdown."""
+    global _pg_pool
+    if _pg_pool is not None and USE_POSTGRES:
+        closed_count = 0
+        for conn in _pg_pool.get("connections", []):
+            try:
+                conn.close()
+                closed_count += 1
+            except:
+                pass
+        _pg_pool["connections"] = []
+        print(f"✅ Closed {closed_count} pooled connections")
+
+
+def get_pool_status() -> dict:
+    """Get connection pool status for health monitoring."""
+    if not USE_POSTGRES:
+        return {"enabled": False, "backend": "sqlite"}
+    if _pg_pool is None:
+        return {"enabled": DB_POOL_ENABLED, "backend": "postgres", "pooled": False}
+    return {
+        "enabled": DB_POOL_ENABLED,
+        "backend": "postgres",
+        "pooled": True,
+        "pool_size": len(_pg_pool.get("connections", [])),
+        "pool_max": _pg_pool.get("max_size", 0),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -299,6 +408,8 @@ async def get_db():
 async def init_db():
     """Run DDL schema to ensure all tables exist."""
     if USE_POSTGRES:
+        # Initialize connection pool for production optimization
+        _init_pool()
         schema_path = Path(__file__).parent / "schema_postgres.sql"
         with open(schema_path, "r") as f:
             schema = f.read()

@@ -15,7 +15,7 @@ from services.event_service import (
 from observability.langfuse_client import (
     get_client, is_enabled, get_trace_url, LANGFUSE_HOST
 )
-from db.database import execute_query, execute_write
+from db.database import execute_query, execute_write, get_pool_status
 
 router = APIRouter(prefix="/api/observability", tags=["observability"])
 
@@ -34,6 +34,31 @@ async def get_observability_status() -> Dict[str, Any]:
         "langfuse_enabled": is_enabled(),
         "langfuse_host": LANGFUSE_HOST if is_enabled() else None,
         "event_logging": True,
+    }
+
+
+@router.get("/db-status")
+async def get_database_status() -> Dict[str, Any]:
+    """Get database connection pool status and health."""
+    from config import (
+        ENABLE_LATENCY_OPTIMIZATIONS,
+        LLM_FAST_TIMEOUT,
+        LLM_FULL_TIMEOUT,
+        LLM_HISTORY_WINDOW,
+        DB_POOL_ENABLED,
+    )
+    
+    pool_status = get_pool_status()
+    
+    return {
+        "pool": pool_status,
+        "optimizations": {
+            "latency_optimizations_enabled": ENABLE_LATENCY_OPTIMIZATIONS,
+            "llm_fast_timeout": LLM_FAST_TIMEOUT,
+            "llm_full_timeout": LLM_FULL_TIMEOUT,
+            "llm_history_window": LLM_HISTORY_WINDOW,
+            "db_pool_enabled": DB_POOL_ENABLED,
+        }
     }
 
 

@@ -17,6 +17,7 @@ Design principles
 from __future__ import annotations
 
 import json
+import os
 import re
 import time
 import httpx
@@ -34,6 +35,10 @@ from config import (
     OPENROUTER_BASE_URL,
     NLU_MODEL,
     NLU_FALLBACK_MODELS,
+    LLM_FAST_TIMEOUT,
+    LLM_FULL_TIMEOUT,
+    LLM_HISTORY_WINDOW,
+    ENABLE_LATENCY_OPTIMIZATIONS,
 )
 from observability.langfuse_client import (
     get_client as get_langfuse,
@@ -374,13 +379,18 @@ def _parse_llm_content(content: str, model_name: str) -> Dict[str, Any] | None:
 
 async def _call_groq(
     messages: List[Dict[str, str]],
-    timeout: float = 10.0,
+    timeout: float = None,
     trace_id: str | None = None,
 ) -> Dict[str, Any] | None:
     """
     Try Groq API (primary provider - fast, generous free tier).
     Returns parsed JSON dict on success, None on any failure.
+    
+    Uses LLM_FAST_TIMEOUT by default when latency optimizations are enabled.
     """
+    # Use fast timeout by default when optimizations enabled, otherwise use full timeout
+    if timeout is None:
+        timeout = LLM_FAST_TIMEOUT if ENABLE_LATENCY_OPTIMIZATIONS else LLM_FULL_TIMEOUT
     if not GROQ_API_KEY:
         return None
 
@@ -480,13 +490,18 @@ async def _call_groq(
 
 async def _call_openrouter(
     messages: List[Dict[str, str]],
-    timeout: float = 12.0,
+    timeout: float = None,
     trace_id: str | None = None,
 ) -> Dict[str, Any] | None:
     """
     Try OpenRouter API (secondary fallback).
     Returns parsed JSON dict on success, None on any failure.
+    
+    Uses LLM_FULL_TIMEOUT by default (longer than Groq as fallback).
     """
+    # Use appropriate timeout - fallback gets more time since it's the backup
+    if timeout is None:
+        timeout = LLM_FULL_TIMEOUT
     if not OPENROUTER_API_KEY:
         return None
 
@@ -666,9 +681,10 @@ def _build_messages(
             "content": f"## CURRENT SESSION STATE\n{state_context}",
         })
 
-    # Conversation history (last 10 turns = 20 messages max)
+    # Conversation history (last 4 turns = 8 messages max for lower latency)
+    # Controlled via LLM_HISTORY_WINDOW in config (default 8, was 20)
     history = state.get("conversation_history", [])
-    for msg in history[-20:]:
+    for msg in history[-LLM_HISTORY_WINDOW:]:
         messages.append({
             "role": msg["role"],
             "content": msg["content"],
